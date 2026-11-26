@@ -1,0 +1,218 @@
+<h1 align="center">
+  <br>
+  <a>
+    <img src="assets/logo.svg" alt="Leonida Ultimate" width="200">
+  </a>
+  <br>
+  <b>Leonida Ultimate</b>
+  <br>
+</h1>
+
+<h4 align="center">Grand Theft Auto VI (Xbox Series) running natively on Windows + Vulkan, built on your PC from your own copy — unifying active community runtime, shader, and Rust work into one booting baseline.</h4>
+
+<p align="center">
+  <a href="docs/i18n/README.md">Other languages</a> |
+  <a href="#project-status">Status</a> |
+  <a href="#measured-boot-progression">Boot Milestones</a> |
+  <a href="#want-to-help">Want to Help?</a> |
+  <a href="#how-to-build">How to Build</a> |
+  <a href="#how-it-works">How It Works</a> |
+  <a href="#credits">Credits</a> |
+  <a href="#license">License</a>
+</p>
+
+**Leonida Ultimate** is a native Windows/Vulkan static recompilation port of Grand Theft Auto VI (Xbox Series), built **on your PC from your own copy**. The Xbox Series CPU is x86-64 like a PC, so the game's code runs natively while console system software is reimplemented; precompiled RDNA2 GPU programs are translated to SPIR-V for Vulkan; and models, textures, and audio are read directly from your local package.
+
+This tree unifies active community runtime, shader-translator, and native Rust improvements into a single working, booting baseline so **human contributors and AI coding agents** can jump straight into rendering, audio, ray tracing, shader performance, and asset tooling instead of re-solving early boot.
+
+> [!IMPORTANT]
+> This repository **does not contain the game, keys, shaders, assets, or an executable**, and does not explain how to obtain them. Nothing here decrypts or bypasses any protection. Every commit is checked by `scripts/check_no_game_data.py`. Everything built from your own copy stays strictly on your PC. Never share generated files.
+
+> [!NOTE]
+> **Built on the shoulders of the entire Leonida ecosystem**: original [ItsNotRexed/Leonida](https://github.com/ItsNotRexed/Leonida), active continuation [ubiquitarianism/leonida](https://github.com/ubiquitarianism/leonida), [LeonidaReforge/Leonida](https://github.com/LeonidaReforge/Leonida), [IAmNotSiob/leonida-ce](https://github.com/IAmNotSiob/leonida-ce), [luizwidmer/palmetto](https://github.com/luizwidmer/palmetto), plus clean-room MIT-attributed ports from [OpenScarlett](https://github.com/californiaAlmonds/OpenScarlett) and [Xbox2Windows](https://github.com/R0Y00/Xbox2Windows). See [BLENDED.md](BLENDED.md) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+---
+
+## Project status
+
+The runtime reaches a continuous `ALIVE` (`60.9s`, `exc=none`) `PresentX` frame loop with deep asset streaming on Windows 11 + Vulkan (zero Vulkan validation errors). Visible retail frames are not on screen yet — see **[Want to Help?](#want-to-help)** below for the highest-impact open engineering work.
+
+| Subsystem | Status in `leonida-ultimate` (Wave-15 / v10) |
+|---|---|
+| Retail boot & frame loop (`gta6rt`) | ⚠️ **Reaches continuous `ALIVE` (`60.9s`, `exc=none`) `PresentX` frame loop & deep asset streaming** (`78` unique D3D12 slots, `240,201` D3D12 calls, `4,761` `PresentX` frames, `19` detiled `xg_xs` textures / `14` non-zero, `8.7 GB` streaming working set, `0` Vulkan validation errors); visible retail frames pending remaining view/blend/descriptor work + translated shader testing ([docs/DEV_FRONTIERS.md](docs/DEV_FRONTIERS.md)) |
+| Finding and checking your copy (Xbox Series 1.0.2.1) | ✅ Works (`make_game.py --check`) |
+| Shaders (`RDNA2 → SPIR-V`) | ✅ **`26,503 / 26,503` translated & `spirv-val` valid**; accelerated with in-process Rust `spirv_asm_native` (`42×`), `rdna2_decode_native`, `spirv_opt_native` (`8–10×`), LPT size-balanced resumable sharding (`--assembler auto`, `--no-validate`), plus opt-in warm on-demand JIT shader daemon (`LEONIDA_JIT_SHADERS`) |
+| Xbox D3D12 → Vulkan | ⚠️ Active: zero-alloc lock-free draw recording (`43.6 ns`/draw), zero-alloc replay, deferred draw pipeline selection, Xbox rect/quad lists (topologies 17 & 19), `BeginRenderPass`, `FramePacer` mailbox, `VK_EXT_mesh_shader`, `VK_EXT_depth_bounds`, `A8_UNORM` 1D/3D, `R9G9B9E5` UAV, 3D UAV/SRV/RTV, slot 133 implicit castable views, placed-texture buffer SRV alias, MIT typeless present ([docs/d3d12_vulkan.md](docs/d3d12_vulkan.md)) |
+| Audio & Media | ✅ `xapu.dll` (256 streams, native Windows 11 `MSOpusDecoder.dll` MFT), `chad.dll` (128 DSP streams), portable XMA2/WMA-Pro decoder, `acphal.cpp`, offline Media Foundation |
+| DirectStorage & BCPack | ✅ MIT clean-room CPU BCPack BC1/BC3/BC4/BC5/BC7 decompression (`bcpack_dstorage`), `ReadFile` page-commit fallback |
+| Ray Tracing (`XboxBvhBuilder` / XDXR) | ⚠️ `XboxBvhBuilder.dll`, Vulkan XDXR BLAS/TLAS builder (including paired BLAS density, serialize/deserialize) & `LEONIDA_RT_AS=khr` ([docs/xdxr.md](docs/xdxr.md), [docs/bvh.md](docs/bvh.md)) |
+| Native Rust accelerators (`tools/native/`) | ✅ **8 zero-dependency Rust accelerators** (`anim_clips`, `bc7`, `bvh`, `glb`, `meshlet`, `rdna2_decode`, `spirv_asm`, `spirv_opt`) building in ~4s |
+| PE loader, XMem, GDK & GameInput | ✅ Placeholder-window commit fallback, `__XMemAllocationHooks__`, `xgamesave` offline provider, `XAppCaptureImpl`, offline `ws2_32.dll`, SHA-NI loader perf pack, SDL3 GameInput ([docs/gameinput.md](docs/gameinput.md)) |
+| Models, Textures (DDS/BCPack), Audio (AWC) | ✅ Exported via `rpf9dump` & clean-room `tools/bcpack.py` ([docs/models.md](docs/models.md), [docs/textures.md](docs/textures.md), [docs/audio.md](docs/audio.md)) |
+
+To generate a live offline progress report on your own checkout, run `python -I tools/progress_dashboard.py --out <folder outside the repo>` ([docs/progress_dashboard.md](docs/progress_dashboard.md)).
+
+---
+
+## Measured Boot Progression
+
+Measured locally on **Windows 11 x64 + AMD Ryzen 7 7800X3D + NVIDIA GeForce RTX 3080 (10 GB, Vulkan Wave32)** — strictly redacted aggregate KPIs only (zero game files, RVAs, paths, or hashes):
+
+| Milestone | Outcome | D3D12 Calls | `PresentX` Calls | Unique Slots | `WaitFrameEventX` | Highlights |
+|---|---|---:|---:|---:|---|---|
+| Stock `ubiquitarianism/main` (`8f481cf16f`) | `STOP` | `13` | `0` | — | no | Baseline |
+| v1–v2 (Early boot + `XboxBvhBuilder` + XMem) | `STOP` | `12,737` | `17` | — | yes | Reached `WaitFrameEventX` & first presents |
+| v3–v5 (`leonida-ce` + `ReadFile` commit + `A8_UNORM`/`R9G9B9E5` + `MSOpusDecoder`) | `ALIVE` / Deep streaming | `199,107`–`575,713` | `3,606`–`16,093` | `73` | **yes** | `xgamesave` mounted, `0` arena warnings at `LEONIDA_ARENA_MB=4096` |
+| v6–v8 (`BeginRenderPass` + XDXR serialize + 3D UAV + zero-alloc replay + `FramePacer` + BCPack BC1/3/4/5/7) | Deep streaming | `244,157` | `4,776` | `78` | **yes** | `16` detiled textures (`11` non-zero), `203.1` FPS peak |
+| v9 (Lock-free draw recording `43.6 ns` + rect/quad lists 17/19 + deferred draw PSO) | Deep streaming | `227,869`–`258,952` | `4,356`–`5,256` | `78` | **yes** | `19` detiled textures (`14` non-zero), `8.7 GB` streaming |
+| **v10** (Slot 133 implicit castable views + placed-texture buffer SRV alias + MIT typeless present + XDXR paired BLAS) | **`ALIVE` (`60.9s`, `exc=none`)** | **`240,201`** | **`4,761`** | **`78`** | **yes** | **5/5 targeted v9 warnings → `0`, `8,789 MB` RAM streaming, `0` validation errors** |
+
+### Recent Sanitized Boot Runs
+
+_Auto-updated by `python -I ops/boot_bench.py --update-readme` (or `--sync-readme-only`) with strictly redacted KPIs:_
+
+<!-- BOOT_BENCH_LOG:START -->
+| When (UTC) | Label | SHA | Stage | Verdict | Outcome | Time | D3D12 (calls/s) | Present (FPS) | Visible | Warns | Exception | Milestones / Summary |
+|---|---|---|---|---|---|---:|---:|---:|---|---:|---|---|
+| 2026-11-25T00:50 | `staged-baseline-v17` | `53436525f` | `S1` | **BASELINE** | `ALIVE` | 45.7s | 140327 (3073/s) | 270 (5.9 fps) | - | 13 | `none` | win,audio,save,wait,present,draw=775,tex=20(16nz) — saved new boot baseline |
+| 2026-11-24T23:35 | `live-first-run-ui` | `d06233a31f` | `S0` | **PARITY** | `STOP` | 229.6s | 0 (-) | 0 (-) | - | 8 | `0xc0000005` | win,audio,save,wait,tex=20(16nz) — within parity band (0 regressions) |
+| 2026-11-24T23:27 | `live-first-run-ui` | `9a28d7ef32` | `S0` | **IMPROVEMENT** | `STOP` | 148.6s | 0 (-) | 0 (-) | - | 6 | `none` | win,audio,save,wait,tex=20(16nz) — D3D12 warnings reduced (193 -> 6) |
+| 2026-11-24T23:23 | `ultimate-wave24-visuals-v16` | `2f974e0f65` | `S0` | **IMPROVEMENT** | `ALIVE` | 65.9s | 145371 (2207/s) | 399 (6.1 fps) | - | 13 | `none` | win,audio,save,wait,present,tex=20(16nz) — outcome improved STOP -> ALIVE; Present +399 (0 -> 3 |
+| 2026-11-24T18:52 | `ultimate-wave22-v15` | `7c7c25d0b6` | `S0` | **IMPROVEMENT** | `ALIVE` | 66.0s | 108289 (1640/s) | 864 (13.1 fps) | - | 4 | `none` | win,audio,save,wait,present,tex=20(16nz) — outcome improved STOP -> ALIVE; Present +864 (0 -> 8 |
+| 2026-11-24T18:34 | `ultimate-wave21-v14` | `1f38d1509d` | `S0` | **IMPROVEMENT** | `ALIVE` | 66.1s | 101540 (1537/s) | 689 (10.4 fps) | - | 4 | `none` | win,audio,save,wait,present,tex=20(16nz) — outcome improved STOP -> ALIVE; Present +689 (0 -> 6 |
+| 2026-11-24T18:15 | `live-first-run-ui` | `cb4865b2ba` | `S0` | **BASELINE** | `STOP` | 1577.5s | 0 (-) | 0 (-) | - | 193 | `0xc0000005` | win,audio,save,wait,tex=20(16nz) — first analyzed live launch saved |
+| 2026-11-24T17:48 | `bisect-slot70-off` | `cb4865b2ba` | `S0` | **IMPROVEMENT** | `STOP` | 10.9s | 56456 (5193/s) | 71 (6.5 fps) | - | 15 | `0x80000003` | win,audio,wait,present,tex=8(4nz) — Present +71 (0 -> 71, 6.5 FPS); reached WaitFrameEventX; D3 |
+<!-- BOOT_BENCH_LOG:END -->
+
+---
+
+## Want to Help?
+
+Early boot, PE loading, XMem, and basic D3D12 plumbing are already working here. Whether you are a **human developer** or an **AI coding agent**, jump straight into these **high-impact, often-untouched areas** that directly unlock visible frames, live audio, fast shader builds, and hardware fidelity:
+
+### A. First Visible Frame on Vulkan (`runtime/shims/d3d12_xs_device.cpp`, `runtime/shims/d3d12_vulkan_device.cpp`, `runtime/src/vulkan_replay.h`)
+- **Clear the remaining v10 view warnings**: console format casting for BCn/R8/R16/R32 views, MSAA typeless colour SRVs, and non-UAV texture UAV requests.
+- **Wire UI colour blending**: hook the already-tested `runtime/shims/cb_blend_decode.h` (`CB_BLENDn_CONTROL` state block) into device slot-57 pipeline creation so UI alpha blending renders instead of forcing opaque pipelines.
+- **Guest descriptor materializer & automatic RT→SRV barriers**: mirror guest-backed >1M descriptor heaps into the Vulkan bindless set and track render-target-to-SRV transitions across `FlushGpuCachesX`.
+- **Persistent Vulkan pipeline cache**: wire the already-tested `runtime/src/pipeline_cache_store.h` into `runtime/shims/d3d12_vulkan_device.cpp` for sub-second repeat Vulkan startup.
+
+### B. Real-Time Audio Output & Mixing (`runtime/shims/audio_x.cpp`, `runtime/shims/acphal.cpp`, `runtime/src/opus_mft_decoder.h`, `runtime/src/xma2_decoder.cpp`)
+- Rarely touched by other forks — both the native Windows 11 Opus MFT decoder and the portable XMA2/WMA-Pro decoder already compile and pass tests.
+- **Wire a low-latency Windows WASAPI render sink** (with an opt-in headless mute flag for CI).
+- **Implement real multi-channel voice mixing** (gain, pitch resampling, stereo panning) in `chad.dll`, and stress-test multi-stream XMA2 packet ring wraparound and loop-point transitions.
+
+### C. Rust-Accelerating `rdna2spirv` Hot Loops (`tools/rdna2spirv.py`, `tools/native/`)
+- SPIR-V assembly (`spirv_asm_native`, `42×`) and RDNA2 disassembly (`rdna2_decode_native`) are already native Rust.
+- The **#1 remaining CPU bottleneck** on giant 3–7 MB mesh shaders is pure Python CFG structuring, register liveness, and VGPR/SGPR value forwarding in `tools/rdna2spirv.py` — porting those hot passes into `tools/native/` will cut full-corpus shader translation from ~45 minutes to seconds.
+
+### D. Vulkan Ray Tracing (XDXR / `VK_KHR_acceleration_structure`) & Shader Conformance
+- **End-to-end live BLAS/TLAS build + trace validation** with colliding low-40-bit guest virtual addresses (`runtime/shims/xbox_bvh_builder.cpp`, `runtime/src/xdxr_build.h`).
+- **Structural `spirv_opt` passes** for heavy RT and compute shaders so complex modules compile quickly on NVIDIA/AMD Vulkan drivers.
+- **Wave64 cross-half VS/PS/GS correctness** on 32-wide subgroups (NVIDIA/Intel) and new hand-written GPU readback tests under `runtime/test/shaders/`.
+
+### E. DirectStorage / BCPack Streaming & Console ABI Tail
+- **Remaining BCPack BC6H/BC7 decompression calibration** (`tools/bcpack.py`, `runtime/src/bcpack_dstorage.cpp`).
+- **Unmapped console command-list slots past frame #1** (auditing shifted PC slots vs console-only commands).
+- **Automated pixel-ratio visual regression check** via `runtime/src/present_dump.h` (strictly aggregate non-zero pixel ratios / colour counts, zero screenshots committed) and **FidelityFX FSR upscaler integration**.
+
+### F. Assets, World & Map Viewer (`tools/`, `viewer/`, `runtime/test/`)
+- Investigate the remaining unrecovered model fragments in `levels.rpf` ([docs/models.md](docs/models.md#full-archive-re-count-at-e293917)).
+- Build animation, physics, and world/map viewer features (`viewer/`), or expand standalone C++ and Python semantic/unit tests (**zero game files needed**).
+
+### Contributor & AI Agent Guides
+- **[docs/DEV_FRONTIERS.md](docs/DEV_FRONTIERS.md)** — detailed task breakdowns, ready-to-wire headers, and exact file pointers.
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** & **[docs/CONTRIBUTING_ULTIMATE.md](docs/CONTRIBUTING_ULTIMATE.md)** — local build, testing, and PR workflow.
+- **[AGENTS.md](AGENTS.md)** — rules for AI coding agents working on this codebase, including three hard constraints:
+  1. **No non-trivial `thread_local` in `gta6rt.exe`** (conflicts with guest TLS on Windows and triggers `0xC0000409` aborts — use a thread-ID map instead).
+  2. **Zero game data, ever** (`python -I scripts/check_no_game_data.py`).
+  3. **Strict license wall** (GPL-3.0 or clean-room MIT/Apache-2.0 ports with attribution in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) only; never copy from GPL-2.0 or unlicensed repos).
+
+---
+
+## How to Build
+
+### 1. Developer / Contributor Build (No Game Files Needed)
+
+Prerequisites: **Windows 10/11 x64**, Visual Studio 2022/2026 C++20 x64 toolset + Windows SDK 10.0.26100+, CMake + Ninja, [Vulkan SDK](https://vulkan.lunarg.com/) (headers >= 1.3.294), Python 3.12+, and [Rust (`cargo`)](https://rustup.rs/) for the 8 native accelerator DLLs.
+
+```powershell
+git clone --recursive <this-repo-url>
+cd leonida-ultimate
+
+# Build the Windows runtime & run CTests (from a Visual Studio Developer PowerShell):
+cmake -S runtime -B runtime/build -G Ninja `
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLEONIDA_BUILD_WINDOWS_RUNTIME=ON `
+  -DCMAKE_POLICY_DEFAULT_CMP0141=NEW -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
+cmake --build runtime/build --target gta6rt -j 8
+ctest --test-dir runtime/build --output-on-failure --no-tests=error
+
+# Build & test all 8 zero-dependency Rust accelerators (~4s):
+cargo build --release --workspace --manifest-path tools/native/Cargo.toml
+cargo test  --release --workspace --manifest-path tools/native/Cargo.toml
+
+# Run translator semantic tests, unit tests, and the zero-game-data check:
+python -I scripts/run_semantic_tests.py tests/semantic
+python -I scripts/check_no_game_data.py
+```
+
+### 2. End-User Build From Your Own Copy (`make_game.py`)
+
+Additional prerequisites for a full build from your Xbox Series 1.0.2.1 package: [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0), [LLVM 21+](https://github.com/llvm/llvm-project/releases) with the **AMDGPU target** (`LLVM_MC`; see `scripts\build_llvm_mc.ps1` or `conda install -c conda-forge llvm-tools`), and optional `ffmpeg` on PATH.
+
+```powershell
+python -I make_game.py --find
+python -I make_game.py --check
+python -I make_game.py --game "D:\path\to\your\package" --out "D:\Games\Leonida" --work "E:\leonida-work"
+python -I make_game.py --stages check,shaders,runtime   # ~30 GB instead of ~400 GB full asset export
+python -I make_game.py --stages check,shaders,runtime --wave64-emulate auto --assembler auto --no-validate
+```
+
+Key runtime environment variables (see [ULTIMATE.md](ULTIMATE.md) and [docs/d3d12_vulkan.md](docs/d3d12_vulkan.md) for the full list):
+- `LEONIDA_SHADERS=<path>` — directory of translated SPIR-V shaders and `index.json`.
+- `LEONIDA_LAZY_PSO=1` — defer Vulkan PSO compilation until first draw/dispatch use.
+- `LEONIDA_JIT_SHADERS=<cache_dir>` — opt-in warm on-demand JIT shader translation daemon when a prebuilt shader corpus is absent or incomplete.
+- `LEONIDA_ARENA_MB=4096` — size of the console GPU address arena in MiB.
+- `LEONIDA_RT_AS=khr` — use `VK_KHR_acceleration_structure` instead of the default software XDXR BVH4 layout (`off` disables RT AS on low-VRAM GPUs).
+
+Double-clicking `Build.bat` (Windows) or running `./Build.sh` (Linux/macOS) launches the interactive setup.
+
+### Running the loader on Linux
+
+`gta6rt.exe` is a Windows binary; on Linux (and macOS under Wine) it cross-compiles with `clang-cl` + `xwin` and runs under Wine or Proton with native Vulkan. See [docs/linux.md](docs/linux.md) and [docs/testing.md](docs/testing.md#the-windows-runtime-on-linux-under-wine-or-proton).
+
+---
+
+## How It Works
+
+| Piece | What it does | Where |
+|---|---|---|
+| Version check | Every package file's name, size, and SHA-256 for each supported version (hashes only, zero game content) | `game/`, `make_game.py` |
+| Shader pipeline | Carves DXBC containers, unpacks `XBCH` → `FSSM` native RDNA2 code, disassembles (`llvm-mc` / `rdna2_decode`), translates to SPIR-V, and optimizes | `tools/shader_carve.py`, `tools/fssm_unpack.py`, `tools/shader_disasm.py`, `tools/rdna2spirv.py`, `tools/spirv_opt.py` |
+| Native Rust accelerators | 8 zero-dependency Rust DLLs accelerating BC7, SPIR-V assembly (`42×`), SPIR-V optimization (`8–10×`), RDNA2 decoding, BVH, GLB, meshlets, and animation clips | `tools/native/` |
+| Asset export | Extracts validated models, textures (DDS/BCPack), and audio (AWC) from RPF9 archives and `.ttpf` pools | `tools/rpf9dump`, `tools/bcpack.py`, `tools/ttpf_assets.py` |
+| Windows/Vulkan runtime | Maps the PE image and resolves console imports to native shims (GDK, XMem, DirectStorage/BCPack, `d3d12_xs` → Vulkan, `XboxBvhBuilder`, `xapu`/`chad`/`acphal` audio) | `runtime/` |
+| Map viewer | Local-only browser viewer for exported world geometry, textures, and streaming chunks | `viewer/` |
+| Documentation & specs | Measured ABI contracts, shader translator rules, Vulkan architecture, audio/BVH/asset notes, and developer frontiers | `docs/` ([index](docs/README.md)) |
+
+---
+
+## Maintainer Notes / Integration Tree
+
+`leonida-ultimate` reconciles verified community PRs and compatible MIT/GPL-3.0 ports onto isolated `blend/*` topic branches with `git cherry` patch-ID deduplication so upstream merges drop out cleanly. Contributors working on Leonida features do **not** need to run any maintainer tooling; if you are curious how upstream PR reconciliation and sanitized local benchmarks work, see [BLENDED.md](BLENDED.md), [ULTIMATE.md](ULTIMATE.md), and [ops/README.md](ops/README.md).
+
+---
+
+## Credits
+
+- **[Leonida](https://github.com/ItsNotRexed/Leonida)** by NotRexed and contributors — the original project.
+- **[ubiquitarianism/leonida](https://github.com/ubiquitarianism/leonida)**, **[LeonidaReforge/Leonida](https://github.com/LeonidaReforge/Leonida)**, **[IAmNotSiob/leonida-ce](https://github.com/IAmNotSiob/leonida-ce)**, **[luizwidmer/palmetto](https://github.com/luizwidmer/palmetto)**, and **[Marvisak/VIctory](https://github.com/Marvisak/VIctory)** — GPL-3.0 continuation work, boot research, and runtime/shader PRs.
+- **[californiaAlmonds/OpenScarlett](https://github.com/californiaAlmonds/OpenScarlett)** (MIT) and **[R0Y00/Xbox2Windows](https://github.com/R0Y00/Xbox2Windows)** (MIT) — clean-room MIT-attributed runtime ports (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
+- **[rpf9-explorer](https://github.com/breadbbbb/rpf9-explorer)** by breadbbbb, **[Mesa](https://gitlab.freedesktop.org/mesa/mesa)** (MIT), **[libHttpClient](https://github.com/microsoft/libHttpClient)** (MIT), **[LLVM](https://llvm.org/)**, **[SPIRV-Tools](https://github.com/KhronosGroup/SPIRV-Tools)**, and logo by [SlyDevil on SteamGridDB](https://www.steamgriddb.com/icon/122618).
+
+Grand Theft Auto and all related names are trademarks of their owners. This project is not affiliated with or endorsed by them.
+
+---
+
+## License
+
+**GNU General Public License v3.0 or later (GPL-3.0-or-later)**. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Third-party code keeps its own license.

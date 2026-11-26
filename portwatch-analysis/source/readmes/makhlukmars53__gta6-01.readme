@@ -1,0 +1,34 @@
+# Port Meridian
+
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/makhlukmars53/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/makhlukmars53/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+
+Port Meridian is a 2D top-down open-world crime game that runs in a desktop browser from its own files, with no network requests and no build step. You play Rook, a driver working off a debt to the fixer Marla Quinn, in a sun-soaked grid city of ten streets by ten streets, with traffic, pedestrians, a marina along the south edge, and a police force that answers to your wanted level.
+
+The city is free to explore on foot or by car. Walk up to any car and press E to get in; taking a car that is not yours raises your wanted level and brings the police after you. Traffic follows the lanes and turns at intersections, pedestrians stroll the sidewalks and run from gunfire, and at four stars and up the police set up roadblocks. Getting caught with heat on you means a fine, and losing all your health means a trip to the back-alley clinic.
+
+There are six story missions, each with a payout: First Run ($300), Borrowed Wheels ($500), Heat Wave ($600), Hold the Garage ($800), Three Stops ($900), and The Big Score ($2,000). Missions ask you to drive to markers, pick up and deliver parcels, steal a car, hold a location against rival gunmen, and clear out a crew. The pistol fires toward your mouse click and ammunition is limited; F throws a punch. Progress, cash and finished missions save to the browser and survive a reload.
+
+The screen shows cash, health, ammunition, wanted stars, the current objective and a live minimap with the player, the police and the objective marker. Sound is synthesised in the browser: gunshots, crashes, a bass loop and a siren when the heat is on. There is a title screen with mission select, a pause screen, and wasted, busted and game-over screens.
+
+## Run it
+
+Serve the game folder and open it in a desktop browser:
+
+1. node serve.ts
+2. Open http://localhost:8080
+
+No install step, no dependencies, no network. The game is plain static files under game/, split into small modules with one job each: configuration, seeded random numbers, input, sound, the city, traffic and pedestrians, police, combat, missions, the world state, rendering, the HUD, the screenshot scenes and the main loop.
+
+## Controls
+
+WASD or arrow keys move on foot and drive a car. E enters or leaves a car. Mouse click fires the pistol toward the click. F punches. P pauses and resumes. R retries after being wasted or busted. ENTER starts from the title screen; number keys 1 to 6 pick a mission there, then ENTER starts it.
+
+## Missions
+
+Rook owes Marla Quinn, and the debt is paid job by job: First Run ($300) moves a parcel across town, Borrowed Wheels ($500) steals a car to order, Heat Wave ($600) clears two gunmen off a stash, Hold the Garage ($800) defends a garage while a truck is stripped, Three Stops ($900) runs three drops in one night, and The Big Score ($2,000) hits the Meridian vault. Completing a mission pays out at once and saves; the title screen lists which jobs are done.
+
+## Screenshots
+
+The four images in screenshots/ are renders of the game itself: the title screen in the city, driving, a police chase at three stars, and a mission in progress with rival gunmen.

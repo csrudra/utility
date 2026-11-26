@@ -1,0 +1,38 @@
+# Marina Del Sol
+
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/nurinsani-crypto/marina-del-sol/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/nurinsani-crypto/marina-del-sol/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+
+**Marina Del Sol** is a 3D open-world crime game set in a sun-soaked marina city. You run boat-and-car smuggling jobs for yacht-club fixer **Marisol Vega**, rising from deckhand runs to the Regatta Night heist. The signature mechanic: you can **drive cars AND pilot a speedboat** between the marina docks — several missions switch vehicle mid-job (drive to the dock → boat escape across the bay).
+
+## The city
+
+Five named districts — **Old Marina, Yacht Row, Cannery Point, Solana Heights, Ferry Landing** — wrapped around a working bay with palm-lined promenades, docks, moored boats and smuggling buoys. Golden-hour is the default grade: low sun, warm fog, a three-stop sky, lit windows everywhere.
+
+## Controls
+
+- **WASD / arrows** — walk, drive, pilot
+- **Shift** — sprint on foot
+- **E** — steal a car (watch for witnesses), board a speedboat, dock & exit
+- **Click / F** — shoot on foot
+- **Z / X / C** — crew: Iker swaps plates, Lúa quick-fixes, Tomás scouts
+- **R** — cycle radio (Onda 94.3 · Marina Gold 101.7)
+- **M** — full-screen map with GPS route · **TAB** — stats, medals & save slots
+- **ENTER** — take the next job from Marisol
+
+## Features (all live in-game)
+
+- 3D procedural coastal city: 5 districts, street grid, lit-window buildings, 16 AI traffic cars, 22 pedestrians, palms, docks, boats, buoys
+- Stealable cars with a witness system; pilotable speedboat; mid-mission car→boat switches
+- Wanted system 0–5 stars: Solana Port Patrol with named units (HARBOUR-2, HARBOUR-5, DOCKS-1, PIER-7) in PURSUIT / RAMMING / ROADBLOCK roles, live dispatch distances, and the GULL ONE helicopter with spotlight at 4+ stars
+- On-foot combat with muzzle flash, damage numbers and enemy health bars; health + armor
+- 7 staged story missions with portrait dialogue, STAGE x/y objectives and MISSION PASSED banners paying out $600–$5,500 plus REP and unlocks
+- Four-sided HUD: mission + dispatch panels, clock/cash/stars, 6-slot weapon wheel, round textured minimap, RESPECT bar with 6 rank titles, radio + vehicle panels, crew cards with cooldowns
+- Full-screen map with per-district standing and GPS route; stats screen with % complete, medals, career stats, rank ladder and 3 localStorage save slots
+- WebAudio-synthesised engine, siren, gunshots and radio bleeps — no audio files
+- Deterministic seeded simulation, fixed-timestep; `?autopilot=1` proof run and `?shot=1..4` staged screenshot scenes
+
+## Run it
+
+Serve `game/` with any static server and open `index.html` in a desktop browser. No build step, no network loads — Three.js is vendored under `game/vendor/`.

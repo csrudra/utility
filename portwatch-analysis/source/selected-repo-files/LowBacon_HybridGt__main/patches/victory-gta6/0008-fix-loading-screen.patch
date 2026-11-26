@@ -1,0 +1,150 @@
+From 25d0b95c4077298272755ed22ec1cc390881a6fa Mon Sep 17 00:00:00 2001
+From: S1M40 <simasvasconcelos@gmail.com>
+Date: Wed, 25 Nov 2026 04:26:17 +0000
+Subject: [PATCH 08/25] fix loading screen
+
+(cherry picked from commit 798ecbbbb9f2005674459191116be4ab223bf201)
+(cherry picked from commit daebb8ccec07605e931a8d42a63e008453f050f4)
+---
+ crates/victory-gpu/src/texture.rs | 75 ++++++++++++++++++++++++-------
+ 1 file changed, 59 insertions(+), 16 deletions(-)
+
+diff --git a/crates/victory-gpu/src/texture.rs b/crates/victory-gpu/src/texture.rs
+index 05909d9..b197650 100644
+--- a/crates/victory-gpu/src/texture.rs
++++ b/crates/victory-gpu/src/texture.rs
+@@ -81,31 +81,46 @@ struct Last {
+     partial: Option<u64>,
+     /// The frame a hash last found the texture's memory changed in.
+     changed: Option<u64>,
++    /// The frame the texture was last hashed.
++    checked: Option<u64>,
+ }
+ 
+ impl Last {
+     /// Takes `hash` as the hash of the texture's memory; true when it
+     /// differs from the last one, and then the frame is noted.
+     fn rehash(&mut self, hash: blake3::Hash) -> bool {
++        let frame = crate::frame::current();
++        self.checked = Some(frame);
+         if self.hash == Some(hash) {
+             return false;
+         }
+         self.hash = Some(hash);
+-        self.changed = Some(crate::frame::current());
++        self.changed = Some(frame);
+         true
+     }
+ }
+ 
+ const HASH_EVERY: u64 = 8;
+-/// Two turns: changing textures stay current; still ones return to taking turns.
++/// Two turns: recently changed textures get the faster cadence, then return to taking turns.
+ const RECENTLY_CHANGED: u64 = 2 * HASH_EVERY;
+ 
+-fn guard_skips(unwritten: bool, frame: u64, start: usize, changed: Option<u64>) -> bool {
+-    let turn = frame
+-        .wrapping_add((start >> 16) as u64)
+-        .is_multiple_of(HASH_EVERY);
++fn guard_skips(
++    unwritten: bool,
++    frame: u64,
++    start: usize,
++    changed: Option<u64>,
++    checked: Option<u64>,
++) -> bool {
++    if !unwritten {
++        return false;
++    }
++    if checked == Some(frame) {
++        return true;
++    }
++    let texture_frame = frame.wrapping_add((start >> 16) as u64);
++    let turn = texture_frame.is_multiple_of(HASH_EVERY);
+     let recent = changed.is_some_and(|at| frame.wrapping_sub(at) < RECENTLY_CHANGED);
+-    unwritten && !turn && !recent
++    !recent && !turn
+ }
+ 
+ // SAFETY: the staging mapping is written only at submission, under
+@@ -978,7 +993,13 @@ impl Staging {
+         {
+             let unwritten = last.asked != 0 && written.iter().all(|&(_, w)| w <= last.asked);
+             last.asked = now;
+-            if guard_skips(unwritten, crate::frame::current(), start, last.changed) {
++            if guard_skips(
++                unwritten,
++                crate::frame::current(),
++                start,
++                last.changed,
++                last.checked,
++            ) {
+                 return 0;
+             }
+         }
+@@ -1459,32 +1480,54 @@ mod guard_tests {
+         unwritten: bool,
+         start: usize,
+         changed: Option<u64>,
++        checked: Option<u64>,
+     ) -> Vec<u64> {
+         frames
+-            .filter(|&frame| !guard_skips(unwritten, frame, start, changed))
++            .filter(|&frame| !guard_skips(unwritten, frame, start, changed, checked))
+             .collect()
+     }
+ 
+     #[test]
+     fn still_textures_take_turns_unless_the_guard_saw_a_write() {
+-        assert_eq!(hashed(100..132, true, 0x3_0000, None), [101, 109, 117, 125]);
+-        assert_eq!(hashed(100..132, true, 0x4_0000, None), [100, 108, 116, 124]);
+-        assert_eq!(hashed(100..108, false, 0x3_0000, None).len(), 8);
++        assert_eq!(
++            hashed(100..132, true, 0x3_0000, None, None),
++            [101, 109, 117, 125]
++        );
++        assert_eq!(
++            hashed(100..132, true, 0x4_0000, None, None),
++            [100, 108, 116, 124]
++        );
++        assert_eq!(
++            hashed(100..108, false, 0x3_0000, None, None).len(),
++            8
++        );
+     }
+ 
+     #[test]
+-    fn recently_changed_textures_are_hashed_at_every_check() {
++    fn recently_changed_textures_are_hashed_each_frame() {
+         let changed = Some(101);
+         let after = 101 + RECENTLY_CHANGED;
+         assert_eq!(
+-            hashed(101..after, true, 0x3_0000, changed),
++            hashed(101..after, true, 0x3_0000, changed, None),
+             (101..after).collect::<Vec<_>>()
+         );
+         assert_eq!(
+-            hashed(after..after + 2 * HASH_EVERY, true, 0x3_0000, changed),
++            hashed(after..after + 2 * HASH_EVERY, true, 0x3_0000, changed, None),
+             [117, 125]
+         );
+-        assert!(!guard_skips(true, 3, 0x3_0000, Some(u64::MAX - 2)));
++        assert!(!guard_skips(
++            true,
++            3,
++            0x3_0000,
++            Some(u64::MAX - 2),
++            None
++        ));
++    }
++
++    #[test]
++    fn a_texture_is_hashed_once_per_frame_unless_the_guard_saw_a_write() {
++        assert!(guard_skips(true, 101, 0x3_0000, Some(101), Some(101)));
++        assert!(!guard_skips(false, 101, 0x3_0000, Some(101), Some(101)));
+     }
+ }
+ 
+-- 
+2.56.1.windows.1
+

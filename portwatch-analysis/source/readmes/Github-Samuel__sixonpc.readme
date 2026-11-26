@@ -1,0 +1,279 @@
+<a href="https://sixonpc.com"><img src="docs/screens/home.png" alt="Six on PC home page: does GTA VI run on PC? Not yet."></a>
+
+# Six on PC
+
+Does GTA VI run on PC yet? Six on PC tracks every community effort to get the game running on PC, documents how far
+the reverse engineering of its engine has got, and gives modders a reference to work from while they wait.
+
+**Website:** [sixonpc.com](https://sixonpc.com) · **Forum:** [Discussions](https://github.com/Github-Samuel/sixonpc/discussions) · **Feed:** [RSS](https://sixonpc.com/feed.xml)
+
+No game files, keys or executables are hosted or linked here. Links go to source code, documentation and news
+reporting only.
+
+## What it gives you
+
+| If you want to | Go to |
+| --- | --- |
+| See how far GTA VI on PC has come, as one number | [The front page](https://sixonpc.com/) |
+| Know which builds are playable, and who is closest | [The board](https://sixonpc.com/board) |
+| Watch the builds running | [Footage](https://sixonpc.com/footage) |
+| Look up a script native, its hash, parameters and an example | [Natives reference](https://sixonpc.com/natives) |
+| See how much of your FiveM script depends on FiveM | [Port checker](https://sixonpc.com/natives/port?sample) |
+| Turn a hash from a dump back into a name | [Hash lab](https://sixonpc.com/natives/lab) |
+| Find out which file formats are cracked and what is still open | [RE status](https://sixonpc.com/status) |
+| Check whether a "GTA VI for PC" repo is a fake | [Fake check](https://sixonpc.com/check) |
+| Follow milestones and takedowns without checking back | [What changed](https://sixonpc.com/changes) and the [RSS feed](https://sixonpc.com/feed.xml) |
+| Find a tool that opens an archive, texture, audio bank or video | [Tools](https://sixonpc.com/tools) |
+
+Press <kbd>Ctrl</kbd> <kbd>K</kbd> anywhere on the site to search pages, port projects, tools, glossary terms and
+all 14,776 natives at once.
+
+## Overall progress
+
+The top of the front page is one percentage for the whole field: the best any build has shown on each block of
+the ladder (see Scoring), added up. Next to it: what the leading build does right now, the four numbers that
+matter (best fps, builds you can walk around in, builds in the world, repos taken down), the curve since the
+leak, the ladder as a coloured bar, and the milestones in the order they fell (first menus, first player moving,
+prologue cleared, first kill, near-retail picture, 10 fps, 30 fps, story finished).
+
+## Footage
+
+Clips, streams and screenshots of each build, embedded or linked from where their creators posted them. Nothing
+is copied to this site. The scout checks every YouTube, Rumble and GitHub item each hour; a clip taken down by a
+DMCA claim stays listed as taken down. Filter by build, or open a board row to see that build's footage.
+
+## The board
+
+<a href="https://sixonpc.com/board"><img src="docs/screens/board.png" alt="The board: every GTA VI PC port effort ranked by progress"></a>
+
+- Every port effort ranked by how far it gets with the game itself: boots, in the world, player moves, picture,
+  story, speed and stability
+- Private builds shown only on streams are listed too, marked as having no public code
+- A "Spotted, not reviewed yet" list of new repos the scout finds each hour
+- All projects plotted on one track, coloured by approach
+- Stars, forks, commits, contributors and the latest commit from the GitHub API, refreshed every hour
+- The top projects refresh live in the visitor's browser
+- Search, filters and five sort orders
+- Side-by-side comparison of two or three projects
+- Starred projects and a "since you last looked" summary, stored in the browser
+
+## Natives reference
+
+<a href="https://sixonpc.com/natives/gta5/ENTITY/SET_ENTITY_COORDS"><img src="docs/screens/natives.png" alt="The natives browser showing SET_ENTITY_COORDS with its signature, hashes, parameters and example"></a>
+
+Natives are the functions Rockstar's engine hands to scripts. No GTA VI native has been published yet, so this
+starts from what the engine has always done.
+
+- 6,701 GTA V natives, 7,132 Red Dead Redemption 2 natives and 943 Cfx natives
+- Each native has its signature, hashes, parameter notes, written examples where they exist, and a generated call
+  shape in Lua, JavaScript, C# and C++
+- 2,074 natives appear in both GTA V and Red Dead Redemption 2. Rockstar kept those across two games, which marks
+  them as engine and not game content, and makes them the first place to look in a third
+- A three-pane browser with search by name or hash, filters, starred natives, keyboard navigation and a link per native
+- Notes on what each of the 93 namespaces controls and what you see it do in game
+- [GTA VI status](https://sixonpc.com/natives/vi): what is known about GTA VI natives, each finding marked as read at
+  the source, reported or unverified. It shows zero mapped natives until someone publishes one with a method
+
+### ROME blueprint
+
+<a href="https://sixonpc.com/natives/rome"><img src="docs/screens/rome.png" alt="The ROME blueprint: Cfx natives grouped by the gap each fills"></a>
+
+Rockstar has said nothing about how GTA VI will be scripted. What is on record is that its official Creator Platform
+is FiveM and RedM. So the Cfx natives are sorted here by the gap each one fills in the base game: events, state bags,
+resources, identity, routing, storage, UI, voice. It is a checklist of what any platform on this engine has to offer.
+
+### Port checker
+
+<a href="https://sixonpc.com/natives/port?sample"><img src="docs/screens/port.png" alt="The port checker sorting a sample script's natives into engine, GTA V only and FiveM only"></a>
+
+Paste or drop a FiveM resource and every native it calls is sorted into five piles: engine natives, GTA V only,
+platform layer, Cfx game extras and script runtime. It shows which calls lean on things known to move between games,
+by line, and copies the result as Markdown. The script is read in the browser and never uploaded.
+
+### Hash lab
+
+<a href="https://sixonpc.com/natives/lab"><img src="docs/screens/lab.png" alt="The hash lab: joaat hasher, hash identification and table resolver"></a>
+
+- Hash any name with joaat, lowercased or as written
+- Identify a hash: a 64-bit native hash, a 32-bit hash in hex or decimal, or any spelling of a native name
+- A dictionary of 497,914 names, 347 of them confirmed against real GTA VI data
+- Paste up to 5,000 hashes from a native table, struct dump or archive listing and get names back for every known one
+
+## Reverse-engineering status
+
+<a href="https://sixonpc.com/status"><img src="docs/screens/status.png" alt="RE status: the unsolved problems, most blocking first"></a>
+
+Running the game is one race. Understanding what is inside it is another, and mods depend on the second.
+
+- 20 file formats and subsystems, each marked for whether the layout is documented, whether an open tool reads it,
+  and whether two independent projects agree
+- The unsolved problems, most blocking first, each with the best public lead. The first is locating the script bytecode
+- Engine type names confirmed in the game's data, with their hashes
+- Every row links to where the work is written up
+
+### Names recovered here
+
+The format notes quote hundreds of struct and field hashes with no name. We hashed 2.3 million identifiers from
+public RAGE name lists, generated variants from the ones that matched, and put names on 78 of them, among them the
+road graph structs (`CCoarsePathNode`, `CCoarsePathLink`) and the vehicle handling family (`ChassisHandlingData`,
+`EngineHandlingData`, `DrivetrainHandlingData`). No game files were used. The list is on the
+[status page](https://sixonpc.com/status#recovered), and the scripts and method are in
+[`research/names`](research/names).
+
+## What changed, and test reports
+
+<a href="https://sixonpc.com/changes"><img src="docs/screens/changes.png" alt="What changed: star trends and the event log"></a>
+
+- [What changed](https://sixonpc.com/changes): star gains over 24 hours, 3 days or 7 days, an hourly log of
+  milestones, setbacks and new tools, and a list of what has been taken down. Also an [RSS feed](https://sixonpc.com/feed.xml)
+- [Test reports](https://sixonpc.com/reports): what happened when someone built a port from source and ran it on their
+  own hardware. File one with the [test report form](https://github.com/Github-Samuel/sixonpc/issues/new?template=test-report.yml)
+
+## Fake check
+
+Fake "GTA VI for PC" downloads are spreading malware. Paste a GitHub repository at
+[sixonpc.com/check](https://sixonpc.com/check) and the page reads its public record live: whether it is tracked here,
+whether it copies a known project's name, its age, whether it ships a download, whether there is real source, its
+star pattern and its owner's account. It never calls a repository safe. The strongest thing it says is that nothing
+alarming was found.
+
+## Tools
+
+<a href="https://sixonpc.com/tools"><img src="docs/screens/tools.png" alt="Reverse-engineering tools sorted by category"></a>
+
+- Archive explorers, texture, audio and video decoders, format research and experiments
+- Filter by category, search, and sort by stars, latest push or newest
+- A glossary of the formats and codenames: RPF9, TTPF, BCPack, AWC, Bink 2, RDNA2 and more
+
+## Forum
+
+The forum runs on [GitHub Discussions](https://github.com/Github-Samuel/sixonpc/discussions), so anyone with a
+GitHub account can post. The site shows the latest threads. Read the rules in the pinned welcome thread before
+posting: no game files, no extracted assets, no prebuilt binaries.
+
+## Also
+
+- An [estimate](https://sixonpc.com/when) of when a playable state is likely, with the reasons for and against
+- A [timeline](https://sixonpc.com/story) of the story so far, with sources
+
+## Stack
+
+React 19, TypeScript and Vite, deployed as a static site on Vercel. No backend: `scout.mjs` builds one JSON file
+from the GitHub API and the site reads it.
+
+```
+src/
+  main.tsx          routes and app shell
+  data.ts           types, constants, data loading
+  components.tsx    track, podium, project row, compare, tool card, thread list
+  pages/            Home, Board, Tools, Forum, Status, Changes (and reports), RepoCheck, More (estimate, fake check, story)
+  re/formats.ts     the format status data, every row sourced
+  styles.css        the original layout rules
+  theme.css         the current look, loaded on top
+  Palette.tsx       site-wide search on Ctrl K
+  natives/          the natives reference: data loader, browser, pages, namespace notes
+public/natives/     the native index and one detail file per namespace, built by natives.mjs
+public/hashes/      the name dictionary in 256 shards, built by hashes.mjs
+docs/screens/       the screenshots in this README
+research/names/     scripts and results for recovering names from published hashes
+public/data.json    the snapshot the site ships with
+scout.mjs           builds data.json from the GitHub API
+natives.mjs         builds public/natives from the public native databases
+hashes.mjs          builds public/hashes from the gta6-namehash dictionary
+```
+
+## Run it locally
+
+Needs Node 20 or newer.
+
+```
+git clone https://github.com/Github-Samuel/sixonpc
+cd sixonpc
+npm install
+npm run dev
+```
+
+## Refresh the data
+
+```
+npm run scout
+```
+
+`scout.mjs` uses `GITHUB_TOKEN` if set, or the GitHub CLI login if `gh` is installed. Everything kept by hand is
+in `board.mjs`: the project list with each build's milestone assessment, the tools list, footage, the milestone
+dates, the lookalike and discovery search terms. Edit it there when a build moves, a clip appears or a tool is
+missing.
+
+Besides the GitHub numbers, each run also reads Take-Two's notices from GitHub's public DMCA repository, headlines
+from Google News, checks that every piece of footage is still up, and searches for new repos that look like port
+work.
+
+The `Refresh data` workflow runs the scout every hour and pushes the result to the `data` branch. The site
+loads that file at runtime and uses it when it is newer than the bundled snapshot, so the board stays current
+without a redeploy.
+
+## Rebuild the natives
+
+```
+npm run natives
+```
+
+`natives.mjs` downloads the public native databases, merges them and writes `public/natives`. Downloads are cached in
+`.cache/natives`; pass `--fresh` to fetch them again. What is known about GTA VI is kept by hand in
+`src/natives/vi.ts`, and every entry there needs a source.
+
+## Rebuild the hash dictionary
+
+```
+npm run hashes
+```
+
+`hashes.mjs` downloads [gta6-namehash](https://github.com/tarekmania/gta6-namehash) (MIT) and splits it into 256 shards
+by the first byte of the hash, so a lookup downloads about 50 KB and not 16 MB.
+
+## Alerts
+
+The scout writes `feed.xml` next to `data.json` on the `data` branch. To also post changes to Discord, add a
+repository secret called `DISCORD_WEBHOOK` holding a channel webhook URL. Without it the step does nothing.
+
+## Deploy
+
+```
+npm run build
+vercel deploy --prod
+```
+
+## Scoring
+
+| Points | Block |
+| --- | --- |
+| 20 | Boots: groundwork, the executable runs, first frames, menus |
+| 10 | In the open world |
+| 10 | A player you can move |
+| 12 | Picture: from black to retail |
+| 8 | Story: from the prologue to the credits |
+| 30 | Speed: frames per second in the world, out of 30 |
+| 10 | Stability: from crashing in minutes to never |
+
+Half-working steps count for half. A build's score is its own; the overall figure takes the best any build has
+shown on each block. Most results are reported by the projects themselves, and rows backed by a capture or a
+stream are marked "shown on video". If a score is wrong, post in the forum with a link to the evidence.
+
+## Credits
+
+A good share of the tools list was first collected in
+[awesome-gta6-reverse-engineering](https://github.com/Ahmet-Dedeler/awesome-gta6-reverse-engineering).
+
+The GTA V and Red Dead Redemption 2 native data comes from alloc8or's NativeDB
+([gta5-nativedb-data](https://github.com/alloc8or/gta5-nativedb-data),
+[rdr3-nativedb-data](https://github.com/alloc8or/rdr3-nativedb-data)). Descriptions and examples for GTA V and all Cfx
+natives come from the [Cfx.re native reference](https://github.com/citizenfx/natives).
+
+The hash dictionary is [gta6-namehash](https://github.com/tarekmania/gta6-namehash) by tarekmania. The format status
+page summarises the work of the projects it links to, chiefly
+[GTA6-Asset-Info](https://github.com/TrinitronClient/GTA6-Asset-Info), [rage9-re](https://github.com/Ahmet-Dedeler/rage9-re)
+and [leonidaforge/research](https://github.com/leonidaforge/research).
+
+## Disclaimer
+
+Fan-made. Not affiliated with or endorsed by Rockstar Games, Take-Two or Microsoft.

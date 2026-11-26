@@ -1,0 +1,141 @@
+From dc685039bf2a8f93ee6b68fbb018cecefa8df247 Mon Sep 17 00:00:00 2001
+From: LowBacon <lenni.a.jokitalo@gmail.com>
+Date: Wed, 25 Nov 2026 12:28:29 +0200
+Subject: [PATCH 24/25] Masked merge: the log keeps each send's runs in one
+ vector, sorted once, searched by binary search (a tree insert per run cost
+ about 35 ms a frame at 242,000 runs, run next13); merge-step timer (HybridGt)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crates/victory-gpu/src/shadow.rs | 88 +++++++++++++++++---------------
+ 1 file changed, 48 insertions(+), 40 deletions(-)
+
+diff --git a/crates/victory-gpu/src/shadow.rs b/crates/victory-gpu/src/shadow.rs
+index 34f44a4..87edaa4 100644
+--- a/crates/victory-gpu/src/shadow.rs
++++ b/crates/victory-gpu/src/shadow.rs
+@@ -425,13 +425,29 @@ pub(crate) fn gpu_merge_on() -> bool {
+ #[derive(Default)]
+ pub(crate) struct MergeLog {
+     pending: Vec<(u32, u32)>,
+-    pending_keys: Vec<(usize, u64)>,
+-    /// By (first offset, the run's own number): a run merged again before
+-    /// the earlier one is forgotten is a run of its own, as `sent` keeps it.
+-    runs: BTreeMap<(usize, u64), (usize, u64)>,
+-    next: u64,
++    /// The runs by send, oldest first; the last one is pending (send number
++    /// `u64::MAX`) if runs were added since the last send. A run merged
++    /// again later is a run of its own, in its own send, as `sent` keeps it.
++    batches: std::collections::VecDeque<MergeBatch>,
++}
++
++/// HybridGt: one send's merged runs `(first offset, end)` ([`MergeLog`]),
++/// sorted by first offset once `sorted`, and the longest of them.
++#[derive(Default)]
++struct MergeBatch {
++    sent: u64,
++    runs: Vec<(usize, usize)>,
++    sorted: bool,
+     longest: usize,
+-    by_send: std::collections::VecDeque<(u64, Vec<(usize, u64)>)>,
++}
++
++impl MergeBatch {
++    fn sort(&mut self) {
++        if !self.sorted {
++            self.runs.sort_unstable();
++            self.sorted = true;
++        }
++    }
+ }
+ 
+ impl MergeLog {
+@@ -449,11 +465,15 @@ impl MergeLog {
+                 _ => self.pending.push((dword, bit)),
+             }
+         }
+-        self.next += 1;
+-        let key = (from, self.next);
+-        self.runs.insert(key, (from + len, u64::MAX));
+-        self.pending_keys.push(key);
+-        self.longest = self.longest.max(len);
++        if self.batches.back().is_none_or(|b| b.sent != u64::MAX) {
++            self.batches.push_back(MergeBatch { sent: u64::MAX, sorted: true, ..Default::default() });
++        }
++        let Some(batch) = self.batches.back_mut() else { return };
++        if batch.runs.last().is_some_and(|&(a, _)| a > from) {
++            batch.sorted = false;
++        }
++        batch.runs.push((from, from + len));
++        batch.longest = batch.longest.max(len);
+     }
+ 
+     /// At a send numbered `sent_as`: the entries for the shader, each dword
+@@ -469,16 +489,11 @@ impl MergeLog {
+                 false
+             }
+         });
+-        let keys = std::mem::take(&mut self.pending_keys);
+-        for key in &keys {
+-            if let Some(run) = self.runs.get_mut(key)
+-                && run.1 == u64::MAX
+-            {
+-                run.1 = sent_as;
+-            }
+-        }
+-        if !keys.is_empty() {
+-            self.by_send.push_back((sent_as, keys));
++        if let Some(batch) = self.batches.back_mut()
++            && batch.sent == u64::MAX
++        {
++            batch.sent = sent_as;
++            batch.sort();
+         }
+         entries
+     }
+@@ -486,30 +501,23 @@ impl MergeLog {
+     /// Forgets the runs of sends up to `fetched` (a fetch sent after them
+     /// has been merged: no copy-back reads the card from before them).
+     pub(crate) fn prune(&mut self, fetched: u64) {
+-        while let Some((sent, _)) = self.by_send.front() {
+-            if *sent > fetched {
+-                break;
+-            }
+-            let (sent, keys) = self.by_send.pop_front().unwrap_or_default();
+-            for key in keys {
+-                if self.runs.get(&key).is_some_and(|run| run.1 == sent) {
+-                    self.runs.remove(&key);
+-                }
+-            }
+-        }
+-        if self.runs.is_empty() {
+-            self.longest = 0;
++        while self.batches.front().is_some_and(|b| b.sent <= fetched) {
++            self.batches.pop_front();
+         }
+     }
+ 
+     /// The runs overlapping `[from, to)` that a fetch sent after send
+     /// `fetched_after` did not see on the card (pending ones included).
+-    pub(crate) fn unseen(&self, from: usize, to: usize, fetched_after: u64) -> Vec<(usize, usize)> {
+-        self.runs
+-            .range((from.saturating_sub(self.longest), 0)..(to, 0))
+-            .filter(|&(&(a, _), &(b, sent))| a < to && b > from && sent > fetched_after)
+-            .map(|(&(a, _), &(b, _))| (a, b))
+-            .collect()
++    pub(crate) fn unseen(&mut self, from: usize, to: usize, fetched_after: u64) -> Vec<(usize, usize)> {
++        let mut out = Vec::new();
++        for batch in self.batches.iter_mut().filter(|b| b.sent > fetched_after) {
++            batch.sort();
++            let low = from.saturating_sub(batch.longest);
++            let first = batch.runs.partition_point(|r| r.0 < low);
++            out.extend(batch.runs[first..].iter().take_while(|r| r.0 < to).filter(|r| r.1 > from).copied());
++        }
++        out.sort_unstable();
++        out
+     }
+ }
+ 
+-- 
+2.56.1.windows.1
+

@@ -1,0 +1,98 @@
+# RedaX
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/0ce26759-2036-411a-8a3f-c926674e8dfd" alt="RedaX Banner" width="100%">
+</p>
+
+<p align="center">
+  <a href="https://redaxst.github.io/">
+    <img
+      src="https://img.shields.io/badge/Visit%20Our%20Website-00000?style=for-the-badge&logo=googlechrome&logoColor=white"
+      alt="Visit our website"
+    >
+  </a>
+</p>
+
+<h3 align="center">Next-Generation GTA VI RPF9 Explorer</h3>
+
+<p align="center">
+  A dedicated Windows application for exploring and inspecting Grand Theft Auto VI game archives.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Platform-Windows-0078D4?style=flat-square&logo=windows" alt="Windows">
+  <img src="https://img.shields.io/badge/Framework-.NET%2010-512BD4?style=flat-square&logo=dotnet" alt=".NET 10">
+  <img src="https://img.shields.io/badge/Architecture-x64-555555?style=flat-square" alt="x64">
+  <img src="https://img.shields.io/badge/Status-Coming%20Soon-orange?style=flat-square" alt="Coming Soon">
+</p>
+
+---
+
+## About
+
+**RedaX** is an independent RPF9 exploration tool developed to make navigating and inspecting Grand Theft Auto VI game files easier.
+
+Built with modern .NET technology, RedaX focuses on providing a dedicated desktop environment for working with GTA VI's RAGE engine archives.
+
+The project aims to provide a clean, efficient, and accessible way to explore game archive structures and inspect their contents through a modern graphical interface.
+
+## Features
+
+- **RPF9 Exploration** — Open and explore GTA VI RPF9 archives.
+- **Archive Inspection** — Inspect archive information and available file entries.
+- **File Browsing** — Navigate discovered archive contents through a desktop interface.
+- **Modern GUI** — A dedicated Windows application designed around a clean user experience.
+- **Performance Focused** — Built using modern .NET technologies.
+- **GTA VI Focused** — Developed specifically for exploring the next generation of RAGE engine game files.
+
+## Supported Formats
+
+| Format | Description |
+|---|---|
+| `.rpf` (RPF9) | GTA VI archive exploration and inspection |
+
+*Additional format support will be documented as development progresses.*
+
+## Technology
+
+| Component | Technology |
+|---|---|
+| Framework | .NET 10 |
+| Platform | Windows |
+| Architecture | x64 |
+| Target | GTA VI RAGE Engine |
+
+## Preview
+
+<p align="center">
+  <img width="100%" alt="Screenshot 2026-11-23 065802" src="https://github.com/user-attachments/assets/34f2d4d6-61ca-4e74-a2e7-e205f5371744" />
+  <img width="100%" alt="Screenshot 2026-11-23 065848" src="https://github.com/user-attachments/assets/fbe6b208-a26c-43c3-8e75-d5a07f9cf1e6" />
+  <img width="100%" alt="Screenshot 2026-11-23 065902" src="https://github.com/user-attachments/assets/30a9fe7e-3638-41a7-b13d-7b511962d52c" />
+</p>
+
+
+## Release
+
+<p align="center">
+  <strong>RedaX is currently under development.</strong>
+</p>
+
+The first public release is coming soon.
+
+Official builds and release information will be published here on GitHub.
+
+Stay tuned for updates.
+
+## Disclaimer
+
+RedaX is an independent community-developed project. It is not affiliated with, endorsed by, or sponsored by Rockstar Games or Take-Two Interactive.
+
+Grand Theft Auto and RAGE are trademarks of their respective owners.
+
+---
+
+<p align="center">
+  <strong>RedaX</strong>
+  <br>
+  Explore Beyond the Archive.
+</p>

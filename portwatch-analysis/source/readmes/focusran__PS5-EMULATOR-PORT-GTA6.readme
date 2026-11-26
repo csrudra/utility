@@ -1,0 +1,72 @@
+<div align="center">
+
+<!-- Replace the link below with your uploaded banner image (recommended size: 1280x640) -->
+<img src="https://placeholder.com" alt="Project Banner" width="100%"/>
+
+# 🎮 PS5 Next-Gen Emulator — GTA VI Compatibility Build
+
+**Next-generation console translation layer and hardware-accelerated runtime for PC.**
+
+[![Build Status](https://shields.io)](https://github.com)
+[![Platform](https://shields.io)](https://github.com)
+[![Graphics API](https://shields.io)](https://github.com)
+[![Architecture](https://shields.io)](https://github.com)
+[![License](https://shields.io)](LICENSE)
+
+[Features](#-key-features) • [System Requirements](#-system-requirements) • [Installation](#-quick-start) • [Roadmap](#-development-roadmap)
+
+</div>
+
+---
+
+## ⚡ Overview
+
+**PS5 Next-Gen Emulator** is an open-source, low-overhead virtualization and syscall translation environment designed to run PlayStation 5 titles natively on modern x86-64 PC hardware. This specialized branch focuses on shader pipeline optimization, custom I/O decompression, and memory management tailored for **Grand Theft Auto VI**.
+
+## 🔥 Key Features
+
+* **🚀 Custom Kraken Decompression:** Hardware-accelerated asset streaming mimicking the PS5 custom I/O controller via DirectStorage / Vulkan.
+* **🎨 RDNA 2 to Vulkan / DX12 Translation:** Real-time SPIR-V shader recompilation with asynchronous pipeline caching to eliminate stuttering.
+* **🧠 Unified Memory Emulation:** Dynamic RAM/VRAM allocation bridge replicating the 16GB GDDR6 unified memory architecture.
+* **🎮 DualSense Native Support:** Full adaptive triggers and haptic feedback passthrough over USB and Bluetooth.
+* **⚡ Unlocked Framerates:** Built-in frame-pacing patches supporting 60+ FPS and ultrawide resolutions (21:9 / 32:9).
+
+---
+
+## 💻 System Requirements
+
+| Component | Minimum | Recommended (4K / 60 FPS) |
+| :--- | :--- | :--- |
+| **OS** | Windows 10 (22H2) / Ubuntu 22.04 | Windows 11 (24H2) / Arch Linux |
+| **CPU** | AMD Ryzen 5 5600X / Intel Core i5-12600K (AVX2) | AMD Ryzen 7 7800X3D / Intel Core i7-14700K |
+| **GPU** | NVIDIA RTX 3060 / AMD RX 6700 XT (Vulkan 1.3) | NVIDIA RTX 4080 / AMD RX 7900 XTX |
+| **RAM** | 16 GB DDR4 | 32 GB DDR5 |
+| **Storage** | NVMe SSD (PCIe Gen 3) | NVMe SSD (PCIe Gen 4, 7000+ MB/s) |
+
+---
+
+## 🛠️ Quick Start
+
+1. **Clone the repository:**
+   ```bash
+   git clone --recursive https://github.com
+   cd PS5-NextGen-Emu-GTA6-Edition
+   ```
+2. **Place your dumped firmware & keys:**
+   Put your legally obtained PS5 system modules into the `/firmware/` directory.
+3. **Launch the Runtime:**
+   ```bash
+   ./ps5-emu-launcher --vulkan --async-shaders --game "path/to/game_eboot.bin"
+   ```
+
+---
+
+## 🗺️ Development Roadmap
+
+- [x] Core x86-64 Hypervisor & Kernel Syscall HLE
+- [x] Vulkan 1.3 Shader Recompiler
+- [x] DirectStorage Asset Streaming Pipeline
+- [ ] Ray-Traced Global Illumination (RTGI) Stability Fixes
+- [ ] Audio 3D Tempest Engine Spatial Mixing
+
+---

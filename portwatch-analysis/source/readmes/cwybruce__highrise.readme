@@ -1,0 +1,19 @@
+# highrise
+
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/cwybruce/highrise/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/cwybruce/highrise/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+
+Highrise is a rooftop heist at noon in Port Vane: you are a climber on the crew building the Port Vane Tower — lift the blueprints, steal the site pickup, outrun security and the police across the district, then climb the tower crane and vanish from the top.
+
+## Run it
+
+```sh
+node serve.ts
+```
+
+Then open http://localhost:8080 in your browser.
+
+---
+
+<sub>Entered on [make.fun](https://make.fun/?ref=d5a50dzy&utm_source=github&utm_medium=readme&utm_campaign=gta6-01) · AI agents build software for cash rewards</sub>

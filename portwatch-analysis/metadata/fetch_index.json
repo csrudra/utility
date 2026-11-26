@@ -1,0 +1,3272 @@
+{
+  "0x0007b/XBVK": {
+    "readme": 13299,
+    "commits": 23,
+    "last": "2026-11-25T08:24:26Z",
+    "truncated": false
+  },
+  "0xyfann/makefun-gta6-01": {
+    "readme": 2213,
+    "commits": 40,
+    "last": "2026-11-19T15:50:52Z",
+    "truncated": false
+  },
+  "17765152890/xcl": {
+    "readme": 14790,
+    "commits": 100,
+    "last": "2026-11-24T13:38:00Z",
+    "truncated": true
+  },
+  "3kh0/leonida": {
+    "readme": 25289,
+    "commits": 100,
+    "last": "2026-11-23T14:26:49Z",
+    "truncated": true
+  },
+  "4Sakens/Project-Kalaga": {
+    "readme": 10175,
+    "commits": 25,
+    "last": "2026-11-25T03:49:57Z",
+    "truncated": false
+  },
+  "745906790xf-cpu/gta6-game": {
+    "readme": 1027,
+    "commits": 6,
+    "last": "2026-11-20T09:15:16Z",
+    "truncated": false
+  },
+  "ACreTeam/ac-decomp": {
+    "readme": 6255,
+    "commits": 100,
+    "last": "2026-11-07T21:23:54Z",
+    "truncated": true
+  },
+  "ADWMC/gta6-windows-tracker": {
+    "readme": 512001,
+    "commits": 100,
+    "last": "2026-11-26T05:35:40Z",
+    "truncated": true
+  },
+  "Agusstyo/gta6-open-world": {
+    "readme": 4722,
+    "commits": 7,
+    "last": "2026-11-19T15:40:44Z",
+    "truncated": false
+  },
+  "AhCheng91/ahcheng91-gta6-01": {
+    "readme": 1072,
+    "commits": 37,
+    "last": "2026-11-24T07:45:23Z",
+    "truncated": false
+  },
+  "Ahmet-Dedeler/awesome-gta6-reverse-engineering": {
+    "readme": 115768,
+    "commits": 42,
+    "last": "2026-11-26T00:58:15Z",
+    "truncated": false
+  },
+  "Ahmet-Dedeler/bcpack-rs": {
+    "readme": 12728,
+    "commits": 28,
+    "last": "2026-11-26T06:02:43Z",
+    "truncated": false
+  },
+  "Ahmet-Dedeler/rage9-re": {
+    "readme": 3740,
+    "commits": 9,
+    "last": "2026-11-24T03:07:23Z",
+    "truncated": false
+  },
+  "Ahmet-Dedeler/weather-study": {
+    "readme": 4400,
+    "commits": 10,
+    "last": "2026-11-24T13:03:56Z",
+    "truncated": false
+  },
+  "Alazuriel/UMBRA": {
+    "readme": 15142,
+    "commits": 2,
+    "last": "2026-11-25T19:52:44Z",
+    "truncated": false
+  },
+  "Albotterin/AWC_from_RPF9_Extractor": {
+    "readme": 15555,
+    "commits": 42,
+    "last": "2026-11-25T23:08:39Z",
+    "truncated": false
+  },
+  "AlexeySamosadov/Daiana": {
+    "readme": 27058,
+    "commits": 100,
+    "last": "2026-11-24T14:58:35Z",
+    "truncated": true
+  },
+  "Alwwex/Xbox_em": {
+    "readme": 12707,
+    "commits": 44,
+    "last": "2026-11-24T06:41:26Z",
+    "truncated": false
+  },
+  "Andretuta/Leonida-community": {
+    "readme": 26054,
+    "commits": 100,
+    "last": "2026-11-24T01:12:10Z",
+    "truncated": true
+  },
+  "AnomalyRep/Leonida": {
+    "readme": 26150,
+    "commits": 100,
+    "last": "2026-11-23T23:30:11Z",
+    "truncated": true
+  },
+  "Archivist-Atlas/gta-vi-astral": {
+    "readme": 13132,
+    "commits": 72,
+    "last": "2026-11-25T19:09:09Z",
+    "truncated": false
+  },
+  "Aritoys89/gta6-01": {
+    "readme": 4401,
+    "commits": 2,
+    "last": "2026-11-23T07:20:20Z",
+    "truncated": false
+  },
+  "BLMChoosen/xbox2pc-public": {
+    "readme": 9524,
+    "commits": 22,
+    "last": "2026-11-24T03:03:21Z",
+    "truncated": false
+  },
+  "BSXbox/BSXbox": {
+    "readme": 587,
+    "commits": 21,
+    "last": "2026-11-23T17:57:39Z",
+    "truncated": false
+  },
+  "Baljinder-rgba/gta-6-cheats": {
+    "readme": 7985,
+    "commits": 5,
+    "last": "2026-11-20T09:56:30Z",
+    "truncated": false
+  },
+  "Bangzo1708/gta6-9": {
+    "readme": 1278,
+    "commits": 2,
+    "last": "2026-11-21T10:56:55Z",
+    "truncated": false
+  },
+  "Batushn/KestrelX": {
+    "readme": 45354,
+    "commits": 40,
+    "last": "2026-11-24T15:19:08Z",
+    "truncated": false
+  },
+  "Beaver6513/ztrx-lowvram": {
+    "readme": 7563,
+    "commits": 100,
+    "last": "2026-11-25T17:36:44Z",
+    "truncated": true
+  },
+  "Belobug/VIctory-Belobug-AMD": {
+    "readme": 5587,
+    "commits": 100,
+    "last": "2026-11-26T00:56:08Z",
+    "truncated": true
+  },
+  "BitBoy404/BrVIdge": {
+    "readme": 17017,
+    "commits": 1,
+    "last": "2026-11-25T12:12:53Z",
+    "truncated": false
+  },
+  "Blackfrost-AI/GrandFrostAuto": {
+    "readme": 1699,
+    "commits": 8,
+    "last": "2026-11-25T22:14:21Z",
+    "truncated": false
+  },
+  "CARGOBROWN/punkstar": {
+    "readme": 291,
+    "commits": 9,
+    "last": "2026-11-25T14:11:38Z",
+    "truncated": false
+  },
+  "COCA-DEV/Rev6": {
+    "readme": 953,
+    "commits": 8,
+    "last": "2026-11-23T22:34:32Z",
+    "truncated": false
+  },
+  "Caliiu/DedSec": {
+    "readme": 10661,
+    "commits": 37,
+    "last": "2026-11-23T04:43:20Z",
+    "truncated": false
+  },
+  "Cappi1998/LONDBackup": {
+    "readme": 26145,
+    "commits": 100,
+    "last": "2026-11-23T23:18:42Z",
+    "truncated": true
+  },
+  "CaseReed/AnyBox": {
+    "readme": 12383,
+    "commits": 82,
+    "last": "2026-11-23T05:52:32Z",
+    "truncated": false
+  },
+  "ChrisDKN/Amethyst-Mod-Manager": {
+    "readme": 5443,
+    "commits": 100,
+    "last": "2026-11-18T15:59:23Z",
+    "truncated": true
+  },
+  "Click2x/BananaTheftAuto": {
+    "readme": 34310,
+    "commits": 100,
+    "last": "2026-11-26T05:31:06Z",
+    "truncated": true
+  },
+  "Corgansm/victory-corgi": {
+    "readme": 18745,
+    "commits": 100,
+    "last": "2026-11-26T01:41:20Z",
+    "truncated": true
+  },
+  "CrazyForGTA/Leonida": {
+    "readme": 26205,
+    "commits": 2,
+    "last": "2026-11-25T20:25:00Z",
+    "truncated": false
+  },
+  "Cyberstawning/GTA-VI-PC-EDITION": {
+    "readme": 404,
+    "commits": 2,
+    "last": "2026-11-25T23:11:53Z",
+    "truncated": false
+  },
+  "DBWilliamEngineering/IraRationis": {
+    "readme": 29721,
+    "commits": 44,
+    "last": "2026-11-26T06:23:36Z",
+    "truncated": false
+  },
+  "DIMAAGR/Leonida": {
+    "readme": 26150,
+    "commits": 100,
+    "last": "2026-11-23T23:30:11Z",
+    "truncated": true
+  },
+  "Dark3581/AnyBox": {
+    "readme": 74239,
+    "commits": 92,
+    "last": "2026-11-26T05:08:25Z",
+    "truncated": false
+  },
+  "Dekubi/Dekubi-Ally-X": {
+    "readme": 3072,
+    "commits": 7,
+    "last": "2026-11-25T07:52:24Z",
+    "truncated": false
+  },
+  "DesertGamer/VIPort": {
+    "readme": 30902,
+    "commits": 100,
+    "last": "2026-11-26T02:43:22Z",
+    "truncated": true
+  },
+  "DesignWithTommy/6to5m": {
+    "readme": 17535,
+    "commits": 100,
+    "last": "2026-11-23T23:52:37Z",
+    "truncated": true
+  },
+  "DesignWithTommy/i95": {
+    "readme": 11307,
+    "commits": 55,
+    "last": "2026-11-26T04:58:03Z",
+    "truncated": false
+  },
+  "DexNom/VIctory": {
+    "readme": 13973,
+    "commits": 100,
+    "last": "2026-11-26T01:12:07Z",
+    "truncated": true
+  },
+  "DinosaurPlanetRecomp/dino-recomp": {
+    "readme": 7992,
+    "commits": 100,
+    "last": "2026-11-25T08:54:38Z",
+    "truncated": true
+  },
+  "Dolberthi/neptune-dolberth-nvidia-8gb": {
+    "readme": 10040,
+    "commits": 16,
+    "last": "2026-11-26T04:40:44Z",
+    "truncated": false
+  },
+  "Dom-in/Gta6AchivmentsList": {
+    "readme": 1966,
+    "commits": 4,
+    "last": "2026-11-24T12:41:12Z",
+    "truncated": false
+  },
+  "Elzigimeta/gta6-openworld": {
+    "readme": 870,
+    "commits": 2,
+    "last": "2026-11-20T11:35:11Z",
+    "truncated": false
+  },
+  "Elzigimeta/gta6-openworld-v2": {
+    "readme": 876,
+    "commits": 3,
+    "last": "2026-11-20T11:58:39Z",
+    "truncated": false
+  },
+  "Esquie-rl/open-vice": {
+    "readme": 22418,
+    "commits": 100,
+    "last": "2026-11-26T00:45:29Z",
+    "truncated": true
+  },
+  "EstevaoTerci/Leonida": {
+    "readme": 9758,
+    "commits": 100,
+    "last": "2026-11-21T20:57:04Z",
+    "truncated": true
+  },
+  "ExCorvus/gta-pipeline-reconstruction": {
+    "readme": 4596,
+    "commits": 100,
+    "last": "2026-11-26T06:22:53Z",
+    "truncated": true
+  },
+  "ExCorvus/whibwhi-own": {
+    "readme": 4596,
+    "commits": 100,
+    "last": "2026-11-26T06:22:53Z",
+    "truncated": true
+  },
+  "FQY55kai/ZJOU-VICTORY": {
+    "readme": 48181,
+    "commits": 100,
+    "last": "2026-11-25T16:43:35Z",
+    "truncated": true
+  },
+  "FQY55kai/leonida-gta6-pc-notes": {
+    "readme": 3657,
+    "commits": 6,
+    "last": "2026-11-24T07:57:30Z",
+    "truncated": false
+  },
+  "FREE-GTA6-INSTALLING/.github": {
+    "readme": 6409,
+    "commits": 3,
+    "last": "2026-11-21T14:38:28Z",
+    "truncated": false
+  },
+  "FREE-GTA6-LAUNC-HER/.github": {
+    "readme": 6330,
+    "commits": 3,
+    "last": "2026-11-21T14:42:51Z",
+    "truncated": false
+  },
+  "FREE-GTA6-LOADING/.github": {
+    "readme": 6409,
+    "commits": 3,
+    "last": "2026-11-21T14:39:30Z",
+    "truncated": false
+  },
+  "FluffyCyanNova/BK2toMP4": {
+    "readme": 5980,
+    "commits": 5,
+    "last": "2026-11-22T18:50:43Z",
+    "truncated": false
+  },
+  "ForkWorkGG/play-gta-6-on-pc": {
+    "readme": 7610,
+    "commits": 5,
+    "last": "2026-11-25T21:08:59Z",
+    "truncated": false
+  },
+  "Free-GTA-VI/.github": {
+    "readme": 7051,
+    "commits": 3,
+    "last": "2026-11-21T23:45:32Z",
+    "truncated": false
+  },
+  "Freminet/ScarlettX": {
+    "readme": 17283,
+    "commits": 57,
+    "last": "2026-11-22T10:38:04Z",
+    "truncated": false
+  },
+  "Frizti/Fritchii": {
+    "readme": 69,
+    "commits": 100,
+    "last": "2026-11-06T08:36:35Z",
+    "truncated": true
+  },
+  "FulGerNet/macca-cl": {
+    "readme": 9221,
+    "commits": 100,
+    "last": "2026-11-25T12:25:13Z",
+    "truncated": true
+  },
+  "GTA-6-Port/gta6port": {
+    "readme": 13715,
+    "commits": 8,
+    "last": "2026-11-24T05:24:28Z",
+    "truncated": false
+  },
+  "GTA-VI-Installer-PC/.github": {
+    "readme": 7290,
+    "commits": 3,
+    "last": "2026-11-21T23:43:43Z",
+    "truncated": false
+  },
+  "GTA-VI-Launcher/.github": {
+    "readme": 7118,
+    "commits": 3,
+    "last": "2026-11-21T23:48:08Z",
+    "truncated": false
+  },
+  "GiovannaSGuerrera/Victory-RTX2080": {
+    "readme": 11823,
+    "commits": 5,
+    "last": "2026-11-26T01:40:41Z",
+    "truncated": false
+  },
+  "Github-Samuel/sixonpc": {
+    "readme": 14658,
+    "commits": 12,
+    "last": "2026-11-25T15:43:41Z",
+    "truncated": false
+  },
+  "GloriousEggroll/proton-ge-custom": {
+    "readme": 84672,
+    "commits": 100,
+    "last": "2026-11-24T20:46:17Z",
+    "truncated": true
+  },
+  "Guernica4u/GTA6-PC-Port-Archive": {
+    "readme": 5245,
+    "commits": 56,
+    "last": "2026-11-26T05:37:09Z",
+    "truncated": false
+  },
+  "Guernica4u/Leonida-archive": {
+    "readme": 26140,
+    "commits": 100,
+    "last": "2026-11-23T22:52:18Z",
+    "truncated": true
+  },
+  "GuoqiFish/WelcomeToFlorida": {
+    "readme": 29351,
+    "commits": 4,
+    "last": "2026-11-26T04:54:03Z",
+    "truncated": false
+  },
+  "Hellomyfriend19/Leonida": {
+    "readme": 9864,
+    "commits": 2,
+    "last": "2026-11-24T16:11:30Z",
+    "truncated": false
+  },
+  "Hesoten/blueMSX-plus": {
+    "readme": 10942,
+    "commits": 100,
+    "last": "2026-08-17T23:12:54Z",
+    "truncated": true
+  },
+  "HitBoyXx23-dev/hitboy-emulations": {
+    "readme": 5182,
+    "commits": 23,
+    "last": "2026-11-25T18:02:59Z",
+    "truncated": false
+  },
+  "HollowMisty/Leonida": {
+    "readme": 26516,
+    "commits": 89,
+    "last": "2026-11-24T12:56:28Z",
+    "truncated": false
+  },
+  "HolyRoses/gta6-explorer": {
+    "readme": 19327,
+    "commits": 26,
+    "last": "2026-11-26T01:18:19Z",
+    "truncated": false
+  },
+  "HumanlyDev/HUMAN": {
+    "readme": 9380,
+    "commits": 4,
+    "last": "2026-11-25T20:49:46Z",
+    "truncated": false
+  },
+  "Hylanderry/DedSec": {
+    "readme": 12017,
+    "commits": 51,
+    "last": "2026-11-23T22:48:01Z",
+    "truncated": false
+  },
+  "IAmNotSiob/leonida-ce": {
+    "readme": 6879,
+    "commits": 100,
+    "last": "2026-11-25T20:51:07Z",
+    "truncated": true
+  },
+  "Irgirival/makefun-gta6-01-irgirival-r2": {
+    "readme": 3303,
+    "commits": 2,
+    "last": "2026-11-24T02:03:08Z",
+    "truncated": false
+  },
+  "Its3rr0rsWRLD/XPortPC": {
+    "readme": 11819,
+    "commits": 100,
+    "last": "2026-11-24T06:27:04Z",
+    "truncated": true
+  },
+  "Itsbatt/victory-unified": {
+    "readme": 9829,
+    "commits": 100,
+    "last": "2026-11-25T21:46:00Z",
+    "truncated": true
+  },
+  "JPDL8901/leonida-specs": {
+    "readme": 4868,
+    "commits": 2,
+    "last": "2026-11-24T15:03:32Z",
+    "truncated": false
+  },
+  "Jake-Jensen/GTAVI_Xbox_ReverseEngineering": {
+    "readme": 5291,
+    "commits": 2,
+    "last": "2026-11-23T18:36:09Z",
+    "truncated": false
+  },
+  "JamesCicada/GTAVI-Recomp": {
+    "readme": 12137,
+    "commits": 56,
+    "last": "2026-11-25T12:51:18Z",
+    "truncated": false
+  },
+  "JamesCicada/XboxVI": {
+    "readme": 5113,
+    "commits": 100,
+    "last": "2026-11-25T14:40:55Z",
+    "truncated": true
+  },
+  "Joaco9020/mangrove": {
+    "readme": 14461,
+    "commits": 100,
+    "last": "2026-11-25T16:46:57Z",
+    "truncated": true
+  },
+  "Johnleys1/gta6-01-v5": {
+    "readme": 3056,
+    "commits": 50,
+    "last": "2026-11-22T11:33:38Z",
+    "truncated": false
+  },
+  "JokiiiBoy/GTA6-btw": {
+    "readme": 11802,
+    "commits": 29,
+    "last": "2026-11-25T20:26:18Z",
+    "truncated": false
+  },
+  "Jontsgame/XBox-Scarlet-PC": {
+    "readme": 404,
+    "commits": 409
+  },
+  "JoseArranzSanchez/GTA6_PCPORT_INFO": {
+    "readme": 63366,
+    "commits": 12,
+    "last": "2026-11-26T04:46:36Z",
+    "truncated": false
+  },
+  "JoshRob297/rpf9-research": {
+    "readme": 9807,
+    "commits": 36,
+    "last": "2026-11-24T04:57:04Z",
+    "truncated": false
+  },
+  "JozefDeTremmerie/CCS03": {
+    "readme": 17561,
+    "commits": 100,
+    "last": "2026-11-26T01:59:26Z",
+    "truncated": true
+  },
+  "Judikaelle/fatman-games": {
+    "readme": 15013,
+    "commits": 9,
+    "last": "2026-11-24T13:31:41Z",
+    "truncated": false
+  },
+  "JustJoeKingz/leonida": {
+    "readme": 26974,
+    "commits": 100,
+    "last": "2026-11-24T03:36:36Z",
+    "truncated": true
+  },
+  "JusticeRox98577/Leonida": {
+    "readme": 27,
+    "commits": 1,
+    "last": "2026-11-24T05:52:58Z",
+    "truncated": false
+  },
+  "Justyyin/Cyberleek-Gta6-Malware": {
+    "readme": 197533,
+    "commits": 31,
+    "last": "2026-11-25T19:33:52Z",
+    "truncated": false
+  },
+  "KIexster/Leonida": {
+    "readme": 26150,
+    "commits": 100,
+    "last": "2026-11-24T02:02:14Z",
+    "truncated": true
+  },
+  "Kajcsi/G6Recomp": {
+    "readme": 8285,
+    "commits": 61,
+    "last": "2026-11-24T07:51:40Z",
+    "truncated": false
+  },
+  "KatanaCZ/Prometheus": {
+    "readme": 9464,
+    "commits": 100,
+    "last": "2026-11-25T22:39:47Z",
+    "truncated": true
+  },
+  "Kazutonyx/GTA6-Port-Race": {
+    "readme": 1173,
+    "commits": 1,
+    "last": "2026-11-25T06:08:32Z",
+    "truncated": false
+  },
+  "Kiowayyy2109/makefun-gta6-01-v3": {
+    "readme": 4587,
+    "commits": 4,
+    "last": "2026-11-19T20:44:59Z",
+    "truncated": false
+  },
+  "KirPoz/bitvyr": {
+    "readme": 3180,
+    "commits": 43,
+    "last": "2026-11-23T19:09:39Z",
+    "truncated": false
+  },
+  "LIJI32/SameBoy": {
+    "readme": 6493,
+    "commits": 100,
+    "last": "2026-11-02T21:51:43Z",
+    "truncated": true
+  },
+  "LMIII98/LMIII": {
+    "readme": 7007,
+    "commits": 100,
+    "last": "2026-11-24T22:55:37Z",
+    "truncated": true
+  },
+  "LawrenceBrode/LACED": {
+    "readme": 29113,
+    "commits": 39,
+    "last": "2025-05-11T02:26:40Z",
+    "truncated": false
+  },
+  "LeonardWernke/WaveSpan": {
+    "readme": 14621,
+    "commits": 15,
+    "last": "2026-11-25T22:24:33Z",
+    "truncated": false
+  },
+  "Leucodermique/VIce": {
+    "readme": 16976,
+    "commits": 100,
+    "last": "2026-11-25T23:48:28Z",
+    "truncated": true
+  },
+  "Librett0/vice-lens": {
+    "readme": 14522,
+    "commits": 6,
+    "last": "2026-11-22T20:34:56Z",
+    "truncated": false
+  },
+  "LilBigJP/ztrx-ps5-save-import": {
+    "readme": 5122,
+    "commits": 3,
+    "last": "2026-11-25T03:57:02Z",
+    "truncated": false
+  },
+  "Lilpez/xcl-ztrx": {
+    "readme": 26585,
+    "commits": 100,
+    "last": "2026-11-25T21:36:31Z",
+    "truncated": true
+  },
+  "Linox-IDK/LNX-victory": {
+    "readme": 15716,
+    "commits": 100,
+    "last": "2026-11-25T22:49:14Z",
+    "truncated": true
+  },
+  "LooperSalty/AnyXboxX": {
+    "readme": 30285,
+    "commits": 100,
+    "last": "2026-11-26T00:15:03Z",
+    "truncated": true
+  },
+  "LowBacon/HybridGt": {
+    "readme": 12028,
+    "commits": 52,
+    "last": "2026-11-25T22:09:22Z",
+    "truncated": false
+  },
+  "LukaManstein/CHIMERA": {
+    "readme": 16518,
+    "commits": 100,
+    "last": "2026-11-25T22:55:30Z",
+    "truncated": true
+  },
+  "Luzers-Store/gta6_pc_test": {
+    "readme": 404,
+    "commits": 3,
+    "last": "2026-11-23T03:12:14Z",
+    "truncated": false
+  },
+  "M374LX/alexvsbus": {
+    "readme": 3878,
+    "commits": 100,
+    "last": "2026-11-23T00:23:25Z",
+    "truncated": true
+  },
+  "MESIA-Unified/MESIA-Unified": {
+    "readme": 2641,
+    "commits": 81,
+    "last": "2026-11-26T03:30:49Z",
+    "truncated": false
+  },
+  "MaDeInCCCP2/victory-fork": {
+    "readme": 24266,
+    "commits": 61,
+    "last": "2026-11-25T18:52:22Z",
+    "truncated": false
+  },
+  "Maksi-Novagh/Scarlett-Fusion-Lab": {
+    "readme": 3180,
+    "commits": 1,
+    "last": "2026-11-24T19:01:59Z",
+    "truncated": false
+  },
+  "Marvisak/VIctory": {
+    "readme": 15371,
+    "commits": 100,
+    "last": "2026-11-25T23:27:42Z",
+    "truncated": true
+  },
+  "Masriah091/bahia-roja": {
+    "readme": 1504,
+    "commits": 35,
+    "last": "2026-11-23T14:04:40Z",
+    "truncated": false
+  },
+  "Melow-code/Vader": {
+    "readme": 4333,
+    "commits": 100,
+    "last": "2026-11-25T18:54:14Z",
+    "truncated": true
+  },
+  "Mica23324/leonida": {
+    "readme": 26220,
+    "commits": 2,
+    "last": "2026-11-24T18:11:08Z",
+    "truncated": false
+  },
+  "Mizushi148/MizuBox": {
+    "readme": 8710,
+    "commits": 4,
+    "last": "2026-11-22T18:20:10Z",
+    "truncated": false
+  },
+  "ModOrganizer2/modorganizer": {
+    "readme": 5919,
+    "commits": 100,
+    "last": "2026-10-05T17:34:47Z",
+    "truncated": true
+  },
+  "MoonLightDEV3/MoonLight-GTA-Version-": {
+    "readme": 5632,
+    "commits": 100,
+    "last": "2026-11-25T21:33:48Z",
+    "truncated": true
+  },
+  "MorpheusCode117/Lichii": {
+    "readme": 7360,
+    "commits": 100,
+    "last": "2026-11-17T22:40:43Z",
+    "truncated": true
+  },
+  "MuhammedAmeerHamza/any-xbox": {
+    "readme": 8212,
+    "commits": 100,
+    "last": "2026-11-20T09:00:09Z",
+    "truncated": true
+  },
+  "MythosOfs/Orchid": {
+    "readme": 26717,
+    "commits": 100,
+    "last": "2026-11-25T21:30:20Z",
+    "truncated": true
+  },
+  "NETF1ix/reach-renaissance-releases": {
+    "readme": 7267,
+    "commits": 8,
+    "last": "2026-11-07T18:51:46Z",
+    "truncated": false
+  },
+  "NEXARYSE/nexaverse-gta-toolkit": {
+    "readme": 7375,
+    "commits": 4,
+    "last": "2026-11-22T21:20:47Z",
+    "truncated": false
+  },
+  "NUXX-G/gta6-pc-tracker": {
+    "readme": 13719,
+    "commits": 23,
+    "last": "2026-11-26T01:53:01Z",
+    "truncated": false
+  },
+  "NVIDIA/DLSS": {
+    "readme": 690,
+    "commits": 33,
+    "last": "2026-10-16T15:26:35Z",
+    "truncated": false
+  },
+  "Naz1r/lucy-nazir-gta6-research": {
+    "readme": 6630,
+    "commits": 14,
+    "last": "2026-11-23T23:37:36Z",
+    "truncated": false
+  },
+  "Neverchange-dotcom/Leonida-Save": {
+    "readme": 28936,
+    "commits": 9,
+    "last": "2026-11-24T03:33:27Z",
+    "truncated": false
+  },
+  "NightFury-Supreme/Oryx": {
+    "readme": 11158,
+    "commits": 1,
+    "last": "2026-11-22T15:53:29Z",
+    "truncated": false
+  },
+  "NightVibes33/Leo": {
+    "readme": 9909,
+    "commits": 45,
+    "last": "2026-11-24T18:12:33Z",
+    "truncated": false
+  },
+  "Nikide/leonida-bvhfix": {
+    "readme": 26205,
+    "commits": 100,
+    "last": "2026-11-23T22:21:49Z",
+    "truncated": true
+  },
+  "ODanielAtaide/GTA6VORTEXRECOMP": {
+    "readme": 5443,
+    "commits": 100,
+    "last": "2026-11-24T23:40:44Z",
+    "truncated": true
+  },
+  "OG2BIT001/gta6-01": {
+    "readme": 4609,
+    "commits": 5,
+    "last": "2026-11-21T01:03:27Z",
+    "truncated": false
+  },
+  "OGsWorkshop/Port-Gellhorn": {
+    "readme": 27723,
+    "commits": 100,
+    "last": "2026-11-25T04:47:39Z",
+    "truncated": true
+  },
+  "ONAJANO11/LeonidaP": {
+    "readme": 23901,
+    "commits": 100,
+    "last": "2026-11-23T02:56:33Z",
+    "truncated": true
+  },
+  "ONLYUSEmeFEET/Cub-Spiele.Com": {
+    "readme": 4804,
+    "commits": 73,
+    "last": "2026-11-25T17:17:43Z",
+    "truncated": false
+  },
+  "Omeynu/wakfu-recomp": {
+    "readme": 6766,
+    "commits": 14,
+    "last": "2026-11-25T15:53:15Z",
+    "truncated": false
+  },
+  "Onajano/CupCake": {
+    "readme": 26645,
+    "commits": 100,
+    "last": "2026-11-24T02:37:41Z",
+    "truncated": true
+  },
+  "OnlyMoisties/GTA6-BootTest": {
+    "readme": 5558,
+    "commits": 22,
+    "last": "2026-11-24T01:09:50Z",
+    "truncated": false
+  },
+  "OpenCommunityEdition/OpenScarlett": {
+    "readme": 14355,
+    "commits": 100,
+    "last": "2026-11-25T09:45:17Z",
+    "truncated": true
+  },
+  "Orbitofveil31/gta-6-early-access": {
+    "readme": 404,
+    "commits": 2,
+    "last": "2026-11-25T23:11:13Z",
+    "truncated": false
+  },
+  "PCSX2/pcsx2": {
+    "readme": 2542,
+    "commits": 100,
+    "last": "2026-11-24T00:01:25Z",
+    "truncated": true
+  },
+  "POMXARK/bcpack-gpu-hlsl": {
+    "readme": 37283,
+    "commits": 33,
+    "last": "2026-11-26T01:41:23Z",
+    "truncated": false
+  },
+  "PastiiJay/klbf-lab": {
+    "readme": 21920,
+    "commits": 100,
+    "last": "2026-11-25T22:54:24Z",
+    "truncated": true
+  },
+  "Pavl3000/victory-speed": {
+    "readme": 12099,
+    "commits": 100,
+    "last": "2026-11-25T21:31:45Z",
+    "truncated": true
+  },
+  "PawelBeska/scarlett": {
+    "readme": 47762,
+    "commits": 17,
+    "last": "2026-11-25T15:01:48Z",
+    "truncated": false
+  },
+  "PedroNunes11/victory-neymar": {
+    "readme": 26057,
+    "commits": 100,
+    "last": "2026-11-25T22:07:23Z",
+    "truncated": true
+  },
+  "PelvisBass/Sunset-Launcher": {
+    "readme": 10183,
+    "commits": 10,
+    "last": "2026-11-25T16:01:14Z",
+    "truncated": false
+  },
+  "PequenoBrasileiro/ReScarlett": {
+    "readme": 3924,
+    "commits": 3,
+    "last": "2026-11-23T18:29:54Z",
+    "truncated": false
+  },
+  "Piggywu981/leowenya": {
+    "readme": 27328,
+    "commits": 100,
+    "last": "2026-11-26T05:13:39Z",
+    "truncated": true
+  },
+  "PlayGta6Web/playgta6web": {
+    "readme": 2073,
+    "commits": 100,
+    "last": "2026-11-26T05:12:29Z",
+    "truncated": true
+  },
+  "PlutonusDev/OpenEra": {
+    "readme": 7966,
+    "commits": 54,
+    "last": "2026-11-26T01:47:23Z",
+    "truncated": false
+  },
+  "Polrtr/gta6portpc-mobile": {
+    "readme": 404,
+    "commits": 14,
+    "last": "2026-11-24T06:37:30Z",
+    "truncated": false
+  },
+  "Prime1997/xcl-compat-fixes": {
+    "readme": 28265,
+    "commits": 100,
+    "last": "2026-11-25T21:23:29Z",
+    "truncated": true
+  },
+  "Producdevity/EmuReady": {
+    "readme": 7219,
+    "commits": 100,
+    "last": "2026-11-13T23:40:53Z",
+    "truncated": true
+  },
+  "Producdevity/EmuReadyApp": {
+    "readme": 1741,
+    "commits": 48,
+    "last": "2025-07-03T16:49:21Z",
+    "truncated": false
+  },
+  "ProhorovIlja/NativeX-Runtime": {
+    "readme": 4480,
+    "commits": 100,
+    "last": "2026-11-24T20:33:32Z",
+    "truncated": true
+  },
+  "ProjectLeonidaL/leonida": {
+    "readme": 6660,
+    "commits": 100,
+    "last": "2026-11-25T22:23:42Z",
+    "truncated": true
+  },
+  "Proto-ventures/victory-fork": {
+    "readme": 13042,
+    "commits": 100,
+    "last": "2026-11-24T20:45:05Z",
+    "truncated": true
+  },
+  "QalityDev/leonida": {
+    "readme": 23901,
+    "commits": 100,
+    "last": "2026-11-22T22:08:57Z",
+    "truncated": true
+  },
+  "QuasarFlash/LONDBackup": {
+    "readme": 26145,
+    "commits": 100,
+    "last": "2026-11-23T23:18:42Z",
+    "truncated": true
+  },
+  "R0Y00/Xbox2Windows": {
+    "readme": 79115,
+    "commits": 100,
+    "last": "2026-11-26T06:25:55Z",
+    "truncated": true
+  },
+  "RKouchoo/rdna4rage": {
+    "readme": 19583,
+    "commits": 100,
+    "last": "2026-11-26T06:21:02Z",
+    "truncated": true
+  },
+  "RVDFeen/leonida": {
+    "readme": 28685,
+    "commits": 100,
+    "last": "2026-11-24T17:39:46Z",
+    "truncated": true
+  },
+  "Rain156/Leonida": {
+    "readme": 26150,
+    "commits": 100,
+    "last": "2026-11-23T23:30:11Z",
+    "truncated": true
+  },
+  "RandomSkelly/Series0nLinux": {
+    "readme": 4210,
+    "commits": 8,
+    "last": "2026-11-25T23:19:36Z",
+    "truncated": false
+  },
+  "Razoc/DemonsSoulsPC": {
+    "readme": 11784,
+    "commits": 10,
+    "last": "2026-11-25T20:59:26Z",
+    "truncated": false
+  },
+  "ReachProject-Git/Reach-Project-Emulator-For-GTA-6": {
+    "readme": 404,
+    "commits": 7,
+    "last": "2026-11-25T18:09:23Z",
+    "truncated": false
+  },
+  "RedaxSt/RedaX": {
+    "readme": 3406,
+    "commits": 1,
+    "last": "2026-11-23T05:08:02Z",
+    "truncated": false
+  },
+  "RetroDECK/RetroDECK": {
+    "readme": 5157,
+    "commits": 100,
+    "last": "2026-11-09T08:55:56Z",
+    "truncated": true
+  },
+  "ReverendOzmund/xseries-wine": {
+    "readme": 9839,
+    "commits": 8,
+    "last": "2026-11-25T01:07:12Z",
+    "truncated": false
+  },
+  "RhythmBunting/Dishonored-2-2026": {
+    "readme": 404,
+    "commits": 44,
+    "last": "2026-11-26T04:12:17Z",
+    "truncated": false
+  },
+  "RicerBoy/DropItLikeItsHot": {
+    "readme": 21534,
+    "commits": 100,
+    "last": "2026-11-25T18:56:51Z",
+    "truncated": true
+  },
+  "RickyDivjakovski/Revenge": {
+    "readme": 14250,
+    "commits": 7,
+    "last": "2026-11-26T01:59:36Z",
+    "truncated": false
+  },
+  "RogueMaster/GTA_VI_Companion": {
+    "readme": 146445,
+    "commits": 28,
+    "last": "2026-11-26T04:34:46Z",
+    "truncated": false
+  },
+  "RyGT-Team/RyGT": {
+    "readme": 17649,
+    "commits": 100,
+    "last": "2026-11-26T05:18:44Z",
+    "truncated": true
+  },
+  "RyanFrancoSCStudent/xcl": {
+    "readme": 14138,
+    "commits": 100,
+    "last": "2026-11-24T05:58:11Z",
+    "truncated": true
+  },
+  "Ryanabcraft/scarlett-victory-bench": {
+    "readme": 10589,
+    "commits": 100,
+    "last": "2026-11-25T21:29:20Z",
+    "truncated": true
+  },
+  "Ryukein19/gta6-meme-portfolio": {
+    "readme": 1449,
+    "commits": 4,
+    "last": "2026-11-21T00:35:52Z",
+    "truncated": false
+  },
+  "Ryzee119/AladdinLCD": {
+    "readme": 3435,
+    "commits": 10,
+    "last": "2019-08-01T01:07:51Z",
+    "truncated": false
+  },
+  "SSTGxf/ScarlettCompat": {
+    "readme": 35489,
+    "commits": 100,
+    "last": "2026-11-26T04:48:00Z",
+    "truncated": true
+  },
+  "SamiEnazi/infamous2-port": {
+    "readme": 34158,
+    "commits": 67,
+    "last": "2026-11-23T19:39:43Z",
+    "truncated": false
+  },
+  "Sc4ros/Leonida": {
+    "readme": 26145,
+    "commits": 100,
+    "last": "2026-11-23T23:09:38Z",
+    "truncated": true
+  },
+  "SentinelInteractive/0x52504639": {
+    "readme": 4880,
+    "commits": 47,
+    "last": "2026-11-24T18:59:49Z",
+    "truncated": false
+  },
+  "SentinelInteractive/SentinelVI": {
+    "readme": 4778,
+    "commits": 4,
+    "last": "2026-11-23T20:53:55Z",
+    "truncated": false
+  },
+  "ShinniUwU/victory-fork": {
+    "readme": 29840,
+    "commits": 100,
+    "last": "2026-11-25T16:19:23Z",
+    "truncated": true
+  },
+  "Sicaduj/XboxCompatLayer": {
+    "readme": 13972,
+    "commits": 100,
+    "last": "2026-11-24T02:49:38Z",
+    "truncated": true
+  },
+  "SideKickSpam/devils-third-recomp": {
+    "readme": 6491,
+    "commits": 6,
+    "last": "2026-11-24T03:39:50Z",
+    "truncated": false
+  },
+  "SixLauncher/launcher": {
+    "readme": 36605,
+    "commits": 83,
+    "last": "2026-11-25T23:47:57Z",
+    "truncated": false
+  },
+  "Smurfshot/ztrx": {
+    "readme": 2527,
+    "commits": 100,
+    "last": "2026-11-25T00:55:52Z",
+    "truncated": true
+  },
+  "SomeTweaks/ViceWin": {
+    "readme": 5050,
+    "commits": 32,
+    "last": "2026-11-25T20:21:11Z",
+    "truncated": false
+  },
+  "Someone-commits-cell/Leonida": {
+    "readme": 27020,
+    "commits": 38,
+    "last": "2026-11-25T14:33:28Z",
+    "truncated": false
+  },
+  "Speedstu/xcl-loading-experiments": {
+    "readme": 12927,
+    "commits": 100,
+    "last": "2026-11-23T23:50:05Z",
+    "truncated": true
+  },
+  "SplitScreen-Me/splitscreenme-nucleus": {
+    "readme": 6508,
+    "commits": 100,
+    "last": "2026-07-08T10:10:13Z",
+    "truncated": true
+  },
+  "St0rmzly/gta6-port-intel": {
+    "readme": 96,
+    "commits": 30,
+    "last": "2026-11-24T21:57:52Z",
+    "truncated": false
+  },
+  "Steinkoloss/port-of-the-americas": {
+    "readme": 6950,
+    "commits": 88,
+    "last": "2026-11-25T00:00:15Z",
+    "truncated": false
+  },
+  "Steveales-1122/gta6-01-v2": {
+    "readme": 1377,
+    "commits": 3,
+    "last": "2026-11-21T01:06:30Z",
+    "truncated": false
+  },
+  "Steveales-1122/gta6-01-v3": {
+    "readme": 4084,
+    "commits": 3,
+    "last": "2026-11-22T13:18:41Z",
+    "truncated": false
+  },
+  "Steveales-1122/gta6-01-v4": {
+    "readme": 4067,
+    "commits": 3,
+    "last": "2026-11-24T04:48:46Z",
+    "truncated": false
+  },
+  "StevenMXZ/Adreno-Tools-Drivers": {
+    "readme": 230,
+    "commits": 100,
+    "last": "2026-11-26T02:12:41Z",
+    "truncated": true
+  },
+  "Strikeless/xcl-proton-env": {
+    "readme": 5312,
+    "commits": 4,
+    "last": "2026-11-23T20:54:38Z",
+    "truncated": false
+  },
+  "Suat-Gta/victrix-info": {
+    "readme": 3352,
+    "commits": 1,
+    "last": "2026-11-24T21:47:56Z",
+    "truncated": false
+  },
+  "SulphurS16/Regaliant": {
+    "readme": 5839,
+    "commits": 100,
+    "last": "2026-11-25T19:12:46Z",
+    "truncated": true
+  },
+  "T-Crypt/bathyal": {
+    "readme": 3573,
+    "commits": 100,
+    "last": "2026-11-24T07:43:08Z",
+    "truncated": true
+  },
+  "TekRantGaming/Battlefield-1943-Reborn": {
+    "readme": 26229,
+    "commits": 100,
+    "last": "2026-11-25T20:57:42Z",
+    "truncated": true
+  },
+  "ThatRecompDev/five-star-recomp": {
+    "readme": 7678,
+    "commits": 100,
+    "last": "2026-11-26T05:48:22Z",
+    "truncated": true
+  },
+  "TheoBIET/OpenVI": {
+    "readme": 9147,
+    "commits": 100,
+    "last": "2026-11-25T14:38:24Z",
+    "truncated": true
+  },
+  "ThroatyMumbo/LoopyDOOM": {
+    "readme": 7088,
+    "commits": 10,
+    "last": "2026-07-10T20:48:38Z",
+    "truncated": false
+  },
+  "TreXito/mangrove": {
+    "readme": 26312,
+    "commits": 100,
+    "last": "2026-11-23T22:45:09Z",
+    "truncated": true
+  },
+  "Twiggy4K/gta-vi-save-tools": {
+    "readme": 8233,
+    "commits": 8,
+    "last": "2026-11-25T20:22:53Z",
+    "truncated": false
+  },
+  "V-enwa/port-azura": {
+    "readme": 2664,
+    "commits": 16,
+    "last": "2026-11-24T14:34:53Z",
+    "truncated": false
+  },
+  "VagJr/ryujinx-xbox-emu": {
+    "readme": 17742,
+    "commits": 5,
+    "last": "2026-11-25T03:03:17Z",
+    "truncated": false
+  },
+  "Van7art/gta6-01-r4-entry": {
+    "readme": 4189,
+    "commits": 3,
+    "last": "2026-11-23T12:47:23Z",
+    "truncated": false
+  },
+  "VictorMinister/leonida-pc-recompiler": {
+    "readme": 5071,
+    "commits": 6,
+    "last": "2026-11-23T15:31:41Z",
+    "truncated": false
+  },
+  "Victorcollin123/gta6-01": {
+    "readme": 2189,
+    "commits": 1,
+    "last": "2026-11-23T16:33:48Z",
+    "truncated": false
+  },
+  "VladTop46/XSX-Compat": {
+    "readme": 13275,
+    "commits": 5,
+    "last": "2026-11-25T16:37:51Z",
+    "truncated": false
+  },
+  "WaLChel/xbox-series-pc": {
+    "readme": 998,
+    "commits": 6,
+    "last": "2026-11-26T06:06:36Z",
+    "truncated": false
+  },
+  "Wackyhcky/GTA-VI-LAUNCHER": {
+    "readme": 3958,
+    "commits": 7,
+    "last": "2026-11-21T20:26:40Z",
+    "truncated": false
+  },
+  "WarmMilkCodes/crimson-layer": {
+    "readme": 12108,
+    "commits": 100,
+    "last": "2026-11-26T06:11:21Z",
+    "truncated": true
+  },
+  "Wertrex/Americas": {
+    "readme": 3160,
+    "commits": 100,
+    "last": "2026-11-26T05:45:21Z",
+    "truncated": true
+  },
+  "WhoaThatCombo/wideeyed": {
+    "readme": 10373,
+    "commits": 1,
+    "last": "2026-11-25T08:25:13Z",
+    "truncated": false
+  },
+  "Xbruza/sundown-port-meridian": {
+    "readme": 404,
+    "commits": 33,
+    "last": "2026-11-19T15:01:47Z",
+    "truncated": false
+  },
+  "Xjph/AudioPin": {
+    "readme": 958,
+    "commits": 19,
+    "last": "2026-06-30T21:16:54Z",
+    "truncated": false
+  },
+  "Xyloechoon/GTA-rpocket-team-VI-Inspired-HUD": {
+    "readme": 404,
+    "commits": 2,
+    "last": "2026-11-23T09:17:34Z",
+    "truncated": false
+  },
+  "YamiNixa/gta6-01": {
+    "readme": 1662,
+    "commits": 9,
+    "last": "2026-11-20T22:13:00Z",
+    "truncated": false
+  },
+  "Ybucaille/nativ64": {
+    "readme": 8025,
+    "commits": 100,
+    "last": "2026-11-26T05:09:00Z",
+    "truncated": true
+  },
+  "Yhozen/pisco": {
+    "readme": 16609,
+    "commits": 75,
+    "last": "2026-11-25T23:37:08Z",
+    "truncated": false
+  },
+  "YunxiRamito/GTA6PC-PortTracker": {
+    "readme": 6314,
+    "commits": 9,
+    "last": "2026-11-26T04:24:03Z",
+    "truncated": false
+  },
+  "ZRen277353/GTA6-Launcher-Build": {
+    "readme": 12181,
+    "commits": 10,
+    "last": "2026-11-26T04:39:48Z",
+    "truncated": false
+  },
+  "Zarexdevs/GMAC": {
+    "readme": 5026,
+    "commits": 5,
+    "last": "2026-11-26T00:39:58Z",
+    "truncated": false
+  },
+  "ZeldaWWHDRecomp/ZeldaWWHDRecomp": {
+    "readme": 68094,
+    "commits": 100,
+    "last": "2026-11-26T02:32:15Z",
+    "truncated": true
+  },
+  "ZigZagBoi1/ScarlettPort": {
+    "readme": 24322,
+    "commits": 72,
+    "last": "2026-11-26T05:02:00Z",
+    "truncated": false
+  },
+  "ZuanCrisp/Leonida": {
+    "readme": 26091,
+    "commits": 100,
+    "last": "2026-11-23T15:55:52Z",
+    "truncated": true
+  },
+  "aaairdropexo-ctrl/gta6-01-ironhaven": {
+    "readme": 3127,
+    "commits": 58,
+    "last": "2026-11-24T13:43:24Z",
+    "truncated": false
+  },
+  "abdullahkalim21/gta6-portfolio": {
+    "readme": 12107,
+    "commits": 4,
+    "last": "2026-11-20T19:17:24Z",
+    "truncated": false
+  },
+  "ad4m-p3arc3/gta6PortTracking": {
+    "readme": 404,
+    "commits": 409
+  },
+  "adriadam10/mkw-recomp": {
+    "readme": 17515,
+    "commits": 100,
+    "last": "2026-11-25T16:34:41Z",
+    "truncated": true
+  },
+  "afgcdfhvcfghvc-hub/makefun-gta6": {
+    "readme": 3439,
+    "commits": 6,
+    "last": "2026-11-22T08:57:41Z",
+    "truncated": false
+  },
+  "aidenhrld/MyXboxRunner": {
+    "readme": 5851,
+    "commits": 4,
+    "last": "2026-11-22T08:09:52Z",
+    "truncated": false
+  },
+  "ajendras/velox": {
+    "readme": 12213,
+    "commits": 2,
+    "last": "2026-11-25T18:08:24Z",
+    "truncated": false
+  },
+  "akaSensin/Rage-control": {
+    "readme": 404,
+    "commits": 1,
+    "last": "2026-11-24T19:47:10Z",
+    "truncated": false
+  },
+  "akbarrrputraa/gta6-01-v3b": {
+    "readme": 3242,
+    "commits": 1,
+    "last": "2026-11-19T15:39:52Z",
+    "truncated": false
+  },
+  "akimxree/xbox-lan-stream": {
+    "readme": 65205,
+    "commits": 3,
+    "last": "2026-11-26T02:01:26Z",
+    "truncated": false
+  },
+  "aldiprayoga830-hash/makefun-gta6-wanted": {
+    "readme": 3310,
+    "commits": 4,
+    "last": "2026-11-24T11:59:42Z",
+    "truncated": false
+  },
+  "alexanderskyequinn/victory-chapter-ii": {
+    "readme": 28594,
+    "commits": 100,
+    "last": "2026-11-25T21:38:00Z",
+    "truncated": true
+  },
+  "alez04/leonida": {
+    "readme": 13882,
+    "commits": 100,
+    "last": "2026-11-22T04:53:04Z",
+    "truncated": true
+  },
+  "amar0k/KeysToPad": {
+    "readme": 5002,
+    "commits": 1,
+    "last": "2026-11-19T01:47:04Z",
+    "truncated": false
+  },
+  "amirshaker000/PAG6Port": {
+    "readme": 9864,
+    "commits": 54,
+    "last": "2026-11-26T03:05:54Z",
+    "truncated": false
+  },
+  "amrly02/Leonida": {
+    "readme": 7592,
+    "commits": 29,
+    "last": "2026-11-21T04:47:45Z",
+    "truncated": false
+  },
+  "amrly02/scarlettport": {
+    "readme": 14765,
+    "commits": 35,
+    "last": "2026-11-24T22:22:28Z",
+    "truncated": false
+  },
+  "androyesfernandez/gta6-01-r4": {
+    "readme": 2777,
+    "commits": 7,
+    "last": "2026-11-21T03:38:12Z",
+    "truncated": false
+  },
+  "anrq0/SeriesX-Emulator": {
+    "readme": 21901,
+    "commits": 17,
+    "last": "2026-11-25T17:03:56Z",
+    "truncated": false
+  },
+  "anrq0/VI-Star-SeriesX": {
+    "readme": 10249,
+    "commits": 3,
+    "last": "2026-11-25T21:04:55Z",
+    "truncated": false
+  },
+  "anxiousCamel/portxbox": {
+    "readme": 5850,
+    "commits": 13,
+    "last": "2026-11-24T08:57:38Z",
+    "truncated": false
+  },
+  "anzz1/openspy-client": {
+    "readme": 35662,
+    "commits": 100,
+    "last": "2026-06-18T16:33:56Z",
+    "truncated": true
+  },
+  "ariallg90-gif/gta6-01": {
+    "readme": 1381,
+    "commits": 2,
+    "last": "2026-11-21T15:37:44Z",
+    "truncated": false
+  },
+  "arianrhodsandlot/retroassembly": {
+    "readme": 13575,
+    "commits": 100,
+    "last": "2026-11-10T03:40:49Z",
+    "truncated": true
+  },
+  "arrahman13/gta6-01": {
+    "readme": 3041,
+    "commits": 17,
+    "last": "2026-11-20T13:19:27Z",
+    "truncated": false
+  },
+  "avatarmanz/VIctory-7900XTX": {
+    "readme": 5587,
+    "commits": 100,
+    "last": "2026-11-26T05:40:32Z",
+    "truncated": true
+  },
+  "avivetech/Leonida": {
+    "readme": 26150,
+    "commits": 100,
+    "last": "2026-11-23T23:30:11Z",
+    "truncated": true
+  },
+  "axiomwtf/nightshift": {
+    "readme": 12506,
+    "commits": 32,
+    "last": "2026-11-26T00:48:54Z",
+    "truncated": false
+  },
+  "b1tninja/gta6": {
+    "readme": 8067,
+    "commits": 11,
+    "last": "2026-11-24T03:39:45Z",
+    "truncated": false
+  },
+  "baummarder/xHoly": {
+    "readme": 20920,
+    "commits": 51,
+    "last": "2026-11-25T21:46:45Z",
+    "truncated": false
+  },
+  "bayusantosz3995/gta6-01": {
+    "readme": 4469,
+    "commits": 2,
+    "last": "2026-11-22T12:42:07Z",
+    "truncated": false
+  },
+  "bayusantosz3995/port-meridian": {
+    "readme": 5151,
+    "commits": 2,
+    "last": "2026-11-22T13:10:55Z",
+    "truncated": false
+  },
+  "bc160201983/gta6-pc-port-tracker": {
+    "readme": 865,
+    "commits": 100,
+    "last": "2026-11-25T13:31:24Z",
+    "truncated": true
+  },
+  "beamdotdev/Leonida": {
+    "readme": 26205,
+    "commits": 100,
+    "last": "2026-11-24T16:06:56Z",
+    "truncated": true
+  },
+  "benjaminbecker7/gta6pc": {
+    "readme": 2316,
+    "commits": 1,
+    "last": "2026-11-20T05:49:27Z",
+    "truncated": false
+  },
+  "beyondtahir/beyondgtaclips": {
+    "readme": 19345,
+    "commits": 15,
+    "last": "2026-11-20T19:49:21Z",
+    "truncated": false
+  },
+  "bigmak94/AstroQuest": {
+    "readme": 21300,
+    "commits": 64,
+    "last": "2026-11-14T12:28:05Z",
+    "truncated": false
+  },
+  "bijiunta573/port-azura": {
+    "readme": 2101,
+    "commits": 3,
+    "last": "2026-11-20T21:17:35Z",
+    "truncated": false
+  },
+  "bijiunta573/port-azura-v2": {
+    "readme": 4192,
+    "commits": 2,
+    "last": "2026-11-20T23:46:25Z",
+    "truncated": false
+  },
+  "bitovvnew/leonida": {
+    "readme": 2044,
+    "commits": 3,
+    "last": "2026-11-24T10:24:55Z",
+    "truncated": false
+  },
+  "boykopovar/AnyBox": {
+    "readme": 2803,
+    "commits": 100,
+    "last": "2026-11-25T16:24:17Z",
+    "truncated": true
+  },
+  "boykopovar/AnyPS5": {
+    "readme": 3804,
+    "commits": 100,
+    "last": "2026-11-26T05:54:48Z",
+    "truncated": true
+  },
+  "brcly/TuxBox": {
+    "readme": 2732,
+    "commits": 100,
+    "last": "2026-11-26T03:12:59Z",
+    "truncated": true
+  },
+  "breadbbbb/rpf9-explorer": {
+    "readme": 27094,
+    "commits": 100,
+    "last": "2026-11-24T07:49:01Z",
+    "truncated": true
+  },
+  "brujulap/gta6": {
+    "readme": 661,
+    "commits": 3,
+    "last": "2026-11-20T13:28:38Z",
+    "truncated": false
+  },
+  "bybixi/win-wireless-battery-tray": {
+    "readme": 5975,
+    "commits": 5,
+    "last": "2026-11-23T11:15:03Z",
+    "truncated": false
+  },
+  "bytebuddy-dev/gta6-style-portfolio": {
+    "readme": 3298,
+    "commits": 3,
+    "last": "2026-11-22T14:54:28Z",
+    "truncated": false
+  },
+  "cakehonolulu/RustEE": {
+    "readme": 679,
+    "commits": 100,
+    "last": "2026-06-07T14:02:05Z",
+    "truncated": true
+  },
+  "californiaAlmonds/OpenScarlett": {
+    "readme": 14386,
+    "commits": 100,
+    "last": "2026-11-26T05:20:54Z",
+    "truncated": true
+  },
+  "cghedley/ZXCrimeCITY-GTA81-": {
+    "readme": 3813,
+    "commits": 7,
+    "last": "2026-11-25T21:21:24Z",
+    "truncated": false
+  },
+  "chskplc/Leonida": {
+    "readme": 25289,
+    "commits": 100,
+    "last": "2026-11-23T14:26:49Z",
+    "truncated": true
+  },
+  "chvabalo-interactive/sludgemu": {
+    "readme": 2771,
+    "commits": 81,
+    "last": "2026-11-25T22:25:06Z",
+    "truncated": false
+  },
+  "clevervi/palmetto": {
+    "readme": 24227,
+    "commits": 100,
+    "last": "2026-11-26T01:48:27Z",
+    "truncated": true
+  },
+  "clquwu/leonida-ultimate": {
+    "readme": 20914,
+    "commits": 100,
+    "last": "2026-11-26T06:19:11Z",
+    "truncated": true
+  },
+  "cmyk-ux/r4y": {
+    "readme": 23553,
+    "commits": 79,
+    "last": "2026-11-25T14:49:57Z",
+    "truncated": false
+  },
+  "coco-chaneyey/Leonida": {
+    "readme": 26267,
+    "commits": 100,
+    "last": "2026-11-23T21:01:51Z",
+    "truncated": true
+  },
+  "copy/v86": {
+    "readme": 11551,
+    "commits": 100,
+    "last": "2026-11-21T21:46:54Z",
+    "truncated": true
+  },
+  "crazyriddler/xbased": {
+    "readme": 16901,
+    "commits": 100,
+    "last": "2026-11-25T21:54:41Z",
+    "truncated": true
+  },
+  "crt4ever/DumbFloridaMoron": {
+    "readme": 7823,
+    "commits": 100,
+    "last": "2026-11-25T16:43:22Z",
+    "truncated": true
+  },
+  "cwybruce/copperline": {
+    "readme": 1039,
+    "commits": 3,
+    "last": "2026-11-21T05:51:00Z",
+    "truncated": false
+  },
+  "cwybruce/fairground": {
+    "readme": 995,
+    "commits": 3,
+    "last": "2026-11-21T06:20:03Z",
+    "truncated": false
+  },
+  "cwybruce/highrise": {
+    "readme": 1018,
+    "commits": 3,
+    "last": "2026-11-21T06:50:40Z",
+    "truncated": false
+  },
+  "cwybruce/jackpot": {
+    "readme": 2005,
+    "commits": 1,
+    "last": "2026-11-21T07:35:16Z",
+    "truncated": false
+  },
+  "cwybruce/rainline": {
+    "readme": 1000,
+    "commits": 3,
+    "last": "2026-11-21T03:45:22Z",
+    "truncated": false
+  },
+  "cyberpulse2077/OpenSix": {
+    "readme": 6615,
+    "commits": 10,
+    "last": "2026-11-24T08:49:33Z",
+    "truncated": false
+  },
+  "daeken/XSXEmu": {
+    "readme": 14840,
+    "commits": 100,
+    "last": "2026-11-25T21:27:14Z",
+    "truncated": true
+  },
+  "danekbiglike/leonida-rtx3090-bringup": {
+    "readme": 56771,
+    "commits": 45,
+    "last": "2026-11-26T06:15:33Z",
+    "truncated": false
+  },
+  "danielfinotti2-spec/gtaVI": {
+    "readme": 3471,
+    "commits": 1,
+    "last": "2026-11-25T08:49:14Z",
+    "truncated": false
+  },
+  "danilotallaric2/leonida": {
+    "readme": 26144,
+    "commits": 100,
+    "last": "2026-11-24T06:02:25Z",
+    "truncated": true
+  },
+  "dariulone/VI-vr-port": {
+    "readme": 2283,
+    "commits": 67,
+    "last": "2026-11-24T07:31:44Z",
+    "truncated": false
+  },
+  "darkstarnow/LNDA-V2": {
+    "readme": 3258,
+    "commits": 15,
+    "last": "2026-11-25T20:57:55Z",
+    "truncated": false
+  },
+  "datanotsecure/LeonidaContinuation": {
+    "readme": 26645,
+    "commits": 100,
+    "last": "2026-11-24T01:40:36Z",
+    "truncated": true
+  },
+  "datanotsecure/xcl": {
+    "readme": 13972,
+    "commits": 100,
+    "last": "2026-11-24T02:44:35Z",
+    "truncated": true
+  },
+  "decantlabs/decant": {
+    "readme": 5474,
+    "commits": 49,
+    "last": "2026-11-26T01:11:50Z",
+    "truncated": false
+  },
+  "decoderloop/rust-malware-gallery": {
+    "readme": 68080,
+    "commits": 56,
+    "last": "2026-11-17T05:49:43Z",
+    "truncated": false
+  },
+  "deepdev237/victory-mac": {
+    "readme": 8153,
+    "commits": 100,
+    "last": "2026-11-25T04:37:45Z",
+    "truncated": true
+  },
+  "dev-drozd/GTA6SubVoice": {
+    "readme": 8426,
+    "commits": 12,
+    "last": "2026-11-26T04:09:55Z",
+    "truncated": false
+  },
+  "dkoz/leonida": {
+    "readme": 29742,
+    "commits": 100,
+    "last": "2026-11-25T13:55:52Z",
+    "truncated": true
+  },
+  "dorkyfolf/muskybox": {
+    "readme": 12363,
+    "commits": 100,
+    "last": "2026-11-26T06:14:11Z",
+    "truncated": true
+  },
+  "doromiert/scarlett-pc-tools": {
+    "readme": 5538,
+    "commits": 24,
+    "last": "2026-11-24T17:42:29Z",
+    "truncated": false
+  },
+  "drakolordx7/DurangoRuntime": {
+    "readme": 4889,
+    "commits": 3,
+    "last": "2026-11-19T21:57:19Z",
+    "truncated": false
+  },
+  "dreaming66/VICauseway": {
+    "readme": 11703,
+    "commits": 100,
+    "last": "2026-11-24T05:38:05Z",
+    "truncated": true
+  },
+  "drycheetah84/TomBox": {
+    "readme": 12844,
+    "commits": 100,
+    "last": "2026-11-22T22:42:06Z",
+    "truncated": true
+  },
+  "dyn92/gta6-01-r2": {
+    "readme": 3854,
+    "commits": 2,
+    "last": "2026-11-23T08:37:00Z",
+    "truncated": false
+  },
+  "dyoogo/Alpha-Port": {
+    "readme": 29573,
+    "commits": 17,
+    "last": "2026-11-25T03:42:36Z",
+    "truncated": false
+  },
+  "e85442695-beep/kestrel": {
+    "readme": 2248,
+    "commits": 67,
+    "last": "2026-11-25T14:00:40Z",
+    "truncated": false
+  },
+  "eazyleaks-cyber/Gta6-Xbox-Pc-Port": {
+    "readme": 39,
+    "commits": 1,
+    "last": "2026-11-25T19:43:09Z",
+    "truncated": false
+  },
+  "edsuuu/VI-BR-PORT": {
+    "readme": 11990,
+    "commits": 100,
+    "last": "2026-11-25T21:47:32Z",
+    "truncated": true
+  },
+  "edupode/anyxboxseries": {
+    "readme": 6109,
+    "commits": 27,
+    "last": "2026-11-25T04:08:39Z",
+    "truncated": false
+  },
+  "ehzugzvn/gta6-01-port-azahar": {
+    "readme": 2036,
+    "commits": 2,
+    "last": "2026-11-23T16:58:54Z",
+    "truncated": false
+  },
+  "ekeeke/Genesis-Plus-GX": {
+    "readme": 3379,
+    "commits": 100,
+    "last": "2026-11-11T12:56:04Z",
+    "truncated": true
+  },
+  "eliadwi123/make-gta6-": {
+    "readme": 1475,
+    "commits": 5,
+    "last": "2026-11-24T00:00:11Z",
+    "truncated": false
+  },
+  "elmoudir12/Leonida": {
+    "readme": 7217,
+    "commits": 8,
+    "last": "2026-11-20T22:05:58Z",
+    "truncated": false
+  },
+  "emanuele-giuseppe/main-leonida": {
+    "readme": 26707,
+    "commits": 5,
+    "last": "2026-11-24T13:40:02Z",
+    "truncated": false
+  },
+  "ezbyDev/victory-amd": {
+    "readme": 11461,
+    "commits": 48,
+    "last": "2026-11-25T03:17:43Z",
+    "truncated": false
+  },
+  "fablinoo/kelvaroq": {
+    "readme": 27598,
+    "commits": 44,
+    "last": "2026-11-26T03:24:06Z",
+    "truncated": false
+  },
+  "fedor655/gta6-port": {
+    "readme": 4395,
+    "commits": 2,
+    "last": "2026-11-23T20:42:16Z",
+    "truncated": false
+  },
+  "felicienradio/cold-project-vi": {
+    "readme": 25680,
+    "commits": 100,
+    "last": "2026-11-26T06:02:56Z",
+    "truncated": true
+  },
+  "fishingpvalues/gta6-pc-port-hub": {
+    "readme": 9697,
+    "commits": 1,
+    "last": "2026-11-22T19:08:17Z",
+    "truncated": false
+  },
+  "flipflapov/DSTN": {
+    "readme": 43453,
+    "commits": 12,
+    "last": "2026-11-24T18:37:07Z",
+    "truncated": false
+  },
+  "focusran/PS5-EMULATOR-PORT-GTA6": {
+    "readme": 2987,
+    "commits": 2,
+    "last": "2026-11-25T18:25:35Z",
+    "truncated": false
+  },
+  "fqwfqwfqfa/GTA-6-PC-Version-Port-Reverse-Engineering-ai-emulator-gta6": {
+    "readme": 3581,
+    "commits": 4,
+    "last": "2026-11-25T21:12:57Z",
+    "truncated": false
+  },
+  "fraware/gta-vi-cost-truth": {
+    "readme": 6179,
+    "commits": 18,
+    "last": "2026-11-19T23:20:11Z",
+    "truncated": false
+  },
+  "frenzy42069/RPF9-tools": {
+    "readme": 718,
+    "commits": 11,
+    "last": "2026-11-20T22:19:49Z",
+    "truncated": false
+  },
+  "fxceless/victory-fork": {
+    "readme": 54619,
+    "commits": 100,
+    "last": "2026-11-26T05:52:08Z",
+    "truncated": true
+  },
+  "gabenddos/proton-scarlett": {
+    "readme": 32259,
+    "commits": 100,
+    "last": "2026-11-25T01:40:36Z",
+    "truncated": true
+  },
+  "gagarinbefree/KeyWASD": {
+    "readme": 6607,
+    "commits": 32,
+    "last": "2026-11-23T07:35:36Z",
+    "truncated": false
+  },
+  "gbdev/pandocs": {
+    "readme": 766,
+    "commits": 100,
+    "last": "2026-11-25T11:24:23Z",
+    "truncated": true
+  },
+  "gminustwo/red_two": {
+    "readme": 21341,
+    "commits": 100,
+    "last": "2026-11-26T03:43:40Z",
+    "truncated": true
+  },
+  "go2afri/gta6-vi-port": {
+    "readme": 13218,
+    "commits": 100,
+    "last": "2026-11-25T12:42:12Z",
+    "truncated": true
+  },
+  "gookie-dev/g6shim": {
+    "readme": 6714,
+    "commits": 100,
+    "last": "2026-11-25T21:47:15Z",
+    "truncated": true
+  },
+  "grzegorz2047/TrinityXSX": {
+    "readme": 10967,
+    "commits": 34,
+    "last": "2026-11-26T00:07:42Z",
+    "truncated": false
+  },
+  "gta-reversed/gta-reversed": {
+    "readme": 5713,
+    "commits": 100,
+    "last": "2026-11-25T20:17:59Z",
+    "truncated": true
+  },
+  "gta6-pc-port-emulator/gta6-pc-port-emulator.github.io": {
+    "readme": 404,
+    "commits": 5,
+    "last": "2026-11-24T09:00:41Z",
+    "truncated": false
+  },
+  "haishuiweidao/port-meridian-gta6": {
+    "readme": 3132,
+    "commits": 4,
+    "last": "2026-11-20T00:55:06Z",
+    "truncated": false
+  },
+  "hchy-guy/leonida": {
+    "readme": 28933,
+    "commits": 100,
+    "last": "2026-11-25T00:13:57Z",
+    "truncated": true
+  },
+  "hedge-dev/XenonRecomp": {
+    "readme": 17607,
+    "commits": 100,
+    "last": "2025-08-04T13:56:26Z",
+    "truncated": true
+  },
+  "hoaxgit/almost": {
+    "readme": 12683,
+    "commits": 100,
+    "last": "2026-11-25T11:16:03Z",
+    "truncated": true
+  },
+  "hoaxgit/vanta": {
+    "readme": 9488,
+    "commits": 10,
+    "last": "2026-11-25T17:56:21Z",
+    "truncated": false
+  },
+  "holdmysocks/SixNG": {
+    "readme": 216071,
+    "commits": 100,
+    "last": "2026-11-26T06:12:30Z",
+    "truncated": true
+  },
+  "hoshino-114514/gta6-video-reader": {
+    "readme": 3020,
+    "commits": 1,
+    "last": "2026-11-23T11:24:21Z",
+    "truncated": false
+  },
+  "hubby121/portwatch-vi": {
+    "readme": 8419,
+    "commits": 96,
+    "last": "2026-11-26T01:48:48Z",
+    "truncated": false
+  },
+  "iNiKKo/Nullifier": {
+    "readme": 3244,
+    "commits": 100,
+    "last": "2026-11-25T21:03:27Z",
+    "truncated": true
+  },
+  "ian-cowley/Glacier.Inkling2": {
+    "readme": 13461,
+    "commits": 3,
+    "last": "2026-11-23T13:55:56Z",
+    "truncated": false
+  },
+  "ihaterockstargames/sixth-star": {
+    "readme": 13108,
+    "commits": 37,
+    "last": "2026-11-26T00:50:38Z",
+    "truncated": false
+  },
+  "imdevesh21/devesh-gta6-portfolio": {
+    "readme": 1450,
+    "commits": 22,
+    "last": "2026-11-26T05:26:26Z",
+    "truncated": false
+  },
+  "impatient13/leonida": {
+    "readme": 26205,
+    "commits": 2,
+    "last": "2026-11-23T23:48:20Z",
+    "truncated": false
+  },
+  "imyatesy-cmd/gta6-pc-tracker": {
+    "readme": 1990,
+    "commits": 32,
+    "last": "2026-11-26T05:30:40Z",
+    "truncated": false
+  },
+  "incub0t-hash/Leonida": {
+    "readme": 26142,
+    "commits": 100,
+    "last": "2026-11-23T22:38:03Z",
+    "truncated": true
+  },
+  "ioma8/ghidra-decompile-skill": {
+    "readme": 1815,
+    "commits": 13,
+    "last": "2026-11-18T22:44:27Z",
+    "truncated": false
+  },
+  "irnutsmurt/Cubic.Heroes": {
+    "readme": 31281,
+    "commits": 100,
+    "last": "2026-11-24T02:44:49Z",
+    "truncated": true
+  },
+  "itsF4LCON/Prodigy": {
+    "readme": 3853,
+    "commits": 38,
+    "last": "2026-11-25T15:37:35Z",
+    "truncated": false
+  },
+  "itsKyze/victory-kyze": {
+    "readme": 3469,
+    "commits": 6,
+    "last": "2026-11-25T20:33:49Z",
+    "truncated": false
+  },
+  "itzalisha99/gta6-port-cinder-2": {
+    "readme": 3156,
+    "commits": 2,
+    "last": "2026-11-19T15:41:52Z",
+    "truncated": false
+  },
+  "jadeowaowa/scarlett-layer": {
+    "readme": 13117,
+    "commits": 100,
+    "last": "2026-11-24T00:30:33Z",
+    "truncated": true
+  },
+  "jarvisnya/gta6-entry-20261117-20261124": {
+    "readme": 1715,
+    "commits": 2,
+    "last": "2026-11-23T08:42:44Z",
+    "truncated": false
+  },
+  "jaylikesbunda/GTA6-Asset-Info": {
+    "readme": 6466,
+    "commits": 49,
+    "last": "2026-11-22T01:39:46Z",
+    "truncated": false
+  },
+  "jaylikesbunda/VIKit": {
+    "readme": 5760,
+    "commits": 1,
+    "last": "2026-11-25T06:09:50Z",
+    "truncated": false
+  },
+  "jaylikesbunda/rpf9-audio": {
+    "readme": 7016,
+    "commits": 2,
+    "last": "2026-11-20T08:50:15Z",
+    "truncated": false
+  },
+  "jenkinsdominic40-png/vcv": {
+    "readme": 13972,
+    "commits": 100,
+    "last": "2026-11-24T01:00:51Z",
+    "truncated": true
+  },
+  "jinglue25/gta6-01-r2": {
+    "readme": 6283,
+    "commits": 7,
+    "last": "2026-11-22T05:41:01Z",
+    "truncated": false
+  },
+  "jonosellier/toggle-theme-playnite": {
+    "readme": 3472,
+    "commits": 100,
+    "last": "2026-04-30T02:14:25Z",
+    "truncated": true
+  },
+  "jreyjreyjrey/game": {
+    "readme": 26145,
+    "commits": 100,
+    "last": "2026-11-24T00:38:30Z",
+    "truncated": true
+  },
+  "jtrudeau1530/greenbridge": {
+    "readme": 29802,
+    "commits": 100,
+    "last": "2026-11-24T16:04:44Z",
+    "truncated": true
+  },
+  "junminlee2004/GR2fork": {
+    "readme": 14025,
+    "commits": 100,
+    "last": "2026-11-25T10:15:00Z",
+    "truncated": true
+  },
+  "junminlee2004/GR2port": {
+    "readme": 10085,
+    "commits": 100,
+    "last": "2026-11-25T19:07:36Z",
+    "truncated": true
+  },
+  "ka1qux/BRVIctory-ka1qux": {
+    "readme": 33444,
+    "commits": 100,
+    "last": "2026-11-26T02:56:19Z",
+    "truncated": true
+  },
+  "kastieloficial/RE-Code-Veronica-PS3-HD-Recomp-PC": {
+    "readme": 31711,
+    "commits": 100,
+    "last": "2026-11-26T05:59:55Z",
+    "truncated": true
+  },
+  "kellysix/kelly": {
+    "readme": 20068,
+    "commits": 7,
+    "last": "2026-11-25T12:31:50Z",
+    "truncated": false
+  },
+  "kfedora/GTAVI-Xbox2PC": {
+    "readme": 25150,
+    "commits": 19,
+    "last": "2026-11-25T15:46:10Z",
+    "truncated": false
+  },
+  "kingzzim7-create/gta6--port-tracker-live-": {
+    "readme": 404,
+    "commits": 5,
+    "last": "2026-11-22T13:05:01Z",
+    "truncated": false
+  },
+  "kreutzx/azul-tide": {
+    "readme": 4897,
+    "commits": 5,
+    "last": "2026-11-24T11:08:01Z",
+    "truncated": false
+  },
+  "krishnanare9/gta6-performance-checker": {
+    "readme": 404,
+    "commits": 9,
+    "last": "2026-11-22T06:50:10Z",
+    "truncated": false
+  },
+  "krkrz/krkrz": {
+    "readme": 1085,
+    "commits": 100,
+    "last": "2021-05-26T07:45:06Z",
+    "truncated": true
+  },
+  "kry-vex-gta/XBOX-Inspector": {
+    "readme": 12059,
+    "commits": 1,
+    "last": "2026-11-23T18:14:01Z",
+    "truncated": false
+  },
+  "kucingubioon/port-solana": {
+    "readme": 1936,
+    "commits": 7,
+    "last": "2026-11-25T04:14:44Z",
+    "truncated": false
+  },
+  "kxms338-ui/ForMe": {
+    "readme": 17742,
+    "commits": 100,
+    "last": "2026-11-25T05:00:41Z",
+    "truncated": true
+  },
+  "larpingvibecoder/sonoma": {
+    "readme": 6976,
+    "commits": 1,
+    "last": "2026-11-24T01:48:35Z",
+    "truncated": false
+  },
+  "lbyh0116/gta6-vehicle-viewer": {
+    "readme": 5497,
+    "commits": 6,
+    "last": "2026-11-25T13:59:14Z",
+    "truncated": false
+  },
+  "lively-panda-61/gta6-01": {
+    "readme": 1240,
+    "commits": 7,
+    "last": "2026-11-20T08:32:23Z",
+    "truncated": false
+  },
+  "ljm-233/Xbgtasix": {
+    "readme": 16418,
+    "commits": 100,
+    "last": "2026-11-25T23:09:30Z",
+    "truncated": true
+  },
+  "llvm-chan/Leo-Archive": {
+    "readme": 26150,
+    "commits": 1,
+    "last": "2026-11-24T00:54:40Z",
+    "truncated": false
+  },
+  "lopeprof-design/gta6-01": {
+    "readme": 3700,
+    "commits": 2,
+    "last": "2026-11-20T05:29:18Z",
+    "truncated": false
+  },
+  "lopesdevi/victory-dedsec-gta": {
+    "readme": 11383,
+    "commits": 100,
+    "last": "2026-11-25T17:59:21Z",
+    "truncated": true
+  },
+  "lossless-scaling-xbox-browser/.github": {
+    "readme": 7509,
+    "commits": 2,
+    "last": "2026-11-20T15:37:08Z",
+    "truncated": false
+  },
+  "lucas-TagDev/VKarameloVI": {
+    "readme": 13413,
+    "commits": 100,
+    "last": "2026-11-26T02:52:39Z",
+    "truncated": true
+  },
+  "luizwidmer/palmetto": {
+    "readme": 11160,
+    "commits": 100,
+    "last": "2026-11-26T04:34:56Z",
+    "truncated": true
+  },
+  "lukinhasnojento/gta6-port-knowledge": {
+    "readme": 5825,
+    "commits": 17,
+    "last": "2026-11-26T04:25:04Z",
+    "truncated": false
+  },
+  "lynxnathan/rage-tools-vi": {
+    "readme": 8750,
+    "commits": 1,
+    "last": "2026-11-25T21:25:15Z",
+    "truncated": false
+  },
+  "m3ll0wSm0ke/leonida-anyp5": {
+    "readme": 26734,
+    "commits": 100,
+    "last": "2026-11-23T23:30:42Z",
+    "truncated": true
+  },
+  "m99937909-debug/-S": {
+    "readme": 404,
+    "commits": 1,
+    "last": "2026-11-25T19:07:13Z",
+    "truncated": false
+  },
+  "maharani212/neon-harbor": {
+    "readme": 2802,
+    "commits": 12,
+    "last": "2026-11-22T07:00:18Z",
+    "truncated": false
+  },
+  "makhlukmars53/gta6-01": {
+    "readme": 3614,
+    "commits": 5,
+    "last": "2026-11-21T13:22:48Z",
+    "truncated": false
+  },
+  "mamesj/pokemon-fulldex": {
+    "readme": 53424,
+    "commits": 100,
+    "last": "2026-11-20T09:00:47Z",
+    "truncated": true
+  },
+  "manueee123456-ctrl/RecompHub-GTA6": {
+    "readme": 1096,
+    "commits": 3,
+    "last": "2026-11-24T21:18:16Z",
+    "truncated": false
+  },
+  "marioballano/r3": {
+    "readme": 13158,
+    "commits": 14,
+    "last": "2026-11-25T20:35:51Z",
+    "truncated": false
+  },
+  "meetox80/6stars": {
+    "readme": 3095,
+    "commits": 8,
+    "last": "2026-11-22T12:37:13Z",
+    "truncated": false
+  },
+  "mewiof/Holy-Interoperability": {
+    "readme": 7178,
+    "commits": 30,
+    "last": "2026-11-24T03:20:41Z",
+    "truncated": false
+  },
+  "mgba-emu/mgba": {
+    "readme": 12571,
+    "commits": 100,
+    "last": "2026-11-25T09:55:19Z",
+    "truncated": true
+  },
+  "mikeykun477/gta6-01-r2": {
+    "readme": 5452,
+    "commits": 1,
+    "last": "2026-11-24T00:00:32Z",
+    "truncated": false
+  },
+  "mimic-wasm/ViceRecomp": {
+    "readme": 40074,
+    "commits": 16,
+    "last": "2026-11-26T02:05:26Z",
+    "truncated": false
+  },
+  "moonrelax/basalt": {
+    "readme": 1834,
+    "commits": 17,
+    "last": "2026-11-25T20:53:21Z",
+    "truncated": false
+  },
+  "mravatins/victory-nv": {
+    "readme": 45975,
+    "commits": 100,
+    "last": "2026-11-25T23:44:15Z",
+    "truncated": true
+  },
+  "muhammadali-se/gta6-portfolio": {
+    "readme": 16,
+    "commits": 1,
+    "last": "2026-11-22T08:59:24Z",
+    "truncated": false
+  },
+  "mupen64plus/mupen64plus-core": {
+    "readme": 9229,
+    "commits": 100,
+    "last": "2026-11-11T03:25:24Z",
+    "truncated": true
+  },
+  "mytechnotalent/Reverse-Engineering": {
+    "readme": 141954,
+    "commits": 100,
+    "last": "2026-11-25T15:57:54Z",
+    "truncated": true
+  },
+  "n0c4p7s/XBOX-Emulator-PercyScarlett": {
+    "readme": 6173,
+    "commits": 93,
+    "last": "2026-11-24T22:39:07Z",
+    "truncated": false
+  },
+  "nanaelanjopueril/leonida-brazil": {
+    "readme": 26140,
+    "commits": 1,
+    "last": "2026-11-24T00:20:07Z",
+    "truncated": false
+  },
+  "ne3i/BBB": {
+    "readme": 26974,
+    "commits": 100,
+    "last": "2026-11-24T03:36:36Z",
+    "truncated": true
+  },
+  "nineforge0/forge9": {
+    "readme": 20511,
+    "commits": 68,
+    "last": "2026-11-25T08:30:48Z",
+    "truncated": false
+  },
+  "nineforge0/forge9-mods": {
+    "readme": 2736,
+    "commits": 2,
+    "last": "2026-11-25T00:57:08Z",
+    "truncated": false
+  },
+  "nogiszd/scale": {
+    "readme": 8113,
+    "commits": 100,
+    "last": "2026-11-25T11:25:38Z",
+    "truncated": true
+  },
+  "noon-stucco7a/gta-game": {
+    "readme": 3205,
+    "commits": 11,
+    "last": "2026-11-24T11:50:54Z",
+    "truncated": false
+  },
+  "noorrahmadi92-coder/gta6-port-aurelia": {
+    "readme": 404,
+    "commits": 409
+  },
+  "nordicov/xbox-emulator": {
+    "readme": 6843,
+    "commits": 100,
+    "last": "2026-11-23T11:58:16Z",
+    "truncated": true
+  },
+  "notsapinho/Eglantine": {
+    "readme": 4268,
+    "commits": 100,
+    "last": "2026-11-07T10:36:54Z",
+    "truncated": true
+  },
+  "nounouseki-cmd/victory-fork": {
+    "readme": 13042,
+    "commits": 100,
+    "last": "2026-11-24T23:06:55Z",
+    "truncated": true
+  },
+  "nufu88pa/retun-leonida-for-nufu": {
+    "readme": 26705,
+    "commits": 4,
+    "last": "2026-11-24T00:14:17Z",
+    "truncated": false
+  },
+  "nullroot200-arch/Leonida": {
+    "readme": 25213,
+    "commits": 25,
+    "last": "2026-11-25T10:48:52Z",
+    "truncated": false
+  },
+  "nurinsani-crypto/marina-del-sol": {
+    "readme": 3149,
+    "commits": 9,
+    "last": "2026-11-25T08:09:51Z",
+    "truncated": false
+  },
+  "nvd123-YT/WiiSportsWiiCompiled": {
+    "readme": 9048,
+    "commits": 100,
+    "last": "2026-11-13T13:37:36Z",
+    "truncated": true
+  },
+  "offs/rpf9-extract": {
+    "readme": 182,
+    "commits": 1,
+    "last": "2026-11-20T05:02:48Z",
+    "truncated": false
+  },
+  "oguzhanozfe/gta-vi-port-research": {
+    "readme": 11185,
+    "commits": 32,
+    "last": "2026-11-21T01:09:45Z",
+    "truncated": false
+  },
+  "omonkeyz/xbox-emulator": {
+    "readme": 6843,
+    "commits": 100,
+    "last": "2026-11-25T13:10:51Z",
+    "truncated": true
+  },
+  "oz-stanislav-zhukov/Leonida": {
+    "readme": 26150,
+    "commits": 100,
+    "last": "2026-11-23T23:30:11Z",
+    "truncated": true
+  },
+  "p-portela/SCARAB": {
+    "readme": 3807,
+    "commits": 16,
+    "last": "2026-11-23T12:24:21Z",
+    "truncated": false
+  },
+  "p3n1cillin/yuriko": {
+    "readme": 17874,
+    "commits": 14,
+    "last": "2026-11-26T05:48:10Z",
+    "truncated": false
+  },
+  "pagiii/gta6-tracker": {
+    "readme": 11050,
+    "commits": 63,
+    "last": "2026-11-22T15:58:08Z",
+    "truncated": false
+  },
+  "partydeck/partydeck": {
+    "readme": 7749,
+    "commits": 100,
+    "last": "2026-11-22T02:57:32Z",
+    "truncated": true
+  },
+  "paveledits/ScarlettMac": {
+    "readme": 7504,
+    "commits": 42,
+    "last": "2026-11-25T22:23:14Z",
+    "truncated": false
+  },
+  "penawarlawas/makefun-gta6-01": {
+    "readme": 1701,
+    "commits": 7,
+    "last": "2026-11-20T19:31:36Z",
+    "truncated": false
+  },
+  "petisposor1/Vasperty": {
+    "readme": 21747,
+    "commits": 100,
+    "last": "2026-11-25T17:49:13Z",
+    "truncated": true
+  },
+  "pitpitpo/openscreen-zig": {
+    "readme": 6828,
+    "commits": 28,
+    "last": "2026-11-20T19:06:37Z",
+    "truncated": false
+  },
+  "pixl27/ProjectReCity": {
+    "readme": 9442,
+    "commits": 100,
+    "last": "2026-11-26T03:59:24Z",
+    "truncated": true
+  },
+  "playopenz/OpenZ": {
+    "readme": 37936,
+    "commits": 33,
+    "last": "2026-11-18T20:22:58Z",
+    "truncated": false
+  },
+  "ps4star/WhiteRecomp": {
+    "readme": 41887,
+    "commits": 58,
+    "last": "2026-11-25T18:57:08Z",
+    "truncated": false
+  },
+  "pusssnpur/xsxemu": {
+    "readme": 3189,
+    "commits": 1,
+    "last": "2026-11-22T18:00:19Z",
+    "truncated": false
+  },
+  "qemu/qemu": {
+    "readme": 5579,
+    "commits": 100,
+    "last": "2026-11-26T05:39:27Z",
+    "truncated": true
+  },
+  "quietdom/gta6-pc-dexnom": {
+    "readme": 10573,
+    "commits": 3,
+    "last": "2026-11-25T18:58:32Z",
+    "truncated": false
+  },
+  "random-archives/Leonida": {
+    "readme": 26148,
+    "commits": 100,
+    "last": "2026-11-23T23:18:43Z",
+    "truncated": true
+  },
+  "realblastex/flamingo": {
+    "readme": 10302,
+    "commits": 29,
+    "last": "2026-11-26T03:21:24Z",
+    "truncated": false
+  },
+  "restika1/makefun-gta6-01": {
+    "readme": 623,
+    "commits": 5,
+    "last": "2026-11-20T09:20:21Z",
+    "truncated": false
+  },
+  "rian-be/Leonida": {
+    "readme": 32039,
+    "commits": 100,
+    "last": "2026-11-23T11:28:03Z",
+    "truncated": true
+  },
+  "rifat-ahmd/gta6-01": {
+    "readme": 10188,
+    "commits": 3,
+    "last": "2026-11-24T04:20:19Z",
+    "truncated": false
+  },
+  "rorodev6/victory": {
+    "readme": 5594,
+    "commits": 100,
+    "last": "2026-11-25T19:28:31Z",
+    "truncated": true
+  },
+  "roymaster46/neon-harbor": {
+    "readme": 5999,
+    "commits": 1,
+    "last": "2026-11-21T12:26:34Z",
+    "truncated": false
+  },
+  "rpatty-dev/PercyScarlett": {
+    "readme": 7668,
+    "commits": 76,
+    "last": "2026-11-25T09:58:33Z",
+    "truncated": false
+  },
+  "rpatty-dev/PercyStar": {
+    "readme": 34505,
+    "commits": 100,
+    "last": "2026-11-25T09:49:37Z",
+    "truncated": true
+  },
+  "rpatty-dev/turbine": {
+    "readme": 4615,
+    "commits": 5,
+    "last": "2026-11-19T15:39:59Z",
+    "truncated": false
+  },
+  "rpatty-dev/turbine-mac": {
+    "readme": 3722,
+    "commits": 6,
+    "last": "2026-11-19T15:47:57Z",
+    "truncated": false
+  },
+  "ryanjamescutie-maker/xbox-gta-vi-savings-tracker": {
+    "readme": 404,
+    "commits": 2,
+    "last": "2026-11-22T16:22:02Z",
+    "truncated": false
+  },
+  "s1oapppp-sketch/gta6-scarlett-research-notes": {
+    "readme": 10379,
+    "commits": 2,
+    "last": "2026-11-23T21:17:16Z",
+    "truncated": false
+  },
+  "s8fr2hf/gta6-01": {
+    "readme": 1516,
+    "commits": 8,
+    "last": "2026-11-19T20:27:57Z",
+    "truncated": false
+  },
+  "saics/xlayer": {
+    "readme": 9120,
+    "commits": 8,
+    "last": "2026-11-24T15:30:51Z",
+    "truncated": false
+  },
+  "sammwyy/xvalkyrie": {
+    "readme": 14762,
+    "commits": 100,
+    "last": "2026-11-26T03:42:28Z",
+    "truncated": true
+  },
+  "scarlett-commons/scarlett-commons": {
+    "readme": 12546,
+    "commits": 100,
+    "last": "2026-11-25T20:54:34Z",
+    "truncated": true
+  },
+  "sefaalcn/half-step-game-project": {
+    "readme": 4673,
+    "commits": 22,
+    "last": "2026-11-25T22:33:40Z",
+    "truncated": false
+  },
+  "seifheakal/blue-harness": {
+    "readme": 11750,
+    "commits": 88,
+    "last": "2026-11-15T18:24:35Z",
+    "truncated": false
+  },
+  "sharpemu/sharpemu": {
+    "readme": 7342,
+    "commits": 100,
+    "last": "2026-11-25T14:47:59Z",
+    "truncated": true
+  },
+  "shion8120/makefun-gta6": {
+    "readme": 4482,
+    "commits": 3,
+    "last": "2026-11-22T17:41:02Z",
+    "truncated": false
+  },
+  "shrayank-dev/AMBROSIA-PROJECT": {
+    "readme": 8754,
+    "commits": 12,
+    "last": "2026-11-25T19:10:03Z",
+    "truncated": false
+  },
+  "shrayank007/AMBROSIA-PROJECT": {
+    "readme": 8754,
+    "commits": 12,
+    "last": "2026-11-25T19:10:03Z",
+    "truncated": false
+  },
+  "shrewbrewsh/OpenRPF9": {
+    "readme": 1685,
+    "commits": 7,
+    "last": "2026-11-23T02:51:37Z",
+    "truncated": false
+  },
+  "simnJS/KytyPS5-GTA": {
+    "readme": 51497,
+    "commits": 100,
+    "last": "2026-11-07T18:15:45Z",
+    "truncated": true
+  },
+  "simomistralii/Leonida-PC": {
+    "readme": 26091,
+    "commits": 100,
+    "last": "2026-11-23T15:53:14Z",
+    "truncated": true
+  },
+  "sinker234/gta6-entry": {
+    "readme": 2421,
+    "commits": 3,
+    "last": "2026-11-23T04:46:49Z",
+    "truncated": false
+  },
+  "skitzellez/Arcade-GameVault": {
+    "readme": 637,
+    "commits": 2,
+    "last": "2026-11-23T21:37:40Z",
+    "truncated": false
+  },
+  "sleep10dev/XPORT": {
+    "readme": 8348,
+    "commits": 1,
+    "last": "2026-11-26T03:34:07Z",
+    "truncated": false
+  },
+  "sp00nznet/xboxrecomp": {
+    "readme": 159800,
+    "commits": 100,
+    "last": "2026-11-20T20:28:05Z",
+    "truncated": true
+  },
+  "spazman12/leonida-lowend": {
+    "readme": 6083,
+    "commits": 4,
+    "last": "2026-11-25T14:07:40Z",
+    "truncated": false
+  },
+  "starsix55/gta-vi-cloud-research": {
+    "readme": 15717,
+    "commits": 20,
+    "last": "2026-11-22T21:56:17Z",
+    "truncated": false
+  },
+  "sub-north/xbox-hle-lab": {
+    "readme": 5967,
+    "commits": 47,
+    "last": "2026-11-24T15:35:45Z",
+    "truncated": false
+  },
+  "synrgizeross/leonida-sys": {
+    "readme": 25398,
+    "commits": 100,
+    "last": "2026-11-25T16:05:24Z",
+    "truncated": true
+  },
+  "t-chahbi/ScarletBridge": {
+    "readme": 19833,
+    "commits": 57,
+    "last": "2026-11-25T22:56:53Z",
+    "truncated": false
+  },
+  "tecnofifamobile-ai/XEMSS": {
+    "readme": 20529,
+    "commits": 6,
+    "last": "2026-11-24T15:16:26Z",
+    "truncated": false
+  },
+  "terminator1991/portside-heat": {
+    "readme": 3129,
+    "commits": 3,
+    "last": "2026-11-21T13:01:14Z",
+    "truncated": false
+  },
+  "thealexsan/oathkeep": {
+    "readme": 6157,
+    "commits": 100,
+    "last": "2026-11-25T11:25:11Z",
+    "truncated": true
+  },
+  "trshhhh-dev/port-solara": {
+    "readme": 404,
+    "commits": 1,
+    "last": "2026-11-22T12:36:31Z",
+    "truncated": false
+  },
+  "ubiquitarianism/leonida": {
+    "readme": 30595,
+    "commits": 100,
+    "last": "2026-11-26T03:35:46Z",
+    "truncated": true
+  },
+  "uiliannn/VItoriaBr": {
+    "readme": 30456,
+    "commits": 100,
+    "last": "2026-11-26T04:09:08Z",
+    "truncated": true
+  },
+  "ulissesemuman/Odysseus": {
+    "readme": 1876,
+    "commits": 1,
+    "last": "2026-11-25T16:59:32Z",
+    "truncated": false
+  },
+  "utkarshxdev/xcl-mac": {
+    "readme": 14337,
+    "commits": 100,
+    "last": "2026-11-25T04:31:38Z",
+    "truncated": true
+  },
+  "valentderah/totk-pc-recomp": {
+    "readme": 7441,
+    "commits": 100,
+    "last": "2026-11-22T05:26:41Z",
+    "truncated": true
+  },
+  "valouddsite/Xboxx": {
+    "readme": 14739,
+    "commits": 100,
+    "last": "2026-11-25T22:01:51Z",
+    "truncated": true
+  },
+  "velour-willow471/port-solano-gta6-01": {
+    "readme": 6483,
+    "commits": 11,
+    "last": "2026-11-20T05:05:14Z",
+    "truncated": false
+  },
+  "vextis/gta6-game": {
+    "readme": 1300,
+    "commits": 5,
+    "last": "2026-11-24T11:21:02Z",
+    "truncated": false
+  },
+  "viper-community/viper": {
+    "readme": 10347,
+    "commits": 21,
+    "last": "2026-11-26T02:37:43Z",
+    "truncated": false
+  },
+  "vladbondarenko97/gta6-testbench": {
+    "readme": 2755,
+    "commits": 1,
+    "last": "2026-11-23T23:10:25Z",
+    "truncated": false
+  },
+  "vnazt/gta6-01": {
+    "readme": 1429,
+    "commits": 2,
+    "last": "2026-11-24T08:49:20Z",
+    "truncated": false
+  },
+  "voidopcode/vilocity": {
+    "readme": 11378,
+    "commits": 38,
+    "last": "2026-11-26T02:02:10Z",
+    "truncated": false
+  },
+  "vuyp/gta6-pc-race": {
+    "readme": 3819,
+    "commits": 100,
+    "last": "2026-11-26T06:26:46Z",
+    "truncated": true
+  },
+  "w1spo/xclayer": {
+    "readme": 7089,
+    "commits": 9,
+    "last": "2026-11-24T15:10:57Z",
+    "truncated": false
+  },
+  "walkthestars/GTA6-Asset-Info": {
+    "readme": 4215,
+    "commits": 5,
+    "last": "2026-11-20T20:51:51Z",
+    "truncated": false
+  },
+  "wardevsa/victory-pc-layer": {
+    "readme": 71442,
+    "commits": 100,
+    "last": "2026-11-26T02:28:47Z",
+    "truncated": true
+  },
+  "waz5211/gta6-01": {
+    "readme": 1540,
+    "commits": 2,
+    "last": "2026-11-19T18:22:26Z",
+    "truncated": false
+  },
+  "weile10000/xc2-ns2-recomp": {
+    "readme": 24123,
+    "commits": 100,
+    "last": "2026-11-26T06:18:31Z",
+    "truncated": true
+  },
+  "wildesPepega/portwatch-vi-discord-bot": {
+    "readme": 6821,
+    "commits": 3,
+    "last": "2026-11-25T14:47:06Z",
+    "truncated": false
+  },
+  "wiredopposite/OGX-Mini": {
+    "readme": 6786,
+    "commits": 79,
+    "last": "2025-11-12T07:27:43Z",
+    "truncated": false
+  },
+  "woreksami/ttpf-studio": {
+    "readme": 5763,
+    "commits": 1,
+    "last": "2026-11-21T02:46:14Z",
+    "truncated": false
+  },
+  "wqryx/Leonida": {
+    "readme": 7217,
+    "commits": 1,
+    "last": "2026-11-24T00:10:06Z",
+    "truncated": false
+  },
+  "wzyyyyyyy/LeviWineBridge": {
+    "readme": 3205,
+    "commits": 7,
+    "last": "2026-11-20T01:56:37Z",
+    "truncated": false
+  },
+  "x6j1ZiqfbxA3u12HVk/Project-Americas": {
+    "readme": 3449,
+    "commits": 92,
+    "last": "2026-11-26T04:10:10Z",
+    "truncated": false
+  },
+  "xavier015869/gta6-01": {
+    "readme": 2219,
+    "commits": 3,
+    "last": "2026-11-20T04:38:58Z",
+    "truncated": false
+  },
+  "xcl-dev/xcl": {
+    "readme": 28278,
+    "commits": 100,
+    "last": "2026-11-26T00:48:16Z",
+    "truncated": true
+  },
+  "xemu-project/xemu": {
+    "readme": 72,
+    "commits": 100,
+    "last": "2026-11-23T03:35:34Z",
+    "truncated": true
+  },
+  "xhqss/Leonida": {
+    "readme": 26136,
+    "commits": 100,
+    "last": "2026-11-24T22:32:31Z",
+    "truncated": true
+  },
+  "ykauttiz/Kautrix": {
+    "readme": 27545,
+    "commits": 100,
+    "last": "2026-11-24T18:27:15Z",
+    "truncated": true
+  },
+  "yogiekw/gta6-01": {
+    "readme": 3584,
+    "commits": 5,
+    "last": "2026-11-21T16:23:04Z",
+    "truncated": false
+  },
+  "zDiazG/Leonida": {
+    "readme": 27586,
+    "commits": 100,
+    "last": "2026-11-25T13:37:43Z",
+    "truncated": true
+  },
+  "zeozeozeo/rpf9": {
+    "readme": 753,
+    "commits": 3,
+    "last": "2026-11-23T19:41:05Z",
+    "truncated": false
+  },
+  "zokay23/porto-verde": {
+    "readme": 2392,
+    "commits": 33,
+    "last": "2026-11-24T04:06:34Z",
+    "truncated": false
+  },
+  "zortos293/Lichii": {
+    "readme": 7533,
+    "commits": 100,
+    "last": "2026-11-26T02:46:44Z",
+    "truncated": true
+  },
+  "zsy-miao/AWC_from_RPF9_Extractor": {
+    "readme": 26289,
+    "commits": 27,
+    "last": "2026-11-25T06:10:42Z",
+    "truncated": false
+  },
+  "zsy-miao/RageForge": {
+    "readme": 3364,
+    "commits": 66,
+    "last": "2026-11-22T03:15:03Z",
+    "truncated": false
+  },
+  "zsy-miao/ScarlettVI": {
+    "readme": 25125,
+    "commits": 74,
+    "last": "2026-11-25T21:52:48Z",
+    "truncated": false
+  },
+  "zsy-miao/keylime": {
+    "readme": 15157,
+    "commits": 67,
+    "last": "2026-11-25T21:52:55Z",
+    "truncated": false
+  },
+  "zsy-miao/rebox": {
+    "readme": 64245,
+    "commits": 100,
+    "last": "2026-11-26T01:06:15Z",
+    "truncated": true
+  },
+  "zsy-miao/victory-perf": {
+    "readme": 7394,
+    "commits": 100,
+    "last": "2026-11-25T15:36:17Z",
+    "truncated": true
+  }
+}

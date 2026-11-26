@@ -1,0 +1,108 @@
+# rdna4rage
+
+This branch uses Microsoft’s installed Scarlett GXDK headers, import libraries and Windows-hosted DLLs. The C++ host queries XG texture layouts, inspects root signatures, and creates compute pipelines on the Scarlett offline device. Windows D3D12 tests execute an original compute shader from the game's BVH builder and draw an XMem-backed test texture with a vertex and pixel shader on the RX 9070 XT.
+
+The game executable has passed a suspended process creation check. Live title startup and gameplay rendering remain open.
+
+## Title storage DLL
+
+The build produces `out/scarlett/title/Release/XCRDAPI.dll`. Its `DStorageGetFactory` accepts the game's Scarlett factory ID. The adapter reuses the file, queue, and status interfaces from `main` and sends local reads to Microsoft DirectStorage for Windows. The startup sequence uses 32 MiB of staging and a file queue named `fiDeviceDirectStorage` with capacity 4,159, real-time priority, and manual submission. A request reads its specified file range. The queue retains the file until the read completes. [Microsoft's queue options](https://learn.microsoft.com/en-us/gaming/gdk/docs/reference/system/dstorage/structs/dstorage_queue_options)
+
+The installed `Documentation/GDK.chm` and Scarlett `dstorage_xs.h` describe the zlib flag, the BCPack format, and the intermediate byte count for requests using both. The adapter calls Microsoft's installed `BCPackDecompress` for BC1 through BC7. For RFC 1950 data it uses the same libdeflate decoder as `main` to verify the exact decoded size. In a check with an 11-byte compressed stream and an 11-byte output, the June 2020 `XBTCDecompressStream` copied the compressed bytes. It also reported success for 720 decoded bytes with a declared length of 721. Explicit queue requests handle both cases and publish bytes only after successful decoding.
+
+Set `RDNA4RAGE_DIRECTSTORAGE_SDK` to the extracted Microsoft DirectStorage 1.4.0 package directory containing `native/include/dstorage.h`. CMake stages Microsoft's two Windows DirectStorage DLLs in the build directories and fetches the pinned libdeflate 1.26 source when needed. The optional native `read-stream` command accepts byte counts from archive metadata and writes binary output to stdout.
+
+```powershell
+cmake -S . -B out/scarlett -A x64 "-DRDNA4RAGE_DIRECTSTORAGE_SDK=D:/path/to/package" "-DRDNA4RAGE_TITLE_DIR=D:/path/to/title"
+cmake --build out/scarlett --config Release
+ctest --test-dir out/scarlett -C Release -R storage -V
+```
+
+The DLL maps the title's `G:\` to the process executable's directory by default. A separate runner can set the environment variable `RDNA4RAGE_TITLE_DIR` to the absolute local content directory. With that directory configured for the tests, a small executable imports the same factory as the game and reads ranges from `script.rpf`, `common.rpf`, and `levels.rpf`. The queue, the installed GXDK decoder, and an independent zlib reference match the SHA-256 digests for all 138,000 decoded bytes. Generated fixtures exercise raw blocks, BCPack, and Deflate followed by BCPack in all seven BC formats.
+
+Compressed reads own their temporary buffers for the duration of the request. In a two-stage decode the queue releases the packed input before allocating the final texture buffer. The destination receives the data after both codecs succeed. A 32 MiB zlib regression test warms the native queue and allocates the caller's destination before sampling process private commit. On the development PC the idle queue's measured increase fell from 33,656,832 bytes to 32,768 bytes with the queue and destination still alive. This measures retained process commit after a read. Peak commit during decoding and total game memory are separate measurements.
+
+Local file requests can target ordinary memory or an array of XMem physical pages with a byte offset into the first page. The queue pins the pages at enqueue time and joins adjacent section ranges for the read. The scattered-destination tests release the page IDs before submission and check the decoded bytes and surrounding guards. With the local title directory configured, `game-storage-gpu-page` reads a compressed 14,098-byte range from `script.rpf`, verifies the SHA-256 of its 65,536-byte output in XMem, and checks the same bytes through GPU readback on the RX 9070 XT. Memory-source queues remain unsupported. `GetStats` currently reports the open-file counters. [Microsoft's DirectStorage request options](https://learn.microsoft.com/en-us/gaming/gdk/docs/reference/system/dstorage/structs/dstorage_request_options)
+
+## Title texture DLL
+
+The build produces `out/scarlett/title/Release/xg_xs.dll` with both named XG imports used by the game. It loads the installed Microsoft XG library by absolute path and selects Series X (Anaconda). Microsoft supplies the texture address calculations, resource descriptors, and tiled copies. The DLL also forwards the two older 3D texture functions imported by the kit's `XBTC.dll`, preserving the older layout for that caller. The title DLL and the offline graphics tool have separate output directories because they expect different versions of the layout structure.
+
+The June 2020 `Documentation/GDK.chm` describes `XGCreateTextureComputer`, `GetResourceLayout`, `GetTextureViewDescriptor`, and the subresource copy methods. The call sites in the supplied EXE index mip records at 112 bytes and planes at 1,736 bytes. The installed Scarlett header uses 104 and 1,616 bytes respectively. The shim copies each SDK mip into the position the title reads. For a suggested layout it takes the resource-wide swizzle mode from the SDK's texture view descriptor, including when the first mip is already packed in the tail. Both observed callers use zero suggestion flags. The older kit lacks the packed volume mip origin, so requests for a 3D layout containing a mip tail currently return an unsupported error.
+
+Run `ctest --test-dir out/scarlett -C Release -R title-xg -V` to exercise the actual DLL imports. The test compares the returned structure with the installed GXDK for the startup depth/stencil texture, mip chains, a block-compressed array, a render target and a 1D texture. It also compares a tiled upload against the SDK and reads back the original bytes from an array subresource.
+
+`RdnaRecordTextureUpload` takes a Series X texture description and its mapped guest GPU address. XMem pins the backing pages, and Microsoft's XG library reads the tiled texels into a Windows D3D12 upload buffer using the row pitches reported by the desktop device. The caller supplies a reusable destination texture, records the upload before drawing, and retains the upload buffer until the GPU fence completes. This path currently handles single-sample 2D textures with one default plane, including mip chains and arrays. [D3D12 texture copy footprints](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12device-getcopyablefootprints)
+
+With the Windows SDK desktop `dxc.exe` installed, run `ctest --test-dir out/scarlett -C Release -R radeon-sampled-texture -V`. One case reproduces the description and placement offset of a previously unresolved title texture, a 256×128 `R8_UNORM` image with the Scarlett 4 KiB S swizzle at offset 8,192 inside a guest page. The test fills it with known texels and uses a validation vertex and pixel shader to draw a triangle offscreen. Every channel of all 65,536 output pixels matched across two uploads to the same native texture. A 193×129 array with two slices, three mip levels and four reordered guest pages matched another 130,308 pixels. Both cases release the source page mappings before the GPU executes. Connecting title-issued draw calls and their original shaders to this path remains open.
+
+## Build and run
+
+Use Windows x64, Visual Studio with Desktop Development with C++, CMake 3.24 or newer, and the Scarlett GXDK. The tested edition is June 2020 (200600). CMake detects the standard installation. For another location, pass `-DRDNA4RAGE_GXDK="D:/path/to/GXDK"` when configuring. Keep the kit installed when running the host.
+
+```powershell
+cmake -S . -B out/scarlett -A x64
+cmake --build out/scarlett --config Release
+ctest --test-dir out/scarlett -C Release --output-on-failure
+.\out\scarlett\Release\rdna4rage-gdk.exe texture 2560 1440 118 0x80300006
+.\out\scarlett\Release\rdna4rage-gdk.exe inspect-root .\out\scarlett\test-root.bin
+```
+
+## Verified on the development PC
+
+- The captured startup request uses Scarlett format 118 (D16_UNORM_S8_UINT) and flags `0x80300006`. XG returned 11,796,480 bytes with 64 KiB alignment. The depth plane starts at byte zero and the stencil plane at byte 7,864,320. The GXDK offline D3D12 allocation query hit a breakpoint in `xgs12_pc_xs.dll` for this description. The host uses XG directly for texture layout.
+- The installed Scarlett DXC compiled a 92-byte root signature. The Scarlett device accepted the reserialized signature. A separate desktop D3D12 test checked the three constants at register b3 in space 1 and created a root signature from the original compiler output on the Radeon RX 9070 XT.
+
+The [host library](src/scarlett.cpp) owns the GXDK calls. The [desktop test](tests/radeon_root.cpp) uses the Windows SDK and selects the discrete Radeon explicitly. The prior implementation is available locally at `archive/pre-gdk-rewrite` (`6385994`).
+
+## Test a shader from the installed game
+
+Set the local title directory when configuring to enable the hardware test. This test requires Python 3, the original `XboxBvhBuilder.dll` containing the verified shader, and the RX 9070 XT.
+
+```powershell
+cmake -S . -B out/scarlett -A x64 "-DRDNA4RAGE_TITLE_DIR=D:/path/to/title"
+cmake --build out/scarlett --config Release
+ctest --test-dir out/scarlett -C Release -R game-bvh-copy -V
+```
+
+The test reads the DLL as data and identifies the original 4,404-byte `CopyAndCompactBVH` compute program by SHA-256. It checks pipeline creation on the GXDK offline device. For desktop D3D12, the GXDK reserializes the bindings after clearing its two console placement flags. The Radeon receives the original shader bytes and the separate root signature. Four dispatches with controlled input sizes matched all 32,768 readback bytes, including the guard regions. This exercises the BVH copy operation. Building a scene acceleration structure and tracing rays require additional programs.
+
+The installed June 2020 GXDK created 20 of 52 compute pipelines found in this title's BVH library. Its compiler reported an unknown Xbox intrinsic for 20 and raised a breakpoint for 12. On desktop, the unmodified embedded root signatures failed for all 52. The first program passed the readback test with the adapted bindings. The next program caused an access violation during desktop pipeline creation, so the checked-in GPU dispatch test selects the verified program only.
+
+The live title also requires offline handling for Winsock, WinHTTP and account services.
+
+## XMem and native Windows memory
+
+The build produces `out/scarlett/title/Release/xmem.dll` for the twelve imports in the executable and the additional `XMemVirtualQuery` import in its BVH builder. Microsoft's console DLL depends on six Game OS functions in `xbthunk.dll`. The desktop build uses the installed June 2020 `gameKit/Include/xmem.h` and compiles Microsoft's default heap allocator from `gameKit/Source/amd64/heap.c`. It supplies the title heap and virtual memory services with Windows APIs and honors the executable's allocation hooks. Small CPU heap allocations that explicitly require a low address use a Windows reservation below 4 GiB.
+
+XMem reserves address space with `VirtualAlloc2`. Each guest page number identifies a 64 KiB offset in a Windows section. A 2 MiB cluster contains 32 consecutive, aligned guest pages. Windows chooses their host physical placement. Sections of up to 2 MiB acquire backing on first use, and `MapViewOfFile3` can expose the same bytes at several guest addresses. Readers, writable aliases and GPU users retain their backing independently of the page number's lifetime. The title can unmap a range and release its reservation with `VirtualFree`. [Win32 placeholder mapping](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-mapviewoffile3)
+
+Run `ctest --test-dir out/scarlett -C Release -R "title-xmem|radeon-shared-page" -V`. The CPU test allocates 100,352 page numbers (6.125 GiB of guest budget) with about 2 MiB of process private commit growth on the development PC. It also checks 2 MiB cluster alignment, sparse mappings, protections, concurrent aliases and budget release. The Radeon test reserves a 16 GiB window and imports an XMem section using `ID3D12Device3::OpenExistingHeapFromFileMapping`. The RX 9070 XT reads and writes two distinct 65,536-byte patterns through placed D3D12 buffers. On the second submission the guest has already released the page numbers and CPU mappings. The retained section stays valid through the GPU fence, and independent readback matches every byte. [Microsoft's imported heap API](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12device3-openexistingheapfromfilemapping)
+
+The adapter models retail Series X title memory with 10 GiB in the GPU-optimal class, 3.5 GiB in the standard class and an empty tools partition. Title usage includes Windows process private commit plus each live guest physical page once. The adapter accepts the installed kit's working-set layout and the newer selectors used by the game and upscaler. The game reads two extra fields at offsets 0x48 and 0x4c. The adapter reports Windows process pool usage and zero for the unavailable console kernel-pool limit. On the discrete Radeon, the tested buffers reside in system RAM. DXGI reports dedicated and shared GPU memory usage separately. GPU-local textures, acceleration structures and the full game's memory footprint still require an integrated renderer test. [Series X specifications](https://news.xbox.com/en-us/2020/03/16/xbox-series-x-tech/) · [DXGI memory budgets](https://learn.microsoft.com/en-us/windows/win32/api/dxgi1_4/nf-dxgi1_4-idxgiadapter3-queryvideomemoryinfo)
+
+### AMD and Linux references
+
+AMD's D3D12 Memory Allocator distinguishes the bytes in allocated heap blocks from the bytes occupied by individual allocations. Its aliasing guide describes the synchronization and data-inheritance rules for overlapping D3D12 resources. Radeon Memory Visualizer can show which allocations overlap and where their pages are resident. [AMD allocator statistics](https://gpuopen-librariesandsdks.github.io/D3D12MemoryAllocator/html/struct_d3_d12_m_a_1_1_statistics.html) · [AMD resource aliasing](https://gpuopen-librariesandsdks.github.io/D3D12MemoryAllocator/html/resource_aliasing.html) · [Radeon Memory Visualizer](https://gpuopen.com/rmv/)
+
+BC-250 board maintainers identify their board as PS5-derived. Linux identifies its PCI ID `1002:13fe` as a Cyan Skillfish APU. Digital Foundry tested the Series X-derived AMD 4800S desktop kit with an external graphics card because its integrated GPU is disabled. [BC-250 board notes](https://github.com/GonzaloLombardi/bc250-hub/blob/main/README.md) · [Linux PCI device table](https://github.com/torvalds/linux/blob/v6.15/drivers/gpu/drm/amd/amdgpu/amdgpu_drv.c#L2144) · [4800S hardware test](https://www.youtube.com/watch?v=cZS-4PgD4SI)
+
+Two code paths illustrate the memory model. Linux `amdgpu_vm_bo_map` associates a GPU virtual address with an offset and length in an existing buffer object. Mesa RADV's APU path computes a common total for its memory heaps, while its dedicated-GPU path handles separate memory domains. They are design references for the Windows adapter. [Linux buffer-object mapping](https://github.com/torvalds/linux/blob/v6.15/drivers/gpu/drm/amd/amdgpu/amdgpu_vm.c#L1813) · [Mesa RADV heap accounting](https://chromium.googlesource.com/external/gitlab.freedesktop.org/mesa/mesa/+/0973b92ec25a73c30ef53e4d79b6b5d5b845e075/src/amd/vulkan/radv_physical_device.c#472)
+
+## Check the executable and its startup shaders
+
+With `RDNA4RAGE_TITLE_DIR` configured, run the optional startup check separately from CTest.
+
+```powershell
+cmake --build out/scarlett --config Release --target game-startup-check
+```
+
+The check builds a control graphics pipeline with one RGBA8 render target and a vertex buffer bound at t0 in register space 3. It then reads two known startup shaders from the original EXE by SHA-256. On the June 2020 kit the control succeeds. For both title shaders, the kit's DXC reports stripped DXIL and cannot identify a precompiled program. An earlier direct run with the title vertex shader and the control pixel shader hit a breakpoint inside the offline graphics tool. The check exits with an explanation when DXC reports this combination.
+
+Both containers retain a `DXIL` part. The vertex and pixel bitcode fields each point to four bytes spelling `NOBC`. Windows SDK 10.0.26100 DXC rejects both with `Invalid bitcode signature`. Each shader's 16-byte `HASH` digest occurs once in the executable. Each verified container also carries a packed Series X program in its `XDAT` table. Reading those entries from the executable yielded 384 bytes of native vertex code and 256 bytes of native pixel code. [Microsoft DXIL container header](https://github.com/microsoft/DirectXShaderCompiler/blob/main/include/dxc/DxilContainer/DxilContainer.h)
+
+The archived implementation associates those exact two container hashes with a small HLSL vertex and pixel pair. In an isolated check, the installed June 2020 Scarlett DXC compiled both HLSL stages with the current startup root signature (`t0` in register space 3). The current host's `check-rgba8` created the graphics pipeline on the Scarlett offline device. The archived desktop test also recorded the expected flat color inside a triangle on the RX 9070 XT. The next milestone on `master` is to select the two stages for the title's pipeline request, bind its vertex data and verify a title-issued draw on the Radeon. [Archived shader pair](https://github.com/RKouchoo/rdna4rage/blob/a5ed47231e5c3774a83e40ba61f88a72c4398eec/src/shaders/startup.hlsl) · [Archived Radeon draw results](https://github.com/RKouchoo/rdna4rage/blob/a5ed47231e5c3774a83e40ba61f88a72c4398eec/NOTES.md#independent-startup-shaders-on-the-rx-9070-xt)
+
+Microsoft's `xbdepends` found 68 direct import modules in the executable. Automatic detection selected Scarlett. Running `xbdepends -pc -v game_scarlett_master.exe` flagged four Game OS dependencies (`AcpHal.dll`, `chad.dll`, `xapu.dll`, `xmem.dll`) and the Xbox Direct3D runtimes. A PC layout check also flagged XMem in the bundled Bink, FidelityFX upscaler and BVH builder DLLs. The latter two also use Xbox Direct3D. The tool classifies imports statically. [Microsoft xbdepends source](https://github.com/microsoft/Xbox-GDK-Samples/tree/8ee849da2eee895fe99f15a9788e54cd9656f79e/Samples/Tools/xbdepends)
+
+The installed `Documentation/GDK.chm` describes the page sizes, alignment and reservation flags used by `XMemAllocatePhysicalPages` and `XMemMapPhysicalPages`. Its `D3D12ConfigureVirtualMemoryX` entry describes GPU page-table setup before device creation. For a source-level example of the platform split, Microsoft's sample selects `D3D12XboxCreateDevice` and `PresentX` on console, and `D3D12CreateDevice` and DXGI swap-chain presentation on Windows. [Microsoft device and presentation sample](https://github.com/microsoft/Xbox-GDK-Samples/blob/8ee849da2eee895fe99f15a9788e54cd9656f79e/Samples/Live/InGameStore/DeviceResources.cpp)

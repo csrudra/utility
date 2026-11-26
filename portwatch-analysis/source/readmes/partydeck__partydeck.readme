@@ -1,0 +1,132 @@
+
+<img src=".github/assets/icon.png" align="left" width="100" height="100">
+
+### `PartyDeck`
+
+A split-screen game launcher for Linux/SteamOS
+
+---
+
+<p align="center">
+    <img src=".github/assets/launcher.png" width="49%" />
+    <img src=".github/assets/gameplay1.png" width="49%" />
+</p>
+
+<p align="center">
+    <a href="https://github.com/partydeck/partydeck/releases">
+        <img src="https://img.shields.io/github/v/release/partydeck/partydeck?style=for-the-badge" alt="Latest Release">
+    </a>
+    <a href="https://matrix.to/#/#partydeck:matrix.org">
+        <img src="https://img.shields.io/matrix/partydeck-general%3Amatrix.org?style=for-the-badge" alt="Matrix Chat">
+    </a>
+    <a href="https://drive.proton.me/urls/D9HBKM18YR#zG8XC8yVy9WL">
+        <img src="https://img.shields.io/badge/DOWNLOAD%20HANDLERS-8A2BE2?style=for-the-badge" alt="Download Handlers">
+    </a>
+</p>
+
+
+> [!NOTE]
+> PartyDeck is in early development, and may contain violations of software best practices and security flaws; use at your own discretion! If you are experienced in software any advice and contributions are greatly appreciated.
+
+## Features
+
+- Runs multiple instances of a game at a time and automatically tiles up to 4 game windows per monitor
+- Supports native Linux games as well as Windows games through Proton-GE/UMU Launcher
+- Handler system with little manual setup required for most games
+- Steam multiplayer API is emulated, allowing for multiple instances of Steam games without needing multiple sign-ins
+- Works with most game controllers out-of-the-box
+- Now works with multiple keyboards and mice!
+- Experimental support for displaying instances across multiple monitors
+- Each instance only reads from input devices specifically assigned to that instance
+- Profile support allows each player to have their own persistent save data, settings, and stats for games
+- Works out of the box on SteamOS
+
+## Installing & Usage
+
+Download the latest release [here](https://github.com/partydeck/partydeck/releases/latest) and extract it into a folder. Download game handlers [here](https://drive.proton.me/urls/D9HBKM18YR#zG8XC8yVy9WL).
+
+### SteamOS
+
+PartyDeck is supported on SteamOS 3.8.1 and newer.
+
+If you're in desktop mode, simply run the `partydeck` executable. To use PartyDeck in Gaming Mode, add `GamingModeLauncher.sh` as a shortcut to Steam, and in the settings for that shortcut disable Steam Input.
+
+### Desktop Linux
+
+For any non-SteamOS distro, the universal AppImage is the recommended way to run PartyDeck. The app's splitscreen tiling script requires KDE Plasma 6.0 and up; if you're on an older version of Plasma or on another desktop environment/compositor entirely, you can run PartyDeck without the script, but then it's up to you to resize and reposition the game windows yourself. You'll also want to install Bubblewrap (bwrap) from your distro's package manager or you may experience instances not isolating correctly on certain games.
+
+### Getting Started
+There are two ways to add games to PartyDeck: clicking the New button will allow you to create a handler from scratch, and the Import button lets you import a pre-made PartyDeck Handler package (.pd2 file). Pre-made handlers are made for certain games that don't work out-of-the-box or require mods or special configuration to work. Through the profiles menu, you can create profiles that store game save data persistently across sessions.
+
+## Building
+
+You'll need a Rust toolchain with the 2024 Edition. For building the mouse/keyboard gamescope fork, you'll also need `meson` and `ninja` installed.
+
+Clone the repo and initialise submodules:
+
+```
+git clone https://github.com/partydeck/partydeck.git
+cd partydeck
+git submodule update --init --recursive --depth 1
+```
+
+Then build with:
+
+```
+cargo build --release
+```
+
+If built with download deps, the build script downloads the latest releases of Goldberg Steam Emu and UMU Launcher from GitHub. The output binary and bundled dependencies are placed in `target/release/`.
+
+### Build feature flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `download_deps` | off | Downloads Goldberg Steam Emu and UMU Launcher from GitHub releases with known good versions|
+| `download_deps_latest` | off | Downloads Goldberg Steam Emu and UMU Launcher from GitHub releases with latest available |
+| `build_gamescope` | off | Builds the mouse/keyboard gamescope fork from the submodule (requires `meson` and `ninja`) |
+
+**Build with gamescope:**
+
+```
+cargo build --release -F build_gamescope
+```
+
+**Download known dependancies:**
+
+```
+cargo build --release -F download_deps
+```
+
+
+## How it Works
+
+PartyDeck uses a few software layers to provide a console-like split-screen gaming experience:
+
+- **(Optional) KWin Session:** This KWin Session displays all running game instances and runs a script to automatically resize and reposition each Gamescope window.
+- **Gamescope:** Contains each instance of the game to its own window. Also has the neat side effect of receiving controller input even when the window is not currently active, meaning multiple Gamescope instances can all receive input simultaneously
+- **Bubblewrap:** Uses bindings to mask out evdev input files from the instances, so each instance only receives input from one specific controller. Also uses directory binding to give each player their own save data and settings within the games.
+- **Runtime (Steam Runtime/Proton):** If needed, the app can run native Linux games through a Steam Runtime (currently, 1.0 (scout) and 2.0 (soldier) are supported) for better compatibility. Windows games are launched through UMU Launcher.
+- **Goldberg Steam Emu:** On games that use the Steam API for multiplayer, Goldberg is used to allow the game instances to connect to each other, as well as other devices running on the same LAN.
+- **And finally, the game itself.**
+
+## Known Issues, Limitations and To-dos
+
+- AppImages and Flatpaks are not supported yet for native Linux games. Handlers can only run regular executables inside folders.
+- Controller navigation support in the launcher is super primitive; I'd love to try making a more controller-friendly, Big-Picture-style UI in the future, but have no immediate plans for it.
+- Games using Goldberg might have trouble discovering LAN games from other devices. If this happens, you can try adding a firewall rule for port 47584. If connecting two Steam Decks through LAN, their hostnames should be changed from the default "steamdeck".
+
+## Credits/Thanks
+
+- [@wunnr](https://github.com/wunnr) for starting partydeck
+- [@Blahkaey](https://github.com/blahkaey) for helping to maintain partydeck and the comunity
+- [@davidawesome02-backup](https://github.com/davidawesome02-backup) for the [Gamescope keyboard/mouse fork](https://github.com/davidawesome02-backup/gamescope), and Valve for Gamescope
+- [@Twig6943](https://github.com/Twig6943) for work on AppImage packaging
+- [@blckink](https://github.com/blckink) for contributions
+- MrGoldberg & Detanup01 for [Goldberg Steam Emu](https://github.com/Detanup01/gbe_fork/)
+- GloriousEggroll and the rest of the contributors for [UMU Launcher](https://github.com/Open-Wine-Components/umu-launcher)
+- Inspired by [Tau5's Coop-on-Linux](https://github.com/Tau5/Co-op-on-Linux) and [Syntrait's Splinux](https://github.com/Syntrait/splinux)
+- Talos91 and the rest of the Splitscreen.me team for [Nucleus Coop](https://github.com/SplitScreen-Me/splitscreenme-nucleus), and for helping with handler creation
+
+## Disclaimer
+This software has been created purely for the purposes of academic research. It is not intended to be used to attack other systems. Project maintainers are not responsible or liable for misuse of the software. Use responsibly.

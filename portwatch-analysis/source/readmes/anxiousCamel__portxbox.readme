@@ -1,0 +1,103 @@
+# PortXbox
+
+<p align="center">
+  <img src="assets/banner.png" alt="PortXbox synthwave banner" width="100%">
+</p>
+
+Clean-room Linux-first Xbox Series X|S (Scarlett) GDK compatibility layer in Rust: Wine/Proton shim bridge, PE32+ loader, Vulkan/SPIR-V backend and reproducible E2E fixtures.
+
+## Legal / Clean-Room Notice
+
+PortXbox is an independent clean-room research project. This repository contains no commercial game executables, game dumps, encryption keys, Microsoft SDK files, proprietary headers, DRM tools, or decryption tools. Retail binaries are never modified or executed by the repository test suite. The included Windows binaries are generated locally from source fixtures and are ignored by Git.
+
+The project is not affiliated with or endorsed by Microsoft, Xbox, Rockstar Games, or the authors of referenced public projects. Public projects such as TuxBox, XCL and VIctory were used only for architectural comparison. PortXbox source is original and licensed under MIT.
+
+## Status
+
+### Runtime & Synthetic Fixtures (Verified by CI / E2E)
+
+| Milestone | Verified scope |
+| --- | --- |
+| **0% Preparation** | Rust workspace, VFS, architecture and `fmt`, `check`, `test`, `clippy` checks. |
+| **25% Executable Running** | PE32+ x86-64 loader with `goblin`, `inspect`, `boot-probe.exe` under `wine64`, `kernelx.dll` HLE `XMemAlloc`, `probe_stub.dll` Stub, JSONL trace and `report.json`. |
+| **40% First Frame** | `portxbox-shader` with `naga` WGSL to SPIR-V, `portxbox-gfx` with `ash` Vulkan headless rendering, GPU readback, SHA-256 pixel probe, and `d3d12_xs.dll` over synchronous TCP loopback at `127.0.0.1:0`. |
+| **55% Main Menu** | `portxbox-input` keyboard stand-in pad and deterministic `PORTXBOX_INPUT_SCRIPT`; `main-menu.exe` under Wine with at least 5 frames, visual change after input, confirmed `A`, and atomic offline save using `.tmp` plus `rename` outside the game directory. |
+
+**Known limitation:** `DrawRect` currently drives per-frame Vulkan clear-color state changes derived from the submitted rectangle commands. It does not yet rasterize individual rectangle quad geometry. Quad geometry is the next graphics milestone.
+
+### Commercial Retail Titles
+
+`portxbox inspect` supports read-only PE headers, sections, imports and adjacent `MicrosoftGame.Config` metadata. No commercial retail title boots yet. Retail binaries remain outside the repository and outside fixture execution.
+
+## Architecture
+
+| Crate | Responsibility |
+| --- | --- |
+| `portxbox-core` | Import routing and serializable execution, graphics, input and menu report contracts. |
+| `portxbox-vfs` | Read-only source paths and separate writable overlay paths. |
+| `portxbox-loader` | PE32+ parsing, section layout, relocations and controlled image mapping. |
+| `portxbox-runtime` | Title memory accounting, HLE/Stub route traces and offline atomic saves. |
+| `portxbox-shader` | WGSL shader sources, validation and SPIR-V generation. |
+| `portxbox-gfx` | Vulkan headless pipeline, GPU readback, checksums and fixture TCP protocol. |
+| `portxbox-input` | Virtual Xbox pad state, keyboard mapping and deterministic frame scripts. |
+| `portxbox-cli` | `inspect`/`run`, Wine process lifecycle, TCP server and reports. |
+
+The fixture is always the TCP client. The Linux runner is the server and responds to `Clear`, `GetInputState`, `DrawRect`, `PresentX` and `SavePreference` with ACKs, input state, save results or errors.
+
+## Quick Start and Verification (Linux)
+
+Prerequisites:
+
+```text
+rustup toolchain install stable
+rustup target add x86_64-pc-windows-gnu
+sudo apt install gcc-mingw-w64-x86-64 wine64
+```
+
+A Vulkan driver is required. Hardware Vulkan is preferred; Mesa `lavapipe` is supported for headless CI.
+
+Run the repository checks:
+
+```text
+export PATH="$HOME/.cargo/bin:$PATH"
+cargo fmt --all -- --check
+cargo check --workspace
+cargo test --workspace --all-targets
+cargo clippy --workspace --all-targets -- -D warnings
+```
+
+Build the menu fixture and its generated PE artifacts:
+
+```text
+cargo build --manifest-path fixtures/main-menu/Cargo.toml --release --target x86_64-pc-windows-gnu -p kernelx-shim -p d3d12-xs-shim -p input-shim
+RUSTFLAGS="-L native=$PWD/fixtures/main-menu/target/x86_64-pc-windows-gnu/release" cargo build --manifest-path fixtures/main-menu/Cargo.toml --release --target x86_64-pc-windows-gnu -p main-menu
+```
+
+The generated `.exe` and `.dll` files are ignored and must not be committed. Run the deterministic headless menu fixture with an isolated state directory:
+
+```text
+XDG_STATE_HOME="$PWD/.state" PORTXBOX_INPUT_SCRIPT='frame:2=Down,frame:4=A' cargo run -p portxbox-cli -- run fixtures/main-menu/target/x86_64-pc-windows-gnu/release/main-menu.exe --report report.json
+```
+
+Offline saves are written atomically under `$XDG_STATE_HOME/portxbox/saves/`, or `~/.local/state/portxbox/saves/` when the variable is unset. They are never written into the game directory.
+
+Inspect a PE fixture without running it:
+
+```text
+cargo run -p portxbox-cli -- inspect fixtures/main-menu/target/x86_64-pc-windows-gnu/release/main-menu.exe
+```
+
+## Publication Metadata
+
+- **Visibility:** Public
+- **Description:** `Clean-room Linux-first Xbox Series X|S (Scarlett) GDK compatibility layer in Rust — Wine/Proton shim bridge, PE32+ loader, Vulkan/SPIR-V backend and reproducible E2E fixtures.`
+- **Topics:** `xbox-series`, `scarlett`, `gdk`, `compatibility-layer`, `linux`, `rust`, `vulkan`, `spirv`, `d3d12x`, `wine`, `proton`
+- **Social preview:** use `assets/banner.png` in the hosting service's repository social-preview settings.
+
+## References and Licensing
+
+TuxBox, XCL and VIctory informed architectural comparison only. No code, assets, dumps, proprietary headers or SDK material were copied. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for boundaries and technical limitations.
+
+## License
+
+MIT. See [`LICENSE`](LICENSE).

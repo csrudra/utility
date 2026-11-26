@@ -1,0 +1,219 @@
+From 13fec7f96e968f8f801373c6b37c63bd604f331b Mon Sep 17 00:00:00 2001
+From: HybridGt <hybridgt@localhost>
+Date: Tue, 24 Nov 2026 17:49:27 +0200
+Subject: [PATCH 05/14] Game: opt-in switch for the title's stall watchdog
+ (VICTORY_NO_STALL_WATCHDOG) (HybridGt)
+
+1.0.2.1 ends itself at +0x23cf683 (write to 0) when its heartbeat stalls
+~30 s or a GPU timestamp is too old (+0x2215c70 je, +0x2215bdc jae, both
+verified in the mapped image). Run11 (RTX 4070 Ti, GPU_UPLOAD shadows)
+ended there during loading - the stop ivall/xcl#878 reports. The two
+branches become NOPs only on exact bytes. Hides real hangs: a tool to
+reach the world while the runtime is slow, not a fix. 6 unit tests.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ apps/victory/src/run.rs             |  14 +++
+ crates/victory-game/Cargo.toml      |   3 +
+ crates/victory-game/src/lib.rs      |   1 +
+ crates/victory-game/src/watchdog.rs | 138 ++++++++++++++++++++++++++++
+ 4 files changed, 156 insertions(+)
+ create mode 100644 crates/victory-game/src/watchdog.rs
+
+diff --git a/apps/victory/src/run.rs b/apps/victory/src/run.rs
+index 5213147..ea1f805 100644
+--- a/apps/victory/src/run.rs
++++ b/apps/victory/src/run.rs
+@@ -32,6 +32,20 @@ pub fn run(
+     let image = victory_loader::load(&prepared, &images)?;
+     victory_hle::runtime::set_main_image(image.base());
+     victory_hle::runtime::set_image_path(image.base(), exe);
++    // HybridGt: VICTORY_NO_STALL_WATCHDOG=1 turns off the title's own stall
++    // watchdog (victory_game::watchdog), before any title code runs.
++    #[cfg(windows)]
++    if std::env::var("VICTORY_NO_STALL_WATCHDOG").as_deref() == Ok("1") {
++        let patches = victory_game::watchdog::stall_watchdog(&hash);
++        // SAFETY: the title image is mapped and has not run yet.
++        let done = unsafe { victory_game::watchdog::apply(image.base(), patches) };
++        for (p, ok) in patches.iter().zip(&done) {
++            println!("stall watchdog +{:#x} ({}): {}", p.rva, p.what, if *ok { "off" } else { "NOT changed (bytes differ)" });
++        }
++        if patches.is_empty() {
++            println!("stall watchdog: no patches for this build");
++        }
++    }
+     println!(
+         "mapped at      {:#x} (preferred {:#x})",
+         image.base(),
+diff --git a/crates/victory-game/Cargo.toml b/crates/victory-game/Cargo.toml
+index b6239d6..0b45520 100644
+--- a/crates/victory-game/Cargo.toml
++++ b/crates/victory-game/Cargo.toml
+@@ -11,5 +11,8 @@ publish.workspace = true
+ memchr.workspace = true
+ miniz_oxide.workspace = true
+ 
++[target.'cfg(windows)'.dependencies]
++windows-sys = { workspace = true, features = ["Win32_System_Memory", "Win32_System_Diagnostics_Debug", "Win32_System_Threading"] }
++
+ [lints]
+ workspace = true
+diff --git a/crates/victory-game/src/lib.rs b/crates/victory-game/src/lib.rs
+index 008bbc8..fdf0c6c 100644
+--- a/crates/victory-game/src/lib.rs
++++ b/crates/victory-game/src/lib.rs
+@@ -4,6 +4,7 @@
+ //! is defined in docs/asset-policy.md.
+ 
+ pub mod sgd5;
++pub mod watchdog;
+ 
+ /// A specific build of the Grand Theft Auto VI executable we know how to run.
+ #[derive(Debug, Clone, Copy)]
+diff --git a/crates/victory-game/src/watchdog.rs b/crates/victory-game/src/watchdog.rs
+new file mode 100644
+index 0000000..18243c2
+--- /dev/null
++++ b/crates/victory-game/src/watchdog.rs
+@@ -0,0 +1,138 @@
++//! HybridGt: the title's stall watchdog.
++//!
++//! A thread of the title (1.0.2.1: the function at +0x2215950) ends the
++//! process on purpose, by writing to address 0 at +0x23cf683, when the
++//! main loop's heartbeat has not changed for about 30 s, or when a GPU
++//! timestamp it waits for is older than its limit. On the console that
++//! means the GPU locked up; here it fires while the host is merely slow
++//! (shader and pipeline builds, title memory copies), during loading and
++//! in the first world frames. ivall/xcl#878 reports the same stop.
++//!
++//! [`stall_watchdog`] lists, per known build, the two branches that take
++//! the abort path; [`apply`] turns them into NOPs, each only when it holds
++//! exactly the expected bytes. Opt-in (`VICTORY_NO_STALL_WATCHDOG=1`): it
++//! hides real hangs too, so it is a tool for reaching the world while the
++//! runtime is slow, not a fix.
++//!
++//! Located by reading the 1.0.2.1 code (the branch bytes and the abort
++//! write below); GTA6-PC-Native documents the same two sites for XCL.
++
++/// A change to the title's code: `expected` must be there, `replacement`
++/// (the same length) goes in its place.
++#[derive(Debug, Clone, Copy)]
++pub struct CodePatch {
++    pub rva: usize,
++    pub expected: &'static [u8],
++    pub replacement: &'static [u8],
++    pub what: &'static str,
++}
++
++/// BLAKE3 of the 1.0.2.1 executable (`game_scarlett_master.exe`).
++pub const BUILD_1_0_2_1: &str = "b99f876b74d4a77f03af5f878223b27bd647b5c35a79d5decd9f716504239e93";
++
++const PATCHES_1_0_2_1: &[CodePatch] = &[
++    CodePatch {
++        rva: 0x2215c70,
++        // dec ebp; je +4 -> the heartbeat countdown reached zero
++        expected: &[0x74, 0x04],
++        replacement: &[0x90, 0x90],
++        what: "heartbeat unchanged for its whole countdown",
++    },
++    CodePatch {
++        rva: 0x2215bdc,
++        // vucomiss xmm8, xmm7; jae +0x2e -> a GPU timestamp is too old
++        expected: &[0x73, 0x2e],
++        replacement: &[0x90, 0x90],
++        what: "GPU timestamp older than its limit",
++    },
++];
++
++/// The watchdog's abort branches in the build with this executable hash.
++pub fn stall_watchdog(blake3_hex: &str) -> &'static [CodePatch] {
++    if blake3_hex.eq_ignore_ascii_case(BUILD_1_0_2_1) { PATCHES_1_0_2_1 } else { &[] }
++}
++
++/// Whether `code` holds `p.expected` at `p.rva`.
++pub fn matches(code: &[u8], p: &CodePatch) -> bool {
++    code.get(p.rva..p.rva + p.expected.len()) == Some(p.expected)
++}
++
++/// Applies `patches` to the image mapped at `base`, each only where the
++/// expected bytes are; returns, per patch, whether it went in.
++///
++/// # Safety
++/// `base` is a mapped image at least `rva + len` bytes long for every patch,
++/// and no thread runs the patched code yet.
++#[cfg(windows)]
++pub unsafe fn apply(base: usize, patches: &[CodePatch]) -> Vec<bool> {
++    use windows_sys::Win32::System::Diagnostics::Debug::FlushInstructionCache;
++    use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
++    use windows_sys::Win32::System::Threading::GetCurrentProcess;
++    patches
++        .iter()
++        .map(|p| {
++            let at = (base + p.rva) as *mut u8;
++            let n = p.expected.len();
++            // SAFETY: inside the mapped image (the caller's promise).
++            let now = unsafe { std::slice::from_raw_parts(at, n) };
++            if now != p.expected || p.replacement.len() != n {
++                return false;
++            }
++            let mut old = 0u32;
++            // SAFETY: our own image's pages; protection restored below.
++            unsafe {
++                if VirtualProtect(at.cast(), n, PAGE_EXECUTE_READWRITE, &mut old) == 0 {
++                    return false;
++                }
++                std::ptr::copy_nonoverlapping(p.replacement.as_ptr(), at, n);
++                VirtualProtect(at.cast(), n, old, &mut old);
++                FlushInstructionCache(GetCurrentProcess(), at.cast(), n);
++            }
++            true
++        })
++        .collect()
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn only_the_known_build_has_patches() {
++        assert_eq!(stall_watchdog(BUILD_1_0_2_1).len(), 2);
++        assert_eq!(stall_watchdog(&BUILD_1_0_2_1.to_uppercase()).len(), 2);
++        assert!(stall_watchdog("00").is_empty());
++    }
++
++    #[test]
++    fn patches_keep_their_length() {
++        for p in PATCHES_1_0_2_1 {
++            assert_eq!(p.expected.len(), p.replacement.len(), "{}", p.what);
++        }
++    }
++
++    #[test]
++    fn a_patch_matches_only_its_expected_bytes() {
++        let p = PATCHES_1_0_2_1[0];
++        let mut code = vec![0u8; p.rva + 4];
++        assert!(!matches(&code, &p));
++        code[p.rva..p.rva + 2].copy_from_slice(p.expected);
++        assert!(matches(&code, &p));
++        assert!(!matches(&code[..p.rva + 1], &p));
++    }
++
++    #[cfg(windows)]
++    #[test]
++    fn apply_changes_only_matching_sites() {
++        // A fake image: the first site matches, the second does not.
++        let a = PATCHES_1_0_2_1[0];
++        let b = PATCHES_1_0_2_1[1];
++        let mut image = vec![0xCCu8; a.rva.max(b.rva) + 4];
++        image[a.rva..a.rva + 2].copy_from_slice(a.expected);
++        // SAFETY: a heap buffer standing in for the image.
++        let done = unsafe { apply(image.as_mut_ptr() as usize, &[a, b]) };
++        assert_eq!(done, vec![true, false]);
++        assert_eq!(&image[a.rva..a.rva + 2], a.replacement);
++        assert_eq!(&image[b.rva..b.rva + 2], &[0xCC, 0xCC]);
++    }
++}
+-- 
+2.56.1.windows.1
+

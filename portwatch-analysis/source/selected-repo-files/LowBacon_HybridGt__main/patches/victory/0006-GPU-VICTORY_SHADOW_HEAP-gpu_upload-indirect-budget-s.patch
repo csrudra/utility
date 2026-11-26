@@ -1,0 +1,152 @@
+From ac5c12b4ff53dcd07a624997bb5a13245d2ab961 Mon Sep 17 00:00:00 2001
+From: HybridGt <hybridgt@localhost>
+Date: Tue, 24 Nov 2026 17:49:28 +0200
+Subject: [PATCH 06/14] GPU: VICTORY_SHADOW_HEAP=gpu_upload, indirect budget
+ switch and usage log (HybridGt)
+
+Title buffer copies in CPU-writable video memory instead of system memory:
+an RTX 4070 Ti reads L0 at 8.5 GB/s and GPU_UPLOAD at 276 GB/s. Run11: no
+device removal (runs 3-10 all had one), but CPU reads of the copies are
+uncached and loading stalled until the title's watchdog fired.
+VICTORY_INDIRECT_BUDGET (log2) and a log of each list's indirect work:
+run10 never passed 2^20, so garbage arguments are not the hang.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crates/victory-gpu/src/host.rs     | 70 +++++++++++++++++++++++++++---
+ crates/victory-gpu/src/indirect.rs | 17 +++++++-
+ 2 files changed, 80 insertions(+), 7 deletions(-)
+
+diff --git a/crates/victory-gpu/src/host.rs b/crates/victory-gpu/src/host.rs
+index e0f4c8e..6e7156b 100644
+--- a/crates/victory-gpu/src/host.rs
++++ b/crates/victory-gpu/src/host.rs
+@@ -413,6 +413,55 @@ struct Deferred {
+     budget_zeroed: bool,
+ }
+ 
++/// HybridGt: whether `VICTORY_SHADOW_HEAP=gpu_upload` is set and the host
++/// has GPU upload heaps (logged once).
++fn shadow_heap_gpu_upload(device: &ID3D12Device) -> bool {
++    static ON: OnceLock<bool> = OnceLock::new();
++    *ON.get_or_init(|| {
++        if std::env::var("VICTORY_SHADOW_HEAP").as_deref() != Ok("gpu_upload") {
++            return false;
++        }
++        let mut o16 = D3D12_FEATURE_DATA_D3D12_OPTIONS16::default();
++        // SAFETY: a sized out structure.
++        let ok = unsafe {
++            device
++                .CheckFeatureSupport(
++                    D3D12_FEATURE_D3D12_OPTIONS16,
++                    (&mut o16 as *mut D3D12_FEATURE_DATA_D3D12_OPTIONS16).cast(),
++                    size_of::<D3D12_FEATURE_DATA_D3D12_OPTIONS16>() as u32,
++                )
++                .is_ok()
++        } && o16.GPUUploadHeapSupported.as_bool();
++        tracing::warn!(gpu_upload = ok, "VICTORY_SHADOW_HEAP=gpu_upload: title buffer copies in video memory");
++        ok
++    })
++}
++
++/// HybridGt (diagnostics): after a submission ran, how much of each list's
++/// indirect work budget its clamped records used. A list at the budget had
++/// records run empty: shader-written arguments past every sane size.
++#[cfg(feature = "diagnostics")]
++fn note_budgets(runs: &[&HostList]) {
++    static AT_BUDGET: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
++    static MAX_USED: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
++    let budget = 1u64 << crate::indirect::budget_log2();
++    for list in runs {
++        let Some(Some((_, data))) = list.budget.get() else { continue };
++        // SAFETY: the list's own mapped word; its submission has run.
++        let used = unsafe { (*data as *const u32).read_volatile() };
++        let before = MAX_USED.fetch_max(used, Ordering::Relaxed);
++        if used > before && used >= 1 << 20 {
++            tracing::warn!(used, budget, "indirect work of one list: new highest");
++        }
++        if u64::from(used) >= budget {
++            let n = AT_BUDGET.fetch_add(1, Ordering::Relaxed) + 1;
++            if n.is_power_of_two() {
++                tracing::warn!(lists = n, budget, "lists that used their whole indirect work budget");
++            }
++        }
++    }
++}
++
+ impl Host {
+     /// Whether the host runs mesh shaders at shader model 6.6 (translated
+     /// mesh shaders need both); logged once.
+@@ -539,6 +588,8 @@ impl Host {
+                 match waited {
+                     Ok(()) => {
+                         WaitForSingleObject(self.event, INFINITE);
++                        #[cfg(feature = "diagnostics")]
++                        note_budgets(runs);
+                     }
+                     Err(e) => tracing::warn!(error = %e, "host submission not waited for"),
+                 }
+@@ -1787,11 +1838,20 @@ impl Host {
+     /// memory that shaders write, which upload memory cannot be. Starts in
+     /// the common state (buffers move out of it implicitly).
+     pub(crate) fn shared_buffer(&self, size: u64) -> Option<(ID3D12Resource, *mut u8)> {
+-        let heap = D3D12_HEAP_PROPERTIES {
+-            Type: D3D12_HEAP_TYPE_CUSTOM,
+-            CPUPageProperty: D3D12_CPU_PAGE_PROPERTY_WRITE_BACK,
+-            MemoryPoolPreference: D3D12_MEMORY_POOL_L0,
+-            ..Default::default()
++        // HybridGt: `VICTORY_SHADOW_HEAP=gpu_upload` places these buffers in
++        // CPU-writable video memory (Resizable BAR) instead of system
++        // memory, which a discrete GPU reads over PCIe: an RTX 4070 Ti
++        // reads 8.5 GB/s from L0 and 276 GB/s from GPU_UPLOAD (hgt-gfxdiag).
++        // CPU reads of it are uncached (snapshots, copy-back).
++        let heap = if shadow_heap_gpu_upload(&self.device) {
++            D3D12_HEAP_PROPERTIES { Type: D3D12_HEAP_TYPE_GPU_UPLOAD, ..Default::default() }
++        } else {
++            D3D12_HEAP_PROPERTIES {
++                Type: D3D12_HEAP_TYPE_CUSTOM,
++                CPUPageProperty: D3D12_CPU_PAGE_PROPERTY_WRITE_BACK,
++                MemoryPoolPreference: D3D12_MEMORY_POOL_L0,
++                ..Default::default()
++            }
+         };
+         let desc = D3D12_RESOURCE_DESC {
+             Dimension: D3D12_RESOURCE_DIMENSION_BUFFER,
+diff --git a/crates/victory-gpu/src/indirect.rs b/crates/victory-gpu/src/indirect.rs
+index c0236d8..af4f43b 100644
+--- a/crates/victory-gpu/src/indirect.rs
++++ b/crates/victory-gpu/src/indirect.rs
+@@ -92,15 +92,28 @@ fn clamp() -> Option<&'static Clamp> {
+         .as_ref()
+ }
+ 
++/// HybridGt: log2 of the per-list indirect work budget: 27, or
++/// `VICTORY_INDIRECT_BUDGET` (10..=31).
++pub(crate) fn budget_log2() -> u32 {
++    static B: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
++    *B.get_or_init(|| {
++        std::env::var("VICTORY_INDIRECT_BUDGET")
++            .ok()
++            .and_then(|v| v.trim().parse::<u32>().ok())
++            .map_or(27, |n| n.clamp(10, 31))
++    })
++}
++
+ fn make() -> windows::core::Result<Clamp> {
++    let source = SOURCE.replace("1u << 27", &format!("1u << {}", budget_log2()));
+     let device = &host().ok_or_else(windows::core::Error::empty)?.device;
+     let mut code: Option<ID3DBlob> = None;
+     let mut errors: Option<ID3DBlob> = None;
+     // SAFETY: the source and names live through the call; out pointers ours.
+     let compiled = unsafe {
+         D3DCompile(
+-            SOURCE.as_ptr().cast(),
+-            SOURCE.len(),
++            source.as_ptr().cast(),
++            source.len(),
+             s!("clamp"),
+             None,
+             None,
+-- 
+2.56.1.windows.1
+

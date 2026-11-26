@@ -1,0 +1,142 @@
+Built by an AI agent for make.fun's [Make GTA 6](https://make.fun/bounty/gta6-01) bounty.
+
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/rifat-ahmd/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/rifat-ahmd/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+
+# SUNWAKE — High Tide on the Malecón
+
+An original open-world crime game set in **Port Alcira**, a sun-soaked Latin-Caribbean coastal city.
+Juno Reyes comes home after six years to find developer **Augusto Brandt** and his muscle, **Los Gaviotas**,
+buying up the neighbourhood one roof at a time. Steal cars, outrun the **APD**, and take the Malecón back.
+
+It runs in desktop Chrome from plain static files (three.js r160 vendored), with no build step and no network
+requests. The city, the people, the cars, the music and every sound are generated in code.
+
+![cover](screenshots/1-chase.jpg)
+
+## In numbers
+
+**12 story missions** in 3 acts · **38 activities** · **32 vehicles** · **11 weapons** · **9 districts** with
+**18 named places** · **6 radio stations** · a crew of 3 with health bars · 3 save slots. The numbers come from
+`game/src/core/catalog.js`, which counts the content tables, and the pause map shows them as big tiles.
+
+| Activities (38) | |
+|---|---|
+| 4 street races | Malecón Sprint, Lantana Loop, Docks Dash, Mirador Climb |
+| 6 properties | Casa Mirador, Odalys Stake, Club Marea, Boathouse 9, Cine Farol, Penthouse Alta |
+| 4 stunt jumps | ramps across the grid with airtime bonuses |
+| 8 taxi fares | Night Owl, Hotel Hop, Banker's Lunch, Last Showing, Shift Change, Lighthouse Date, Checkout, On Air |
+| 6 deliveries | Taco Run, Parts Run, Fresh Catch, Cement Mixer, Scrap Metal, Lamp Oil (timed, with tips) |
+| 4 strangers & side stories | Don Elio's *The Keeper's Lamp*, Doña Pilar's *Abuela's Records*, Kiko's *The Runaway Parrot*, Chef Amparo's *Wedding Cake* |
+| 5 bounties | "El Cangrejo" Ruiz, Dora "La Grúa" Paz, Teo "Salitre" Vega, Lupe "Navaja" Soto, Bruno "Faro" Ibarra |
+| 1 collectible set | 20 pieces of sea glass |
+
+Vehicles (32): Caldera GT, Rayo Coupé, Trueno Muscle, Alba Coupé, Paloma Cabrio, Solano Sedan, Mérida Luxe,
+Marquesa Limo, Brisa Wagon, Gaviota SUV, Vespa Kite, Mango Taxi, Tarpón Pickup, Mula 4x4 (lifted), Grúa Tow
+Truck, Toro Van, Pelícano Cargo, Nieve Ice-Cream Van, Reposo Hearse, Luz Ambulance, Bombero Pumper, Basura
+Hauler, Flete Box Truck, Coral Bus, Ibis Bike, Chispa Scooter, APD Interceptor, APD Ranger, APD Moto; and three
+boats: Marlin speedboats at the pier, Cayo skiffs and the Sirena yacht at Isla Faro.
+
+Weapons (11): fists, Corta machete, Vesper 9, Mako SMG, Breaker 12, Kestrel AR, Marlin DMR, Garza sniper,
+Bengala flare gun (sets cars alight), Trueno grenade launcher, Tormenta rocket launcher.
+
+## Features
+
+- **A whole city**: a 10×10-block grid in nine districts (Palm Heights, Mirador Hills, Ciudad Alta, Marea Beach,
+  Old Quay, Barrio Coral, Little Lantana, Ferro Docks and Isla Faro), towers with setbacks and rooftop tanks,
+  pastel beach hotels with balconies, villas with hip roofs, shops with awnings, warehouses and container stacks,
+  palm boulevards, street lights, neon strips in Barrio Coral and Little Lantana, a beach with umbrellas, a pier
+  with a marina, and **Isla Faro**: a lighthouse island with a turning beam, a cantina and a jetty, reached by a
+  stone causeway from the sand.
+- **Day and night**: a gradient sky with a moving sun, long golden-hour shadows, lit windows, lamps and neon at night.
+- **On foot and by car**: third-person walking, sprinting, jumping and over-the-shoulder aiming; 29 drivable
+  original vehicles (sports and muscle cars, coupes, a cabrio, sedans, a limo, a hearse, wagons and SUVs, a taxi,
+  pickups and a lifted 4x4, a tow truck with a boom, vans, an ice-cream van with a cone on the roof, an ambulance,
+  a fire pumper with a ladder, a garbage hauler, a box truck, a city bus, a motorbike with a rider who leans into
+  turns, a step-through scooter, and the APD fleet) with arcade handling, handbrake drifts, jumps, damage, smoke,
+  fire and explosions; enter, exit and carjack with **F**.
+- **Living streets**: 30 traffic vehicles drawn from 26 civilian models that follow lanes, turn at junctions and
+  brake; 46 sidewalk pedestrians plus
+  a crowd of 22 on the Malecón promenade and the beach; people run from gunfire, crashes and chases, and some
+  freeze and duck with their hands over their heads.
+- **Five-star APD**: crimes raise the wanted level; Interceptors, Ranger SUVs and Moto units with callsigns respond, pursue, ram, and drop officers
+  who shoot; the AIR-1 helicopter with a spotlight from 3★, roadblocks from 4★, line of sight, a search zone and
+  a cool-down. A live dispatch panel lists every unit and its status. Get caught on foot at low heat and you are
+  BUSTED; die and you are WASTED and wake up at Clínica Luz.
+- **Combat**: 11 weapon slots (fists, Vesper 9, Mako SMG, Breaker 12, Kestrel AR, Marlin DMR, Tormenta launcher,
+  Corta machete, Bengala flare gun, Garza sniper, Trueno grenade launcher) with ammo, locked slots with prices, hitscan with tracers, muzzle flashes, sparks and explosions; red markers
+  over armed enemies; an on-foot weapon panel with a big ammo count.
+- **Story**: 12 jobs in three acts for Odalys, Pike, Nix, Marisol and Tío Benny, each with 3-5 stages: talk, steal,
+  steal a marked car, timed drives, gunfights, chases, escapes. Rewards, REP and weapon unlocks.
+- **Activities**: 4 street races with rivals and checkpoints, 6 properties with daily income (each one you own
+  is a safehouse where you can save), 8 taxi fares and 6 deliveries against the clock, 4 strangers & side stories
+  (a named local on the sidewalk asks a favour, on foot or by car), 5 bounty hunts, 20 sea-glass collectibles,
+  4 stunt jumps, the Ferretería gun shop and the Clínica.
+- **Pike Customs**: a garage with your car on a turntable, stat bars and upgrades (engine, brakes, armour,
+  bulletproof tyres, respray, repair) with prices and levels.
+- **Crew of three**: **Z** Pike swaps the plates (drops a star), **X** Marisol leaves a tuned getaway car at the
+  kerb, **C** Nix opens the scanner (every APD unit on the radar); a HUD strip shows their portraits, names,
+  hotkeys and cooldowns. Calling the crew under heat costs them health (8 per star); a member below 25 is laid
+  up until they recover past 40.
+- **AIR-1**: a thin, crisp searchlight beam and a bright lit ellipse that follows you on the road.
+- **HUD**: mission card with stage bar, timer and kill counter, APD dispatch, cash, clock, stars, rank and REP,
+  weapon slots, crew strip, district standing, a rotating round minimap with GPS route and search circle,
+  health/armour, dialogue with drawn portraits, speedometer and gear, radio station and song.
+- **Map screen as a career dashboard** (**M**): seven big count tiles (missions, activities, vehicles, weapons,
+  districts, radio, % complete), the district map with all 18 named places and Isla Faro, typed blips with a
+  legend and the GPS route (click to set a waypoint), the story by act with ticks and locks, a % complete ring,
+  the crew with portraits, health bars and ability status, per-activity progress, and the three save slots, all
+  on one screen.
+- **Menus and saves**: a title screen over the live city, three save slots with progress, autosave after every
+  job, a pause menu with map, story, stats, save and controls tabs.
+- **Sound**: a Web Audio synth for the engine, sirens, guns, crashes and explosions, and six procedural radio
+  stations, each with its own tempo, key, scale, chord progression, voices and drum pattern: Ola FM 97.3 (beach
+  pop), Radio Farol 101.5 (bolero), Bassline 88.8 (club), Salsa Brava 94.1 (salsa), Cumbia Coral 90.7 (cumbia),
+  Noche Synth 106.6 (synthwave).
+
+## Controls
+
+| On foot | | Driving | |
+|---|---|---|---|
+| W A S D | move | W / S | throttle / brake, reverse |
+| Shift / Space | sprint / jump | A / D | steer |
+| Mouse (click to lock) | look | Space | handbrake |
+| Right / left mouse | aim / shoot | Q | radio station |
+| 1-9, 0, wheel | weapons | F | get out (bail at speed) |
+| | | Left mouse | drive-by shooting |
+| F | enter or steal a car | Z / X / C | crew abilities |
+| E / R | use shop, buy / ammo | M, Esc | map, pause |
+
+## Run it
+
+```sh
+node serve.ts          # serves game/ on http://localhost:8080
+```
+
+Then open http://localhost:8080 in desktop Chrome and click NEW GAME.
+
+## Layout
+
+```
+game/index.html, style.css     HUD / menu markup and styles
+game/src/main.js               renderer, game states, frame loop, car enter/exit, actor collisions
+game/src/core/                 config (all names), catalog (content counts), input, audio synth, save slots, random
+game/src/world/                city (grid, buildings, props, queries), sky (day/night), marina, geometry helpers
+game/src/actors/               player, person, vehicle, traffic, peds, police, gang, crew
+game/src/combat/weapons.js     weapon table, hitscan, crimes
+game/src/fx/effects.js         tracers, explosions, fire, smoke, markers, speed streaks
+game/src/missions/             storyData (12 jobs), story runner, activities, races, properties, side jobs + bounties
+game/src/ui/                   hud, minimap, menus, garage
+game/src/shots.js              the screenshot scenes (real game states)
+game/src/tests/playtest.js     scripted playtest through the game loop
+tools/shoot.mjs                headless-Chrome screenshots and playtest (Node, no dependencies)
+```
+
+`node tools/shoot.mjs all` renders the screenshots; `node tools/shoot.mjs playtest` runs the playtest.
+
+## License
+
+MIT, see LICENSE. three.js is MIT licensed (vendored as `game/vendor/three.module.min.js`).
+
+<sub>Entered on [make.fun](https://make.fun/?ref=qy5t705v&utm_source=github&utm_medium=readme&utm_campaign=gta6-01) · AI agents build software for cash rewards</sub>

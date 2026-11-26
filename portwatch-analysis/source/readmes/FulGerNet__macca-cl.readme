@@ -1,0 +1,204 @@
+<p align="center">
+  <img src="docs/media/macca-cl.png" alt="MACCA Compatibility Layer" width="360">
+</p>
+
+<h1 align="center">MACCA CL</h1>
+
+<p align="center">
+  Another attempt at running getting an Xbox Series title to render and run on a Windows PC.
+</p>
+
+<p align="center">
+  <a href="https://www.buymeacoffee.com/fulger"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee" height="37" width="170"></a>
+</p>
+
+MACCA CL runs the title's x86-64 code natively, supplies the console services
+it expects and translates its graphics work to Direct3D 12. It builds on
+[VIctory](https://github.com/Marvisak/VIctory), preserving its history and
+licence, with selected fixes and a dedicated launcher.
+
+**Development status: experimental, not established as playable.** Static
+inspection and import binding pass on the tested local title. World rendering,
+complete gameplay and FPS have not been validated by this fork. A successful
+build or launch does not establish that the game works.
+
+The November 25 update follows
+[fxceless/victory-fork](https://github.com/fxceless/victory-fork) through
+`9376fd6`, with selected shader and NVIDIA fixes from its pull requests and
+[Zettrox/ztrx](https://github.com/Zettrox/ztrx). It preserves MACCA's guards
+and the previous intro-video fixes, adds cross-view texture write tracking,
+and names the presentation window MACCA CL. See the
+[update notes](docs/UPDATE-2026-11-25.md) for the included PRs, upstream review,
+validation and remaining limits.
+
+The follow-up [rendering/performance notes](docs/RENDER-FIXES-2026-11-25.md)
+list the shadow sampler, colour view, lane-mask and GPU copy fixes and their
+validation limits.
+
+The [model loading follow-up](docs/LOADING-RENDER-FIXES-2026-11-25.md) addresses
+stale descriptors, truncated lighting dispatches and texture staging stalls.
+
+## Live controls
+
+- **F5**: show/hide live CPU, GPU memory, FPS and frame-cost statistics.
+- **F6**: cycle nine rendering/testing modes, including compatible unlit,
+  wireframe and reduced-pass/streaming modes. The mode name appears in red
+  at the top left for three seconds.
+- **F7**: show/hide the README logo at the bottom left.
+
+Controls are active only while the title window is in the foreground. Testing
+modes may produce incomplete images; FPS improvements depend on the workload.
+See [controls and mode details](docs/LIVE-CONTROLS.md) and
+[upstream changes and validation](docs/HUD-UPSTREAM-2026-11-25.md).
+
+## Download and start
+
+Prebuilt Windows x64 executables are included in
+[bin/windows-x64](bin/windows-x64/). Download the repository using **Code →
+Download ZIP**, extract it, then:
+
+1. Open **`bin/windows-x64/MACCA CL.exe`**.
+2. Use **Sfoglia...** to select your Xbox Series title executable, such as `title.exe`.
+3. Press **Avvia con MACCA CL**.
+
+Keep `MACCA CL.exe` and `macca-cl.exe` together. The first is the graphical
+launcher; the second is the runtime. The launcher has no engine selector and
+always starts MACCA CL with its balanced hardware profile.
+
+You supply your own compatible game files. This repository contains no game
+executable, archives, extracted assets or game-derived caches.
+
+| Requirement | Current target |
+| --- | --- |
+| Operating system | Windows 10/11, x64 |
+| CPU | x86-64 with AVX2 |
+| Graphics | Direct3D 12 GPU; features required by a shader vary |
+| Development tools | Rust/MSVC, Visual Studio C++ tools and Windows SDK |
+
+The development checks used an Intel i7-9700K and NVIDIA RTX 3060. This is a
+tested configuration, not a minimum-spec or performance guarantee.
+
+## How the project works
+
+```text
+MACCA CL.exe             Choose the game's executable and start the runtime
+       │
+       ▼
+macca-cl.exe             Storage policy, profiles, inspection and execution
+       │
+       ├── PE loader     Map x64 images, resolve imports, initialise TLS
+       ├── HLE services  Supply console APIs and host-compatible services
+       └── Graphics      Translate console shaders and commands to D3D12
+```
+
+The CPU code runs natively; this is not a CPU emulator or a PC game port.
+Console APIs and graphics behaviour still need implementation and validation.
+
+| Directory | Responsibility |
+| --- | --- |
+| `apps/victory/` | `macca-cl` CLI, title startup and MACCA policy |
+| `crates/victory-core/` | Configuration, storage paths and asset policy |
+| `crates/victory-pe/`, `victory-loader/` | PE parsing, image mapping, imports, TLS and exception support |
+| `crates/victory-hle/` | Console system services, files, input and audio |
+| `crates/victory-shader/` | Console shader decoding, translation and DXIL generation |
+| `crates/victory-gpu/` | D3D12 command handling, descriptors, resources and host pipelines |
+| `crates/victory-formats/`, `victory-game/`, `victory-pipeline/` | Formats, title data readers and pipeline descriptions |
+| `launcher/` | Dedicated Windows Forms launcher and its checks |
+| `scripts/` | Portable build, packaging and binary verification commands |
+| `bin/windows-x64/` | Prebuilt launcher/runtime, licence and SHA-256 checksums |
+| `docs/` | Architecture, upstream attribution, validation and asset policy |
+
+Internal `victory-*` names are retained to keep the fork traceable to upstream.
+See [architecture](docs/architecture.md) and [upstream provenance](docs/UPSTREAM.md).
+
+## Changes in MACCA CL
+
+- Dedicated single-runtime launcher with one game path and one start action.
+- Separate saves and cache, balanced and CLI diagnostic profiles, and a
+  per-executable storage key when a title has no manifest ID.
+- Bounded snapshots and shader construction memory, reusable texture scratch
+  storage, pipeline worker limits and priority for pipelines needed by the title.
+- Twelve selected Victory corrections covering buffer/draw bounds, descriptor
+  allocation, depth/stencil views, mesh pipeline caching, ANSI paths, shader
+  conversions/swizzles/exports and incomplete shader scans.
+- Private staging files for pipeline cache writes, with cleanup on failure.
+
+Patch revisions, authors and integration decisions are in
+[docs/UPSTREAM.md](docs/UPSTREAM.md). XCL is not bundled or linked.
+
+## Build from source
+
+Install Rust with the MSVC toolchain, Visual Studio or Build Tools with
+**Desktop development with C++**, and the Windows SDK. The pinned Rust
+toolchain is in `rust-toolchain.toml`. Then run from this repository:
+
+```powershell
+.\build.cmd
+```
+
+The script discovers Visual Studio, builds the runtime and compiles the C#
+launcher with the Windows .NET Framework compiler. Outputs are written to
+`dist/MACCA CL/`; no developer-specific toolchain paths are required.
+
+To refresh the executables tracked in this repository after building:
+
+```powershell
+powershell -NoProfile -File scripts/package.ps1 -UpdateBundled
+powershell -NoProfile -File scripts/verify-bundle.ps1
+```
+
+## Command line and local data
+
+```powershell
+.\bin\windows-x64\macca-cl.exe doctor
+.\bin\windows-x64\macca-cl.exe inspect "D:\Games\XboxTitle\title.exe"
+.\bin\windows-x64\macca-cl.exe run "D:\Games\XboxTitle\title.exe"
+.\bin\windows-x64\macca-cl.exe run "D:\Games\XboxTitle\title.exe" --execute
+```
+
+`run` without `--execute` only maps and binds the images. `doctor` checks CPU
+requirements and storage configuration; it does not exercise the GPU.
+The CLI also supports shader inspection/translation and a software diagnostic
+profile (`--profile diagnostic`).
+
+The default location is `%LOCALAPPDATA%\MACCA-CL`:
+
+| Location | Contents |
+| --- | --- |
+| `data/` | Runtime state and title saves |
+| `cache/` | Derived images, shaders and pipeline cache |
+| `logs/` | Launcher-captured stdout and stderr |
+| `launcher-settings.txt` | Last selected game executable |
+
+For CLI use, `--storage-root` or `MACCA_CL_HOME` can select an absolute location
+outside the source repository. Existing Project Americas local data is not
+automatically migrated into this standalone distribution.
+
+## Validation and contributing
+
+```powershell
+.\test.cmd
+powershell -NoProfile -File scripts/verify-bundle.ps1
+```
+
+The runtime validation recorded before packaging reports **381 passed, 0
+failed and 6 ignored**. Some GPU/WARP paths and optional compiler tests skip;
+they are not coverage. Launcher checks cover argument quoting, runtime
+selection, invalid paths, log redirection and the simplified layout.
+See [validation details](docs/VALIDATION.md) for scope and limitations.
+
+Contributions should include a focused change, a regression test where
+appropriate and the actual commands/results. Keep game files, generated title
+data and private paths outside the repository. The owner-approved branding
+image and the two built-from-source executables are explicit asset-policy
+exceptions; other executables remain excluded.
+
+## Credits, licence and support
+
+Thanks to the VIctory contributors and the authors of the selected upstream
+fixes. Their history, notices and original patch headers are preserved.
+MACCA CL is distributed under **GPL-3.0-or-later**; see [LICENSE](LICENSE),
+[NOTICE.md](NOTICE.md) and the separate BCPack table note in
+[asset policy](docs/asset-policy.md).
+
+If you would like to support the work, [Buy Me a Coffee](https://www.buymeacoffee.com/fulger).

@@ -1,0 +1,23 @@
+{
+  "date_local": "2026-11-25",
+  "timezone": "America/Sao_Paulo",
+  "upstream": "https://github.com/CuteBooty/victory-8gb",
+  "upstream_commit": "b472495fbe9516469b0694f51b849133d761ce4e",
+  "binary_sha256": "4103a7165270694acd4b934ae5656812a9625f3a5efc6192842de4886a0a4470",
+  "binary_path": "J:\\GTA6\\victory-8gb\\target\\release\\victory.exe",
+  "build": "cargo build --release --locked --offline -p victory",
+  "profile": "Series S, client 1280x720",
+  "validated_session": "launch-8gb-720p-20261125-220211",
+  "validation": "User reported finally being able to play; earlier scene visually confirmed. Low FPS and rendering defects remain.",
+  "experimental_bake_budget": "Not validated in the reported playable session; opt-in only.",
+  "preserved_external_data": [
+    "J:\\GTA6\\victory-data",
+    "J:\\GTA6\\victory-8gb-cache",
+    "J:\\GTA6\\victory-diagnostics"
+  ],
+  "files": {
+    "scripts\\Start-Local.ps1": "a5bd5bad55a7e1a216bb26e4cd9dc771f24b24d1e74f9b806a3d1e182f264a6d",
+    "scripts\\victory-8gb-local.toml": "2ae1b60b5bc2257aef94dc2020dbe89472fe031d0cf2db1e7e37a1fcb3cf0d5c"
+  },
+  "hash_normalization": "File checksums normalize CRLF to LF and preserve any UTF-8 BOM."
+}

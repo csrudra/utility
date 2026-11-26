@@ -1,0 +1,17 @@
+# Port Race Live (self-updating)
+
+A static page that reads `data/race.json`. A GitHub Action refreshes that file every 3 hours from PortWatch VI's public feed.
+
+## Set up (about 5 minutes)
+1. Create a new GitHub repository and upload everything in this folder (keep the `.github` folder).
+2. Repo Settings > Pages > Build from branch `main`, folder `/ (root)`. Your site goes live at `https://<you>.github.io/<repo>/`.
+3. Repo Settings > Actions > General > Workflow permissions > "Read and write permissions".
+4. Actions tab > "Update race data" > Run workflow once to pull the first real data. After that it runs every 3 hours.
+
+## Edit by hand
+- `data/overrides.json`: set a score for any project id (`scores`), or add your own ticker lines (`ticker`). Overrides win over the feed.
+- Open tabs re-check the data every minute. If the data is more than 9 hours old, the badge changes from LIVE to DATA DELAYED.
+
+## Notes
+- Scores are PortWatch VI's, which are self-reported by the projects. Projects without a score in the feed show an estimate marked with ~.
+- The job identifies itself in its User-Agent and fetches once per 3 hours. Keep the credit line in the footer.

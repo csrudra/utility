@@ -1,0 +1,26 @@
+From 8fa23ceca18d2d299afcca364468ebcfd9d9f6b2 Mon Sep 17 00:00:00 2001
+From: HybridGt <hybridgt@localhost>
+Date: Tue, 24 Nov 2026 18:26:31 +0200
+Subject: [PATCH 11/14] Window: title HybridGt (HybridGt)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crates/victory-gpu/src/host.rs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/crates/victory-gpu/src/host.rs b/crates/victory-gpu/src/host.rs
+index 037be8c..c1d3d3c 100644
+--- a/crates/victory-gpu/src/host.rs
++++ b/crates/victory-gpu/src/host.rs
+@@ -2135,7 +2135,7 @@ fn make_window(width: u32, height: u32) -> windows::core::Result<HWND> {
+         CreateWindowExW(
+             WINDOW_EX_STYLE(0),
+             CLASS,
+-            w!("VIctory"),
++            w!("HybridGt"),
+             WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+             CW_USEDEFAULT,
+             CW_USEDEFAULT,
+-- 
+2.56.1.windows.1
+

@@ -1,0 +1,307 @@
+From 3c093de277ca62084eafbd2cbfa8eb48570f534e Mon Sep 17 00:00:00 2001
+From: LowBacon <lenni.a.jokitalo@gmail.com>
+Date: Wed, 25 Nov 2026 11:12:18 +0200
+Subject: [PATCH 17/25] Memory remapping: locks once per scatter call,
+ contiguous pages as one range, no-op remaps skipped; remap lock counters;
+ VICTORY_KEYS in release builds (HybridGt)
+
+XMemMapPhysicalPagesScatter took the physical-pages lock and the GPU
+side's remapping lock once per page, and each page unmapped and mapped its
+view again (four system calls a view, and the GPU side told the range was
+new). Texture refreshes read title memory in place under that lock's read
+side: run next7 had them wait 740-850 ms in single frames, and the title's
+own threads stalled behind it (the card idle 440 ms of a 700 ms frame while
+the title had not submitted).
+
+- map_pages: the mapping work under locks the caller holds.
+- Scatter: both locks once per call; addresses that follow one another,
+  all mapping or all unmapping, are one range (consecutive pages of one
+  section become one view, as XMemMapPhysicalPages already did).
+- A range that shows the asked pages already is left as it is.
+- Counters (frame line): the lock taken, waited for, held; pages; no-ops.
+- VICTORY_KEYS works in release builds (it only reads the variable).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crates/victory-gpu/src/host.rs              |   9 ++
+ crates/victory-gpu/src/lib.rs               |   2 +-
+ crates/victory-gpu/src/watch.rs             |  31 +++++-
+ crates/victory-hle/src/modules/gameinput.rs |   5 -
+ crates/victory-hle/src/modules/xmem.rs      | 108 ++++++++++++++++----
+ 5 files changed, 125 insertions(+), 30 deletions(-)
+
+diff --git a/crates/victory-gpu/src/host.rs b/crates/victory-gpu/src/host.rs
+index 78a43cb..62df3c4 100644
+--- a/crates/victory-gpu/src/host.rs
++++ b/crates/victory-gpu/src/host.rs
+@@ -6417,6 +6417,15 @@ impl Meter {
+                      hold still (the runtime remapping it); the rest is reading, hashing and detiling"
+                 );
+             }
++            let [taken, wait, held, pages, unchanged] =
++                [0, 1, 2, 3, 4].map(|i| crate::watch::REMAPS[i].swap(0, Ordering::Relaxed) as f64 / frames);
++            if taken > 0.0 {
++                tracing::info!(
++                    "title memory remapping per frame: the lock taken {taken:.1} times, {:.1} ms waiting for it, {:.1} ms held,                      {pages:.0} pages mapped or unmapped, {unchanged:.1} calls found them as asked already",
++                    wait / 1000.0,
++                    held / 1000.0
++                );
++            }
+             let [through, left] = [0, 1].map(|i| crate::texture::UNLOCKED[i].swap(0, Ordering::Relaxed) as f64 / frames);
+             if through + left > 0.0 {
+                 tracing::info!(
+diff --git a/crates/victory-gpu/src/lib.rs b/crates/victory-gpu/src/lib.rs
+index e001a47..d2efb8f 100644
+--- a/crates/victory-gpu/src/lib.rs
++++ b/crates/victory-gpu/src/lib.rs
+@@ -64,6 +64,6 @@ pub use host::on_failure;
+ pub use inplace::{title_memory_freeing, title_memory_section, title_memory_view};
+ #[cfg(windows)]
+ pub use watch::{
+-    title_memory_reading, title_memory_remapped, title_memory_remapping, title_memory_written,
++    title_memory_reading, title_memory_remap_pages, title_memory_remapped, title_memory_remapping, title_memory_written,
+     writing as kernel_will_write,
+ };
+diff --git a/crates/victory-gpu/src/watch.rs b/crates/victory-gpu/src/watch.rs
+index 02d066f..89d49ed 100644
+--- a/crates/victory-gpu/src/watch.rs
++++ b/crates/victory-gpu/src/watch.rs
+@@ -25,6 +25,7 @@
+ 
+ use std::collections::{BTreeMap, BTreeSet};
+ use std::sync::Mutex;
++use std::sync::atomic::{AtomicU64, Ordering};
+ 
+ /// The unit tracked and copied: 64 KiB, the console's page (the kernel's
+ /// 4 KiB pages fold into it). Finer units made the checks of the world's
+@@ -897,14 +898,40 @@ static MAPPING: std::sync::RwLock<()> = std::sync::RwLock::new(());
+ 
+ /// What the runtime holds while it changes what title memory shows
+ /// ([`title_memory_remapping`]).
+-pub struct Remapping(#[allow(dead_code)] std::sync::RwLockWriteGuard<'static, ()>);
++pub struct Remapping(#[allow(dead_code)] std::sync::RwLockWriteGuard<'static, ()>, std::time::Instant);
++
++impl Drop for Remapping {
++    fn drop(&mut self) {
++        REMAPS[2].fetch_add(self.1.elapsed().as_micros() as u64, Ordering::Relaxed);
++    }
++}
++
++/// HybridGt: since the last frame line, of [`title_memory_remapping`]: times
++/// taken, microseconds waiting to take it, microseconds held, and the pages
++/// the runtime asked to map or unmap under it ([`title_memory_remap_pages`]),
++/// then the calls that found their pages mapped as asked already and changed
++/// nothing.
++pub static REMAPS: [AtomicU64; 5] = [const { AtomicU64::new(0) }; 5];
++
++/// HybridGt: the runtime's mapping calls count their pages here, and the
++/// calls that found nothing to change (`unchanged`).
++pub fn title_memory_remap_pages(pages: usize, unchanged: bool) {
++    REMAPS[3].fetch_add(pages as u64, Ordering::Relaxed);
++    if unchanged {
++        REMAPS[4].fetch_add(1, Ordering::Relaxed);
++    }
++}
+ 
+ /// The runtime is about to map, unmap or move physical pages of title
+ /// memory: until what it returns is dropped, no read of title memory in
+ /// place is under way and none begins ([`title_memory_reading`]). Taken
+ /// around the whole change, the unmapping and the mapping again.
+ pub fn title_memory_remapping() -> Remapping {
+-    Remapping(MAPPING.write().unwrap_or_else(|e| e.into_inner()))
++    let asked = std::time::Instant::now();
++    let guard = MAPPING.write().unwrap_or_else(|e| e.into_inner());
++    REMAPS[0].fetch_add(1, Ordering::Relaxed);
++    REMAPS[1].fetch_add(asked.elapsed().as_micros() as u64, Ordering::Relaxed);
++    Remapping(guard, std::time::Instant::now())
+ }
+ 
+ /// What a read of title memory in place holds ([`title_memory_reading`]).
+diff --git a/crates/victory-hle/src/modules/gameinput.rs b/crates/victory-hle/src/modules/gameinput.rs
+index 838826e..017b106 100644
+--- a/crates/victory-hle/src/modules/gameinput.rs
++++ b/crates/victory-hle/src/modules/gameinput.rs
+@@ -1150,7 +1150,6 @@ mod host {
+             // pad's buttons, by the stand-in pad's table: with a real pad
+             // connected the stand-in is not there, and a title that listens
+             // to the pad (the title's start screen) saw nothing.
+-            #[cfg(feature = "diagnostics")]
+             if slot == 0 {
+                 for vk in scripted() {
+                     if let Some(&(_, button)) = super::FALLBACK_BUTTONS.iter().find(|(key, _)| *key == vk) {
+@@ -1162,10 +1161,7 @@ mod host {
+         }
+ 
+         fn keys(&mut self) -> Vec<KeyState> {
+-            #[cfg(feature = "diagnostics")]
+             let mut down = scripted();
+-            #[cfg(not(feature = "diagnostics"))]
+-            let mut down = Vec::new();
+             if focused() {
+                 // Left/right modifier keys only, as devices report them; no
+                 // mouse buttons (below 0x08).
+@@ -1202,7 +1198,6 @@ mod host {
+     /// 0.2 s that long after input starts, with or without focus. A key is a
+     /// letter, a digit, or `Enter`, `Esc`, `Tab`, `Back`, `Up`, `Down`,
+     /// `Left`, `Right` (the stand-in pad's table maps them to buttons).
+-    #[cfg(feature = "diagnostics")]
+     fn scripted() -> Vec<u8> {
+         static SCRIPT: LazyLock<(Instant, Vec<(Duration, u8)>)> = LazyLock::new(|| {
+             let list = std::env::var("VICTORY_KEYS").unwrap_or_default();
+diff --git a/crates/victory-hle/src/modules/xmem.rs b/crates/victory-hle/src/modules/xmem.rs
+index e898459..6e2e219 100644
+--- a/crates/victory-hle/src/modules/xmem.rs
++++ b/crates/victory-hle/src/modules/xmem.rs
+@@ -668,24 +668,64 @@ pub extern "system" fn XMemMapPhysicalPages(
+     n: usize,
+     pages: *const usize,
+ ) -> *mut c_void {
+-    let base = address as usize;
+     let mut physical = physical();
+     // Until the pages are mapped again: `unmap` takes whole views away and
+     // maps what stays of them again, and a mapped view is a reservation
+     // until it is committed. A read of title memory in place must not fall
+     // into that gap (`victory_gpu::title_memory_remapping`).
+     let _changing = victory_gpu::title_memory_remapping();
+-    unmap(&mut physical, base, n * PAGE);
+-    if pages.is_null() {
+-        return address;
++    // SAFETY: the title passes `n` page numbers unless `pages` is null.
++    let pages = (!pages.is_null()).then(|| unsafe { std::slice::from_raw_parts(pages, n) });
++    if map_pages(&mut physical, address as usize, n, pages) {
++        address
++    } else {
++        std::ptr::null_mut()
+     }
+-    // SAFETY: the title passes `n` page numbers.
+-    let pages = unsafe { std::slice::from_raw_parts(pages, n) };
++}
++
++/// HybridGt: whether `[base, base + pages.len() pages)` shows exactly `pages`
++/// already, page for page (the title asks again for what is there).
++fn shows_already(physical: &Physical, base: usize, pages: &[usize]) -> bool {
++    pages.iter().enumerate().all(|(k, page)| {
++        let at = base + k * PAGE;
++        let Some(want) = physical.pages.get(page) else { return false };
++        physical
++            .views
++            .range(..=at)
++            .next_back()
++            .filter(|(view, (size, _))| at < **view + size)
++            .is_some_and(|(view, (_, s))| {
++                Arc::ptr_eq(&s.section, &want.section) && s.index + (at - view) / PAGE == want.index
++            })
++    })
++}
++
++/// The work of [`XMemMapPhysicalPages`] under its locks (`physical` and the
++/// GPU side's remapping lock, both held by the caller): `n` pages at `base`,
++/// `None` unmaps. False if a page or the host fails.
++///
++/// HybridGt: a range that shows the asked pages already is left as it is:
++/// mapping the same physical page at the same address again changes nothing
++/// the title can see (the pages are the memory), where unmapping and mapping
++/// it again cost four system calls a view and told the GPU side the range
++/// was new.
++fn map_pages(physical: &mut Physical, base: usize, n: usize, pages: Option<&[usize]>) -> bool {
++    if let Some(pages) = pages
++        && shows_already(physical, base, pages)
++    {
++        victory_gpu::title_memory_remap_pages(n, true);
++        return true;
++    }
++    victory_gpu::title_memory_remap_pages(n, false);
++    unmap(physical, base, n * PAGE);
++    let Some(pages) = pages else {
++        return true;
++    };
+     let mut i = 0;
+     while i < n {
+         let Some(first) = physical.pages.get(&pages[i]).cloned() else {
+             tracing::warn!(page = pages[i], "XMemMapPhysicalPages: unknown page");
+-            return std::ptr::null_mut();
++            return false;
+         };
+         // One view per run of consecutive slices of one section.
+         let run = 1 + pages[i + 1..]
+@@ -697,16 +737,23 @@ pub extern "system" fn XMemMapPhysicalPages(
+                 })
+             })
+             .count();
+-        if !map(&mut physical, base + i * PAGE, run * PAGE, first) {
+-            return std::ptr::null_mut();
++        if !map(physical, base + i * PAGE, run * PAGE, first) {
++            return false;
+         }
+         i += run;
+     }
+-    address
++    true
+ }
+ 
+ /// One page at each address; null `pages`, or a page number 0, unmaps
+ /// (the title passes 0 for addresses to clear).
++///
++/// HybridGt: the locks are taken once for the whole call, not once a page,
++/// and addresses that follow one another, all mapping or all unmapping, go
++/// to [`map_pages`] as one range (whose consecutive pages of one section
++/// become one view). Each page was a call of its own before: the title's
++/// streaming threads asked for the remapping lock thousands of times a
++/// frame while texture refreshes held it to read, and both waited.
+ pub extern "system" fn XMemMapPhysicalPagesScatter(
+     addresses: *const *mut c_void,
+     n: usize,
+@@ -715,21 +762,38 @@ pub extern "system" fn XMemMapPhysicalPagesScatter(
+     if addresses.is_null() {
+         return 0;
+     }
+-    for i in 0..n {
+-        // SAFETY: the title passes `n` addresses and, unless null, `n` pages.
+-        let (address, page) = unsafe {
+-            (
+-                *addresses.add(i),
+-                if pages.is_null() || *pages.add(i) == 0 {
+-                    std::ptr::null()
+-                } else {
+-                    pages.add(i)
+-                },
+-            )
++    // SAFETY: the title passes `n` addresses and, unless null, `n` pages.
++    let addresses = unsafe { std::slice::from_raw_parts(addresses, n) };
++    let page = |i: usize| -> Option<usize> {
++        // SAFETY: as above.
++        let p = if pages.is_null() { 0 } else { unsafe { *pages.add(i) } };
++        (p != 0).then_some(p)
++    };
++    let mut physical = physical();
++    let _changing = victory_gpu::title_memory_remapping();
++    let mut i = 0;
++    let mut run_pages = Vec::new();
++    while i < n {
++        let base = addresses[i] as usize;
++        let mapping = page(i).is_some();
++        let mut len = 1;
++        while i + len < n
++            && addresses[i + len] as usize == base + len * PAGE
++            && page(i + len).is_some() == mapping
++        {
++            len += 1;
++        }
++        let ok = if mapping {
++            run_pages.clear();
++            run_pages.extend((i..i + len).filter_map(page));
++            map_pages(&mut physical, base, len, Some(&run_pages))
++        } else {
++            map_pages(&mut physical, base, len, None)
+         };
+-        if XMemMapPhysicalPages(address, 1, page).is_null() {
++        if !ok {
+             return 0;
+         }
++        i += len;
+     }
+     1
+ }
+-- 
+2.56.1.windows.1
+

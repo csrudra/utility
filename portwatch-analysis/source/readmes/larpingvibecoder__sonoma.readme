@@ -1,0 +1,126 @@
+<p align="center">
+  <img src="assets/sonoma-wordmark.svg" alt="Sonoma Runtime" width="420">
+</p>
+
+<p align="center">An independent runtime for Xbox Series executables on Windows.</p>
+
+---
+
+Sonoma Runtime loads an Xbox Series (GDK) title executable on a Windows PC and runs it as an
+ordinary process. It maps the title's PE images itself, provides the console-only system
+libraries (kernel, memory, GDK runtime, audio, input, storage) on top of Windows, translates
+the console's RDNA2 GPU programs directly into DXIL, and implements the console flavour of
+Direct3D 12 on PC Direct3D 12. It is written from scratch in Rust, using only the standard
+library.
+
+## Status
+
+This is a **proof of concept**. It is early, incomplete and slow, and nothing is playable.
+Large parts of the platform are stubs or partial implementations, many GPU paths are
+unoptimised, and most titles will stop long before their first frame.
+
+What it has shown so far: one large retail title, supplied by its owner, was brought from
+process start through its loading sequence to its front-end screens and main menu on a PC, at a
+few frames per second. That is the extent of the claim.
+
+<p align="center">
+  <img src="assets/screenshots/legal-notices.png" alt="The title's legal notices screen running in a Sonoma Runtime window" width="820">
+</p>
+<p align="center">
+  <img src="assets/screenshots/settings-screen.png" alt="The title's first-boot settings screen running in a Sonoma Runtime window" width="820">
+</p>
+
+<p align="center"><sub>Two of the title's own front-end screens, rendered by its unmodified
+executable in a Sonoma Runtime window on a Windows PC: the legal notices and a first-boot settings
+page. Its boot movies do not show a picture yet, and no 3D scene has been drawn.</sub></p>
+
+## What is inside
+
+| Crate | Path | |
+|---|---|---|
+| `srt-sys` | `src/srt-sys` | Hand-written Windows FFI: kernel32, user32, DXGI and D3D12 COM vtables, TEB/PEB. |
+| `srt-loader` | `src/srt-loader` | PE32+ parser, mapper and import resolver (relocations, TLS, `.pdata`, delay imports, reports). |
+| `srt-shader` | `src/srt-shader` | RDNA2 decoder, IR and a direct DXIL emitter (own LLVM bitcode writer, container and hash), with a CPU interpreter and a GPU test runner. |
+| `srt-gfx` | `src/srt-gfx` | The console Direct3D 12 on PC Direct3D 12: unified memory, descriptors, root arguments, command records, GFX10 tiling, presentation and pacing, pipeline cache. |
+| `srt-texcodec` | `src/srt-texcodec` | Decoder for the console's hardware texture codec into standard BCn blocks. |
+| `srt` | `src/srt` | `srt.exe`: the platform layer (kernelx, xmem, XGameRuntime, XAudio2 and the audio processor, GameInput, DirectStorage, file system overlay), the CLI, and the mod and plugin host. |
+| `srt-bench` | `src/srt-bench` | A small benchmark harness (wall time, CPU time, peak memory). |
+| `srt-tests` | `tests` | Integration tests, including a console-style test title built with MSVC. |
+
+`probes/` holds two stand-alone measurement programs (audio processor, file throughput) and
+`tools/` a few developer scripts. Documentation is in [`docs/`](docs/).
+
+## Design
+
+- **From scratch.** Written without reference to other implementations' source, from public
+  documentation (Microsoft Learn, the PE/COFF specification, AMD's published RDNA2 ISA and
+  addrlib data, the DXIL and LLVM bitcode documentation) and from observing behaviour.
+- **Standard library only.** No crates.io dependencies. Windows APIs are declared by hand.
+  The only third-party material is a set of constant model tables used by the texture codec;
+  their origins and licences are listed in
+  [`src/srt-texcodec/NOTICE.md`](src/srt-texcodec/NOTICE.md).
+- **No shader compiler.** Console GPU machine code is translated straight to DXIL; there is no
+  HLSL step and no DXC or FXC at run time.
+- **Software page table for GPU memory.** Title memory is exposed to the GPU as heaps, and
+  translated programs reach console addresses through a page table, so the console's unified
+  memory model works without copying.
+
+More in [`docs/architecture.md`](docs/architecture.md) and
+[`docs/design-principles.md`](docs/design-principles.md).
+
+## Build and run
+
+Requirements: Windows 10 or 11 (x64), a Direct3D 12 capable GPU (WARP works for tests), Rust
+stable (`x86_64-pc-windows-msvc`) and the MSVC build tools (for the linker and the test title).
+
+```
+cargo build --release
+cargo test --release -- --test-threads=4
+```
+
+Known issue: the GPU ray-tracing test (`cargo test -p srt --test raytracing`) has crashed
+intermittently when the machine was under heavy load from other GPU work. It passes when run on
+its own. The cause is not yet known.
+
+To run a title you own, point `srt` at the folder that contains it (the folder with
+`MicrosoftGame.config` or `appxmanifest.xml` and the executable):
+
+```
+target\release\srt.exe info  "<title folder>"            # import resolution report
+target\release\srt.exe run   "<title folder>" --data "<data folder>"
+```
+
+Everything a run writes (save data, the title's own file writes, logs, `report.json`) goes to the
+data folder, by default `%LOCALAPPDATA%\SonomaRuntime\titles\<identity>`. An optional
+per-title profile can be placed there ([`docs/title-profile.md`](docs/title-profile.md)).
+`tools/run-example.ps1` is a small launcher with a time limit. See
+[`docs/building.md`](docs/building.md) and [`docs/runtime-contract.md`](docs/runtime-contract.md).
+
+## What it does not do
+
+- It does not remove, bypass or fake copy protection, licence or entitlement checks, or
+  integrity checks. The store API is not implemented: a title asking for it gets "class not
+  registered", and nothing is forwarded to Gaming Services.
+- It does not connect to Xbox or any other online service.
+- It does not include, download or decrypt any game. You must supply a title you own.
+
+## Safety
+
+- **Network gate.** WinHTTP, socket and GDK HTTP calls made by title code go through a gate.
+  Xbox service hosts are always refused. Other hosts are refused too unless
+  `SRT_ALLOW_NETWORK=1` is set. Loopback stays open for local IPC.
+- **Read-only title folder.** The title folder is never written to; the title's writes go to an
+  overlay in the data folder.
+- **Software adapter first.** The GPU tests run on the WARP software adapter by default, and
+  shader translations are checked against the CPU interpreter on WARP
+  (`srt-shader-test --adapter warp`) before they are tried on hardware. Pipeline creation can be
+  moved into worker processes with a memory cap and a per-pipeline time limit.
+- The mod menu's trainer never writes values that its data marks as protected or read-only.
+
+## Licence
+
+Licensed under either of the [MIT licence](LICENSE-MIT) or the
+[Apache License 2.0](LICENSE-APACHE), at your option. The constant tables embedded in
+`srt-texcodec` carry their own notices in
+[`src/srt-texcodec/NOTICE.md`](src/srt-texcodec/NOTICE.md); one upstream copyright line in that
+notice is still to be completed.

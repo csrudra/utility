@@ -1,0 +1,79 @@
+[![make.fun](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![Rank](https://make.fun/badge/gta6-01/Steveales-1122/gta6-01-v3/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![Reward](https://make.fun/badge/gta6-01/Steveales-1122/gta6-01-v3/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+
+# SUNSET KEYS v3 — Port Alba
+
+An original open-world crime game in the spirit of GTA 6, built for the
+[make.fun GTA 6 bounty](https://make.fun/bounty/gta6-01). One city, one sunset,
+ten jobs — and a debt that only ends when Mara Voss owns the evening.
+
+## The game
+
+**Port Alba** is a sun-soaked harbour city with five districts that look and
+feel different: glass-and-neon **Downtown**, brick **Old Town**, mixed
+**Crosstown**, the boardwalk and animated bay of the **Marina**, and the
+**Lighthouse Point** at the south-east edge.
+
+- **Explore on foot and by car** — steal parked cars (or jack moving traffic),
+  drive with drift physics, skid marks, tire smoke and damage; sail a
+  speedboat out of the Marina.
+- **Traffic and pedestrians** — 26 cars drive the road grid, 46 pedestrians
+  walk the sidewalks and flee from danger; traffic slows, turns and respawns
+  so the streets never empty out.
+- **Wanted level, 0–5 stars** — foot cops at 1 star, patrol cars at 2+,
+  roadblocks at 3+, and a police helicopter with a searchlight at 4–5 stars.
+  Heat cools off when you lay low — unless the helicopter has you in its beam.
+- **10 story missions** with a branching choice (go LOUD or QUIET after the
+  lighthouse meeting), plus a 3-lap street race with rubber-banding rivals,
+  deliveries, a boat chase, a storm run and a 5-star sunset getaway finale.
+- **Day/night cycle and weather** — golden-hour sunset, neon nights, rain and
+  fog; the lighthouse beam sweeps the bay after dark.
+- **HUD** — wanted stars, cash, health, ammo, mission-tracker checklist,
+  speedometer, damage bar, radio stations, and a live minimap with mission,
+  police and helicopter blips. Pause menu with map, save/load via
+  localStorage, synthesized WebAudio engine, sirens and radio (no audio files).
+
+## Play
+
+```sh
+node serve.ts
+# open http://localhost:8080
+```
+
+WASD move / drive · E enter car or boat · Space shoot (or click) · Shift boost ·
+M start mission · P pause · S save · R radio · H horn · 1 / 2 story choice.
+
+## Files
+
+- `game/main.js` — bootstrap, loop, input, camera, shot staging
+- `game/city.js` — Port Alba districts, roads, buildings, collision
+- `game/vehicles.js` — traffic, player-car drift physics, police rams
+- `game/pedestrians.js` — crowds, foot cops, patrol cars, helicopter, bullets
+- `game/missions.js` — 10 missions, objectives, branching
+- `game/story.js` — Mara Voss story arc and dialogue
+- `game/races.js` — Crosstown street race, 3 laps, rivals
+- `game/daynight.js` — day/night cycle, weather, sky tint
+- `game/water.js` — Marina bay, docks, lighthouse beam
+- `game/boats.js` — speedboats, wake, boat controls
+- `game/effects.js` — particles, skid marks, screen shake, banners
+- `game/hud.js` — HUD, minimap, menus, dialogue
+- `game/audio.js` — synthesized WebAudio engine, sirens, radio
+- `game/save.js` — localStorage save / load
+- `game/state.js` — shared world state and seeded RNG
+- `main.ts` — entrypoint: copies game/ + screenshots/ to /output, writes dossier.json
+- `serve.ts` — static server for local play
+
+## Screenshots
+
+All four are real renders of the game running in Chromium:
+
+1. `1-chase.jpg` — 5-star sunset getaway: police chase, helicopter, minimap, mission objective
+2. `2-mission.jpg` — Marina Run: speedboat mission at the lighthouse
+3. `3-night.jpg` — Night Shift on foot in neon Downtown
+4. `4-race.jpg` — Crosstown street race, lap 2, daytime
+
+## License
+
+MIT — see `LICENSE`. An original game: no names, characters, art, music or
+maps from GTA or any other commercial game.

@@ -1,0 +1,181 @@
+# SeriesX Emulator (experimental)
+
+Status: **v0.15** (engine version 0.15.0, experimental; release candidate for 1.0.0-experimental). SeriesX has a graphical launcher and game library, an executable **loader/inspector**, a guest process/thread/synchronisation layer,
+an x86-64 interpreter (integer ISA, SSE/SSE2, AVX/AVX2, FMA3, BMI - validated against real hardware), a small **Win32 test layer** and, new in v0.6, a first **Xbox runtime layer**
+that serves a handful of publicly documented `XGameRuntime` functions (initialisation and task queues) to guest programs. The programs that run end-to-end today are test programs
+**we build ourselves**. **The engine cannot run any commercial game**; it does not emulate Xbox hardware, the Xbox kernel, the GPU or any Xbox service, and no compatibility with any
+commercial title is claimed or tested. Research notes (verified facts / experimental findings / unknowns, with sources): `docs/XBOX_RESEARCH.md`; design: `docs/ARCHITECTURE.md`.
+
+## External rendering experiment (25 November 2026)
+
+The standalone DexNom fork of VIctory reached the GTA VI opening cutscene in Series X mode on Windows with a Ryzen 5 5600X, Radeon RX 6600 (8 GB) and 16 GB of RAM. On a second launch with the shader and pipeline cache from the first run, the default renderer showed terrain, trees, characters and several camera shots, including a waterfront at dawn. Shadows remained very dark and the world often ran below 1 FPS. Player control remains unverified.
+
+This experiment used DexNom's standalone launcher and measures that runtime's compatibility. See the [tested DexNom revision](https://github.com/DexNom/VIctory/commit/921d8d3b43b44f3a6ca4b44095edd3c4baf10a87) and the [test results](https://github.com/anrq0/SeriesX-Emulator/issues/1#issuecomment-7168908492).
+
+## Game Sources (games stay where they are)
+Add the folders where your games already are (**Game Sources** page or `config/game_sources.json` in the data folder). SeriesX reads them in place, never copies or
+modifies them, keeps only metadata and indexes, resumes interrupted scans, finds duplicates and tells you exactly what a title is missing - for an Xbox title without
+executable code that is *your own plain game files* (encrypted packages are never opened). A **download manager** fetches approved, commit-pinned test material from official
+sources and a **test lab** runs ranked test programs through the engines (`seriesx --lab`). See [docs/architecture/GAME_SOURCES.md](docs/architecture/GAME_SOURCES.md)
+and [docs/compatibility/COMMERCIAL_GAME_TESTING.md](docs/compatibility/COMMERCIAL_GAME_TESTING.md). **No commercial Xbox title has been tested.**
+
+## Execution engines (multi-engine, experimental)
+Press **Play** and the Game Compatibility Manager picks the engine that can attempt the title, or explains exactly what is missing:
+the SeriesX interpreter, a native Windows launch (Windows PC programs only), or **ScarlettX** run as a separate process when you have built it
+locally (`pwsh tools/fetch_upstream.ps1` then `pwsh tools/build_upstream.ps1`). Native engines are disabled until you allow native execution
+in Settings > Emulator. **No commercial Xbox Series X|S title is known to run.** See [docs/engines/ENGINE_COMPARISON.md](docs/engines/ENGINE_COMPARISON.md),
+[docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) and the **Performance** page for measured metrics.
+
+## Playing a program
+
+SeriesX can execute an **internal test program live**: open the Game Library, click *SeriesX Breakout*, press **Play**, and a real game runs on the interpreter in the *Now Playing* page (picture, keyboard/controller input, measured fps and instruction counts, a STOP button). It is an original program written for SeriesX with its own display ABI - **not an Xbox title** and not Xbox-compatible; no commercial Xbox game runs. Details, screenshots and limits: [docs/PLAYING.md](docs/PLAYING.md); why no Xbox-targeted path exists yet: [docs/XBOX_EXECUTION_PATH.md](docs/XBOX_EXECUTION_PATH.md).
+
+![Now Playing](docs/images/play-running.png)
+
+## Screenshots (real, taken from the launcher)
+
+| Home | Game Library (an imported self-built test program) |
+|---|---|
+| ![Home](docs/images/home.png) | ![Library](docs/images/library.png) |
+| **Emulation: implementation tracker** | **Compatibility database** |
+| ![Emulation](docs/images/emulation.png) | ![Compatibility](docs/images/compatibility.png) |
+
+The interface (sidebar navigation, four themes including a light one, adaptive layout) is described in [docs/UI.md](docs/UI.md).
+
+The **Emulation** tab shows one rectangle per tracked API function, COM method, CPU instruction form and executable format, coloured by real status (green validated, grey implemented but not validated, yellow partial, orange stub, red missing). Every percentage shows its numerator and denominator; "known" is the size of the tracked list, not everything that exists. How it works and what it does *not* count yet: [docs/IMPLEMENTATION_TRACKER.md](docs/IMPLEMENTATION_TRACKER.md). Current numbers: `seriesx --impl-report`. Reference projects studied: [docs/REFERENCE_PROJECTS.md](docs/REFERENCE_PROJECTS.md).
+
+### GPU foundation (RDNA 2)
+![GPU / RDNA 2 page](docs/images/gpu-rdna2.png)
+
+SeriesX decodes **627 of AMD's 1,153 RDNA 2 instructions** (scalar and vector ALU encodings) and **executes 43** integer ALU instructions on a wave32 interpreter; **18 are fully validated** and 25 more have their result validated on the host GPU (SCC reference-only). Nothing else of the shader pipeline exists yet (no floating point, memory instructions, control flow, translation or command processor), and no console shader has ever run. Details and limits: [docs/GPU_RDNA2.md](docs/GPU_RDNA2.md).
+
+## Components
+
+| Area | Status | Notes |
+|---|---|---|
+| Logging (`src/core`) | Implemented | Levels, timestamps, file + custom sinks |
+| Host OS/CPU/RAM/GPU detection (`src/system`) | Implemented | |
+| Virtual memory (`src/memory`) | Implemented | `VirtualAlloc`/`VirtualProtect`, reserve/commit/protect/decommit/release, software page table |
+| x86-64 CPU core (`src/cpu`) | **Experimental** | Integer ISA, SSE/SSE2, AVX/AVX2, FMA3, BMI1/2, CPUID/RDTSC, instruction tracing; 12,800+ known-answer vectors recorded from real hardware. No AVX-512, x87, SSE3/4 legacy encodings |
+| PE32+ x64 parser + loader (`src/xbox`, `Process::LoadImage`) | Implemented | Strict, fuzz-tested parser; maps sections with W^X, relocations, import binding or trap stubs. Verified on synthetic images and real Windows DLLs |
+| Executable loader / inspector (`src/loader`) | **Implemented** | Format identification (PE, encrypted packages, XBE/XEX/ELF/ZIP...), headers, sections, imports/exports, dependency classification, memory-layout preparation, diagnostics. Static analysis only |
+| Win32 compatibility layer (`src/win32`) | **Experimental** | 70 documented kernel32 entries (console, process exit, heap/VirtualAlloc, virtual-time clocks, errors, threads/sync, sandboxed files). **Win32 only; no Xbox API.** |
+| Xbox runtime layer (`src/xruntime`) | **Experimental** | 7 documented `XGameRuntime` functions: `XGameRuntimeInitialize/Uninitialize`, `XTaskQueueCreate/DuplicateHandle/CloseHandle/SubmitCallback/Dispatch`. Everything else is unbound and fails loudly. Not the real `xgameruntime.dll` |
+| Storage sandbox (`src/xbox/Storage`) | Implemented | Guest paths confined to one directory, quotas; not the console file system |
+| Kernel layer (`src/kernel`) | Implemented | Guest processes, threads with guard-page stacks, virtual handle table, events/mutexes/semaphores, waits, deterministic scheduler, syscall dispatch (**SeriesX ABI v1**, our own), crash reports |
+| D3D12 probe (`src/gpu`) | Implemented (probe only) | Device + command queue on the best hardware adapter. No renderer |
+| Game library (`src/library`) | Implemented | Folder scan, format detection by magic/manifest, metadata, cover art, persistence |
+| Settings, saves (`src/config`, `src/system`) | Implemented | Save backup / restore / delete with path-safety checks |
+| Backend API + compatibility gate (`src/backend`) | Implemented | The only interface the launcher uses; see "Compatibility" |
+| Launcher UI (`src/frontend`) | Implemented | Win32 + Direct2D/DirectWrite, keyboard / mouse / XInput controller |
+| Real Xbox kernel / system services / rest of the GDK runtime | **Not implemented** | Not publicly documented; see `docs/XBOX_RESEARCH.md` |
+| GPU command processing / D3D12 renderer | **Planned** | Not started |
+
+### Launcher
+Home dashboard, Library (cover grid, search, sort, import), game detail panel, Saves, Settings, Logs, System (hardware + engine status
++ self-test). Dark theme with green accent. Controller: D-pad / left stick navigate, A select, B back, LB/RB switch tab, Y search.
+The launcher draws with Direct2D (hardware accelerated); Direct3D 12 is reserved for the emulation renderer.
+
+Settings marked *(stored)* are saved but not used until a renderer exists. Fullscreen, animations, log level and stick deadzone apply now.
+
+### Game import and format detection
+Detection reads only file headers and plain-text manifests; nothing is decrypted, unpacked or patched.
+GDK folders (`MicrosoftGame.config`), MSIX folders (`AppxManifest.xml`), `.msixvc/.xvc/.xvd` (header magic at 0x200), `.msix/.appx` (zip),
+`.xbe`, `.xex`, `.iso` (XDVDFS volume descriptor heuristics) and, only when added explicitly, `.exe`.
+Metadata (title, publisher, version, title ID) comes from the manifests. Cover art comes from `cover/folder/poster/boxart.*` next to the game
+or from manifest logos; otherwise a generated placeholder is shown.
+
+### Compatibility (how "playable" is decided)
+`EvaluateCompat` in `src/backend/Backend.cpp` combines static analysis with recorded test results:
+* A missing engine capability (full x86-64 ISA, Xbox system services, GPU) or an unsupported/foreign/encrypted format is a **blocker**. Blockers cannot be overridden by any record.
+* Without blockers a title is *Untested* until `compat.tsv` holds a record for that title **and the exact engine version**.
+  Records are written by test tooling, never by the UI. A record for an older engine version counts as *Untested*.
+* For GDK folders the backend also inspects the executable named in `MicrosoftGame.config` (PE validity, subsystem, imported libraries) and lists
+  these as *findings* in the detail panel. Findings are informational and never change the verdict.
+* `Launch()` refuses unless the title is Boots/Partial/Playable. Today nothing passes, so **Play always explains why it cannot run**.
+* SeriesX does not read encrypted packages and does not circumvent DRM or console security. That is a deliberate permanent limit.
+
+## CPU
+Integer: 8/16/32/64-bit operands (incl. AH..BH), MOV/MOVZX/MOVSX/LEA/XCHG/CMPXCHG/XADD/BSWAP, ADD ADC SUB SBB AND OR XOR CMP TEST NEG NOT INC DEC, shifts and rotates, MUL IMUL DIV IDIV (divide-error faults),
+SETcc/CMOVcc/Jcc, BSF BSR TZCNT LZCNT POPCNT, BT*, stack/call/ret/leave, string instructions with REP, LOCK, SYSCALL/INT3/UD2/HLT, CPUID, RDTSC (virtual), XGETBV. SSE/SSE2 scalar and packed float and integer operations.
+**AVX/AVX2** (VEX.128/256 moves, arithmetic, compares, conversions, shuffles/permutes/blends/broadcasts, packed integer, variable shifts, VPTEST, VROUND*), **FMA3** and **BMI1/BMI2** (ANDN, BLSI/BLSMSK/BLSR, BZHI, MULX, SHLX/SARX/SHRX, RORX).
+Aligned SSE/AVX moves raise a general-protection fault on misalignment. Not supported: AVX-512, x87, legacy SSE3/SSSE3/SSE4, FS/GS bases, MXCSR modelling; unsupported encodings stop the thread with a clearly labelled *interpreter limitation* crash report.
+**Validation:** `tests/cpu_vectors.inc` holds 5,476 integer, 3,344 SSE and 4,032 AVX/AVX2/FMA/BMI known-answer vectors (979 instruction forms) generated by running each snippet once on a real CPU
+(`tools/gen_cpu_vectors`, a developer tool; only architecturally defined flags are compared). **Tracing:** `seriesx.exe --trace N --run-win32 prog.exe` keeps the last N instructions per thread for crash reports.
+
+## Guest process model (v0.4)
+`Process` owns a guest address window (default 2 GiB at `0x1'0000'0000`, so images usually load at the common `0x1'4000'0000` base), a handle
+table, threads and a scheduler. Execution is single-host-thread, deterministic and uses virtual time (1 tick = 1 instruction, 1 ms = 1000 ticks).
+Threads run on guard-page stacks; waits support any/all, timeouts, FIFO wake order and abandoned mutexes; deadlocks are detected and explained.
+System calls use **SeriesX ABI v1**, an interface we defined for test programs. It is *not* the Xbox system-call interface (which is not public).
+Crashes produce a report (status, reason, registers, code and stack bytes, symbolised RIP, unresolved-import names, recent syscalls, thread states).
+See `docs/ARCHITECTURE.md` for the research notes: what is documented, what is inferred, what is unknown.
+
+## Loader, analysis states and the launcher (v0.6)
+`seriesx.exe --inspect <file>` (and the launcher's **Analyze** button) inspects any file: format, headers, sections, imports, which SeriesX layer would serve each dependency, a verified memory layout, and labelled diagnostics.
+It **never decrypts or unpacks** anything (encrypted `.msixvc/.xvc/.xvd` packages are identified and refused) and identifying an executable never means it runs. Library entries (folders or single files, saved, removable) show one of:
+*Not analyzed*, *Analyzed*, *Unsupported*, *Partially implemented*, *Ready for testing*, *Successfully tested*. **Successfully tested** requires a real execution of the program on this engine version that ran to completion with exit code 0 (**Run test**);
+the result is stored in `compat.tsv`. An Xbox-style title whose imports are all bound is still *Partially implemented*, because the Xbox kernel and GPU are missing. The detail panel lists executable facts, **missing dependencies** per library and every diagnostic.
+Launch: `seriesx_launcher.exe --add-file <path>` imports a file from the command line.
+
+## Xbox runtime layer (v0.6) - experimental, tiny, honest
+Independent of the Win32 layer. Serves `xgameruntime.dll` imports `XGameRuntimeInitialize`, `XGameRuntimeUninitialize`, `XTaskQueueCreate`, `XTaskQueueDuplicateHandle`, `XTaskQueueCloseHandle`, `XTaskQueueSubmitCallback`, `XTaskQueueDispatch`
+(Manual / ThreadPool / SerializedThreadPool / Immediate; callbacks run as interpreted guest code). Documented HRESULTs are returned (`E_GAMERUNTIME_NOT_INITIALIZED`, ...). Every other export stays unbound and ends the process with a crash report that says so;
+nothing returns a fake success. Which parts were verified against Microsoft's public reference and which were reconstructed: `docs/XBOX_RESEARCH.md`. Test program: `tests/guest/xgr_test.c` (not a GDK title).
+
+## Win32 compatibility layer (v0.5) - NOT Xbox compatibility
+A small high-level emulation of **publicly documented kernel32 functions**, served through the loader's import resolver, so that Windows x64 console programs we build
+ourselves can run on the interpreter: console output (`WriteFile`/`WriteConsole`, captured), process termination, heaps and `VirtualAlloc` (W^X enforced), virtual-time clocks
+(`Sleep`, `GetTickCount64`, `QueryPerformanceCounter`, FILETIME), `GetLastError`/`SetLastError`/`RaiseException`, and threads/events/mutexes/semaphores. Guest code, including the call thunks, is always
+interpreted and never executed natively. Time is virtual, so runs are deterministic.
+What it is not: it provides no Xbox/GDK API (`xgameruntime.dll` and friends are classified as Xbox libraries and reported as **not implemented**), no TEB/TLS/SEH, no C runtime, no DLL loading,
+files only inside an optional sandbox directory (`--storage <dir>`), no graphics. A program built against the standard C runtime will not start yet. Details and every deliberate deviation from Windows: `docs/ARCHITECTURE.md` section 5.
+```
+build\Release\seriesx.exe --run-win32 build\Release\guest_win32_hello_o2.exe        # run a PE console program (add "--api-log" before "--run-win32" to log every Win32 call)
+```
+`tests/guest/hello_win32.c` is the self-built test program (compiled by MSVC as an optimised and an unoptimised executable). Crash reports now explain unresolved imports (Win32 function not implemented /
+Windows system library not provided / Xbox library not implemented), show recent Win32 calls and a heuristic list of possible callers.
+
+## Tests
+`build\Release\seriesx_tests.exe` (also `ctest`): logger, system detection, memory, CPU, D3D12 init, library/format detection/persistence,
+settings, saves, compatibility gating, backend self-test, controller navigation logic, guest address windows, PE parsing (malformed images,
+fuzzing, a real Windows DLL) and loading, kernel handles/synchronisation/scheduling/syscalls/crash reports, GDK executable inspection, the CPU hardware known-answer vectors,
+and (v0.5) the MSVC-built guest program run on the interpreter and compared with natively computed host values, crash modes, synthetic PE failure paths, Win32-vs-Xbox import classification and
+a check that guest pages are never host-executable. v0.6 adds: AVX/AVX2/FMA/BMI hardware vectors, CPUID/RDTSC/tracing/alignment faults, loader tests (foreign and encrypted formats, malformed and truncated PE files, 1,500-case mutation fuzzing, real toolchain binaries),
+the Xbox runtime guest program (task queues, thread pool, blocking dispatch, stale handles), sandbox path rules and file access through the guest, memory diagnostics, address-space isolation, a 12-thread mutex-contention test, and backend analysis-state/execution-test tests.
+Tests run in Release and Debug. The D3D12 test needs a hardware GPU (SKIP otherwise).
+The UI itself is verified manually (screenshots), not by automated tests. Everything has been run on one machine only
+(Ryzen 5 5600X, RX 6600, Windows 11 build 26300).
+
+## Build and run
+```
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+cmake --build build --config Release          # also builds the guest test programs (tests/guest) with MSVC
+ctest --test-dir build -C Release --output-on-failure
+build\Release\seriesx_launcher.exe      # GUI  (options: --data-dir <dir>, --screen <0-5>, --scan <folder>)
+build\Release\seriesx.exe               # console info tool; --run-win32 <program.exe> runs a Win32 console program on the interpreter
+```
+User data (settings, library, logs, saves, compat records) lives in `%APPDATA%\SeriesX`.
+
+## v0.7 status (experimental)
+* Guest execution now includes TEB/TLS, vectored exception handling, x87, SSE3/SSSE3/SSE4.1 and a static-MSVC-runtime test program, validated with hardware known-answer vectors.
+* A self-built guest program draws a triangle through the **public** Direct3D 12 API; the interpreted guest's calls are executed on the host GPU and the picture matches a native run bit-for-bit (see `docs/ARCHITECTURE.md` section 12).
+* XGameRuntime task-queue constants/signatures are now verified against Microsoft's public `XTaskQueue.h` (`docs/XBOX_RESEARCH.md`).
+* `docs/XBOX2WINDOWS_AUDIT.md` (comparison with Xbox2Windows) and `docs/EXECUTABLE_FORMATS.md` (what is and is not known about console formats).
+* **Still true:** no commercial Xbox game runs. Console executables/packages, console shaders (gfx1013), table-based SEH, real DLL loading and SSE4.2 are not implemented.
+
+## v0.8 status (experimental)
+New in v0.8: guest Direct3D 12 compute/descriptor tables with state validation (identical to a native GPU run in tests), sandbox directory/rename/quota APIs, a guest XInput layer with host controller + keyboard/mouse providers and launcher settings,
+a winmm waveOut layer with a software mixer and optional host playback, `XTaskQueueSubmitDelayedCallback`, a per-title capability dashboard, and `docs/GPU_TRANSLATION.md` (Windows D3D12 versus Xbox-specific GPU behaviour).
+Still true: no commercial Xbox title runs; console shaders/executables/packages are not supported; XAudio2, GameInput, connected storage and swap chains are not implemented.
+
+## v0.15 / 1.0 preparation - what genuinely works (experimental)
+* **Play button = real guest execution.** The launcher's Play (and Run test) runs the program on the interpreter with the Win32/XGameRuntime(subset)/XInput/winmm/public-D3D12 layers, with host controllers, keyboard/mouse and audio from the Settings page, on a worker thread. The outcome and a full run log are recorded; nothing is faked, and nothing is marked playable automatically.
+* **Guest CPU:** x86-64 interpreter with integer ISA, x87 subset, SSE-SSE4.2, AVX/AVX2/FMA/BMI validated by 20,000+ vectors recorded on real hardware; about 2x faster than v0.14 (docs/BENCHMARKS.md).
+* **Exceptions:** table-based SEH (`.pdata`/`.xdata`) and C++ exceptions of the static MSVC runtime run as guest code; outputs equal the native run.
+* **Graphics:** a subset of the *public* Direct3D 12 API executed on the host GPU (RX 6600), with state/descriptor validation; HLSL compiled by the host compiler. No swap chain, no depth/stencil/samplers, no Xbox-specific graphics, **no RDNA2 shader translation**.
+* **Tools:** `seriesx --debug prog.exe` (breakpoints, stepping, backtraces, traces), `--compat-suite` (18 engine conformance cases), `--bench`, `--inspect`, `--run-win32 [--host-input] [--host-audio]`.
+* **Documentation:** docs/ARCHITECTURE.md, docs/COMPATIBILITY.md, docs/BENCHMARKS.md, docs/XBOX2WINDOWS_AUDIT.md, docs/LEONIDA_AUDIT.md, docs/GPU_TRANSLATION.md, docs/EXECUTABLE_FORMATS.md, docs/XBOX_RESEARCH.md, THIRD_PARTY.md.
+
+**Not working / not claimed:** no commercial Xbox title runs; console (Scarlett) executables, packages and RDNA2/gfx1013 shaders are unsupported; XAudio2, GameInput, connected storage, swap chains/presentation, real DLL loading and the transcendental x87 instructions are not implemented.
+See docs/RELEASE_1.0_STATUS.md for the honest release status.

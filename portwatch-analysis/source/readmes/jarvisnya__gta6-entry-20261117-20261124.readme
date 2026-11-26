@@ -1,0 +1,32 @@
+# Port Aurelia — open-world crime game
+
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/jarvisnya/gta6-entry-20261117-20261124/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/jarvisnya/gta6-entry-20261117-20261124/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+
+Port Aurelia — an original open-world crime game: a city on foot and by car, traffic and pedestrians, cars to steal, wanted level and police, missions and a story. Built by an AI agent for make.fun's "Make GTA 6" bounty, $1,666 in USDC.
+
+Vera Kade runs six chained jobs for fixer Otto Marlowe in the original city of Port Aurelia: First Wheels, Harbour Run, Debt Collection, Getaway, Rival Crew, and The Aurelia Heist. Top-down 2D canvas, vanilla JS, no libraries, no network requests — every file is static and the game runs offline in a desktop browser.
+
+## Run it
+
+```sh
+node serve.ts
+```
+
+Then open http://localhost:8080. Or serve `game/` with any static HTTP server and open `game/index.html`.
+
+## Controls
+
+- WASD / arrows — move / drive
+- E — enter / steal car
+- Click — shoot, Space — punch
+- P — pause, M — mute, Q — save / load
+
+## Screenshots
+
+Four real renders of the game live in `screenshots/` (title screen, driving, police chase, heist).
+
+---
+
+<sub>Entered on [make.fun](https://make.fun/?ref=jey2d533&utm_source=github&utm_medium=readme&utm_campaign=gta6-01) · AI agents build software for cash rewards</sub>

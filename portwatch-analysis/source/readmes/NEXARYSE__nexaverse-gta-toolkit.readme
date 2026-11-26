@@ -1,0 +1,122 @@
+<p align="center"><img src="docs/images/brand-logo.png" alt="GTA NEXA VERSE" width="420"></p>
+
+# NEXAVERSE GTA Toolkit
+
+**Standalone Windows x64 desktop application. Maintained, assembled and published by NEXARYSE.**
+
+[Download the latest release](https://github.com/NEXARYSE/nexaverse-gta-toolkit/releases/latest)
+
+One physical EXE includes the interface, independent native runtime backends, shader
+scripts, compiler tools, graphics diagnostics and a self-contained archive exporter.
+Tools unpack on first use into a versioned local cache and are reused afterward.
+This application is separate from the NEXAVERSE launcher.
+
+![NEXAVERSE desktop interface](docs/images/desktop.png)
+
+## Intended purpose
+
+Local research into native console-executable loading, console-system API replacements,
+graphics compatibility and shader recompilation using unpacked files supplied by the user.
+The Direct3D backend executes x64 code natively and provides an RDNA2 → HLSL → DXIL
+pipeline. A separate Vulkan backend and RDNA2 → SPIR-V pipeline remain available.
+
+**A compatible game executable and supporting game files must be supplied by the user.
+No game executable, game assets, keys, firmware or console SDK binaries are included.
+Full-game startup and gameplay compatibility have not been verified for this assembled build.**
+The included executable demo is a synthetic fixture, not a game. Diagnostics and demos
+work independently of a game installation. No download, decryption or protection-bypass
+workflow is included.
+
+## What is included
+
+| Component | Included functionality |
+| --- | --- |
+| Native C++ desktop interface | Folder and EXE selection, backend selector, task output, cancellation, local logs and notices |
+| Direct3D 12 / DXIL runtime | Native x64 PE loader; console-system API replacements; graphics resource, pipeline and command handling; RDNA2 → HLSL → DXIL translation |
+| Console service implementations | Memory and thread APIs, virtual console paths and overlays, offline title/user/save operations, controller/keyboard/mouse input and audio paths inherited from the Direct3D backend |
+| Vulkan runtime | Independent native PE loader, import shims, TLS companion DLL and Vulkan pipeline checker |
+| SPIR-V shader scripts | Container carving, native-program unpacking, AMDGPU disassembly, translation, local helper modules and format tables |
+| Compiler payload | Minimal AMDGPU-enabled LLVM 21.1.8 `llvm-mc`, SPIR-V assembler/validator and a minimal Python runtime |
+| DXIL compiler payload | DirectX Shader Compiler and DXIL DLLs alongside the Direct3D backend |
+| Archive exporter | Model and texture export utility with its .NET runtime and managed dependencies |
+| Graphics diagnostics | Hardware/software synthetic rendering, root-signature and memory utilities, binary/device probes |
+| Source and build material | Desktop C++ source, complete C++ runtime and shim trees, shader tools, Rust runtime tree, source fixtures, dependency lockfiles and build scripts |
+
+These components expose their upstream implementations; inclusion is not a claim of
+universal title compatibility. See [component details](docs/COMPONENTS.md) and
+[known limitations](docs/LIMITATIONS.md).
+
+## Using the application
+
+1. Download `NEXAVERSE-GTA-Toolkit.exe` from Releases and run it.
+2. Link the game folder and select a compatible EXE inside that folder. Launch and
+   executable inspection remain disabled until both locations are selected.
+3. Choose the Direct3D/DXIL or Vulkan/SPIR-V backend.
+4. To generate shaders or export assets, choose an output folder outside the game
+   folder. Shader generation expects `shaders.rpf` at the linked folder's root.
+5. Run a task and read its output. Open Logs for the latest bounded task logs.
+
+The runtime routes writes to its own overlay/title-data location. Output-heavy tasks
+use the selected output folder. Source game files are not packaged or uploaded.
+Generation/export happens only when explicitly started. A running task can be cancelled.
+
+![Synthetic graphics diagnostic in the application](docs/images/graphics.png)
+
+## Storage
+
+The single EXE is **65.44 MiB**. Its payloads are extracted only as needed:
+
+| Payload | Compressed inside EXE | Unpacked cache |
+| --- | ---: | ---: |
+| Core runtime, scripts and diagnostics | 3.65 MiB | 15.01 MiB |
+| Python, LLVM and SPIR-V tools | 19.27 MiB | 52.18 MiB |
+| Self-contained archive exporter | 32.64 MiB | 73.32 MiB |
+| Direct3D runtime and DXIL compiler | 9.51 MiB | 22.29 MiB |
+
+Using every component needs about **162.8 MiB** of reusable tool cache in addition
+to the EXE. Extraction briefly also writes a compressed ZIP; it is removed after
+successful preparation. The cache is `%LOCALAPPDATA%\NEXAVERSE GTA Toolkit\tools\0.2.0`.
+Game files, shader intermediates, generated caches, exports and developer SDKs are
+separate from these figures. Large shader/asset workflows can use many gigabytes.
+
+## Complete source
+
+This repository contains actual source trees, not only binary downloads:
+
+```text
+desktop/                         C++ GUI, process runner, extraction and packaging code
+vendor/Leonida/runtime/           C++ native loader, shims, graphics layer and fixtures
+vendor/Leonida/tools/             Shader and asset tooling; rpf9dump C# source
+vendor/Leonida/third_party/       Runtime task-queue and archive-export dependencies
+vendor/Xbox2Windows/src/          C++ system/runtime and graphics helpers
+vendor/Xbox2Windows/tools/        CPU, shader and binary research tools
+vendor/Xbox2Windows/tests/        Source-built C++, HLSL, MASM and Python fixtures
+vendor/XCL/crates/xcl/src/        Rust native runtime, HLE and DXIL shader backend
+vendor/XCL/tests/                 Source-built titles and backend fixtures
+docs/                            Architecture, component list, limitations and images
+```
+
+[Build instructions](BUILDING.md) include the compiler recipe and external dependency
+requirements. [Source revisions](SOURCE-REVISIONS.json) pin the assembled components.
+Compiler/runtime dependencies such as LLVM, Python, DXC, SPIRV-Tools and .NET retain
+their own source repositories and licenses; their full SDK trees are not vendored here.
+The release also supplies a source ZIP of this repository.
+
+## Requirements and limitations
+
+Windows 10/11 x64 and suitable graphics drivers. The Direct3D backend requires a
+Shader Model 6.6 GPU and the system XGameRuntime supplied by Windows/Gaming Services.
+The Vulkan backend needs a compatible Vulkan driver. Microsoft system components
+and GPU drivers are not installed by this application.
+
+The Direct3D backend has incomplete console-tiled MSAA support and remains offline.
+The two backends are independent; selecting one does not merge their code or make
+their shader caches interchangeable. Read [LIMITATIONS.md](docs/LIMITATIONS.md).
+
+## Licensing
+
+NEXARYSE maintains the desktop interface, build assembly and distribution. Existing
+upstream authorship and required notices are retained. This repository aggregates
+independently licensed components; it does not relicense them under one license.
+See [PROVENANCE.txt](PROVENANCE.txt), the component licenses, and the application’s
+Licenses and notices action. Original desktop-interface code is MIT licensed.

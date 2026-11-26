@@ -1,0 +1,25 @@
+From 384bc9cb13d3b720f3300d062350c38b409f32e1 Mon Sep 17 00:00:00 2001
+From: HybridGt <hybridgt@localhost>
+Date: Tue, 24 Nov 2026 17:49:33 +0200
+Subject: [PATCH 08/14] Cargo.lock: windows-sys for victory-game (HybridGt)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ Cargo.lock | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index bab4a7e..04a7ca0 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -682,6 +682,7 @@ version = "0.1.0"
+ dependencies = [
+  "memchr",
+  "miniz_oxide",
++ "windows-sys",
+ ]
+ 
+ [[package]]
+-- 
+2.56.1.windows.1
+

@@ -1,0 +1,506 @@
+From 3999ee63d39853813111a5aa830eb0a25da9cd89 Mon Sep 17 00:00:00 2001
+From: LowBacon <lenni.a.jokitalo@gmail.com>
+Date: Wed, 25 Nov 2026 00:10:07 +0200
+Subject: [PATCH 03/25] FidelityFX stage 2: the title's FSR calls run AMD's PC
+ upscaler on the host device and the host list (VICTORY_FFX_DIR); list hooks
+ for external host work (HybridGt)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+(cherry picked from commit 35a04bc3c5c2c74a5b360a434417f190ae3a183a)
+---
+ crates/victory-gpu/src/draw.rs        |  10 +
+ crates/victory-gpu/src/list.rs        |  46 ++++
+ crates/victory-hle/src/modules/ffx.rs | 362 +++++++++++++++++++++++---
+ 3 files changed, 382 insertions(+), 36 deletions(-)
+
+diff --git a/crates/victory-gpu/src/draw.rs b/crates/victory-gpu/src/draw.rs
+index 9ba0c2f..6fed040 100644
+--- a/crates/victory-gpu/src/draw.rs
++++ b/crates/victory-gpu/src/draw.rs
+@@ -702,6 +702,16 @@ impl State {
+     /// shortcut: the render target views are made again from the handles'
+     /// descriptors as they are now, not as they were when the title set
+     /// the targets (a descriptor rewritten in between names another view).
++    /// HybridGt: host work recorded into the list from outside the title's
++    /// calls (an upscaler, `crate::list::record_external`) may have set its
++    /// own heaps, root signature and pipeline: the next draw or dispatch
++    /// sets the title's again.
++    pub(crate) fn forget_bindings(&mut self) {
++        self.host_pipeline = 0;
++        self.host_roots = [0; 2];
++        self.host_heaps = [0; 2];
++    }
++
+     pub(crate) fn replay(&mut self, list: &HostList) {
+         self.host_pipeline = 0;
+         self.host_roots = [0; 2];
+diff --git a/crates/victory-gpu/src/list.rs b/crates/victory-gpu/src/list.rs
+index f9edaab..cb8e134 100644
+--- a/crates/victory-gpu/src/list.rs
++++ b/crates/victory-gpu/src/list.rs
+@@ -775,6 +775,52 @@ extern "system" fn barrier(this: This, count: u32, barriers: *const Barrier) ->
+     0
+ }
+ 
++/// HybridGt: records host work the title did not ask for through the
++/// list's own methods (the PC upscaler behind the title's FidelityFX calls)
++/// into title list `this`'s host command list, given as a raw
++/// `ID3D12GraphicsCommandList`; then the list's next draw or dispatch binds
++/// the title's heaps, root signature and pipeline again. `None` without a
++/// host list.
++#[cfg(windows)]
++pub fn record_external<R>(this: *const std::ffi::c_void, record: impl FnOnce(*mut std::ffi::c_void) -> R) -> Option<R> {
++    use windows::core::Interface;
++    if this.is_null() {
++        return None;
++    }
++    // SAFETY: the title passes one of our lists.
++    let list = unsafe { &*this.cast::<List>() };
++    let host = list.host.as_ref()?;
++    let r = record(host.list.as_raw());
++    list.state.lock().unwrap_or_else(|e| e.into_inner()).forget_bindings();
++    Some(r)
++}
++
++/// HybridGt: title texture `resource`'s host copy, moved to host state
++/// `state` in title list `this` (a depth texture's colour twin brought up
++/// to date first), as a raw `ID3D12Resource`, for work recorded with
++/// [`record_external`].
++#[cfg(windows)]
++pub fn external_texture(this: *const std::ffi::c_void, resource: *const std::ffi::c_void, state: u32, write: bool) -> Option<*mut std::ffi::c_void> {
++    use windows::core::Interface;
++    if this.is_null() || resource.is_null() {
++        return None;
++    }
++    // SAFETY: the title passes one of our lists.
++    let list = unsafe { &*this.cast::<List>() };
++    let host = list.host.as_ref()?;
++    let resource = resource as This;
++    host.twin_use(resource, false, write);
++    ensure_state(host, resource, state);
++    crate::resource::host_resource(resource).map(|r| r.as_raw())
++}
++
++/// HybridGt: the host D3D12 device as a raw `ID3D12Device`, if there is one.
++#[cfg(windows)]
++pub fn host_device() -> Option<*mut std::ffi::c_void> {
++    use windows::core::Interface;
++    crate::host::host().map(|h| h.device.as_raw())
++}
++
+ /// Moves a title texture's host copy to `state` in the list, if needed.
+ #[cfg(windows)]
+ pub(crate) fn ensure_state(list: &crate::host::HostList, resource: This, state: u32) {
+diff --git a/crates/victory-hle/src/modules/ffx.rs b/crates/victory-hle/src/modules/ffx.rs
+index 3c911b4..8e822a8 100644
+--- a/crates/victory-hle/src/modules/ffx.rs
++++ b/crates/victory-hle/src/modules/ffx.rs
+@@ -1,79 +1,369 @@
+ //! HybridGt: AMD FidelityFX (`amd_fidelityfx_upscaler_xbox.dll`), the
+ //! upscaler the title loads in its Series S configuration.
+ //!
+-//! The console DLL exports the FidelityFX API (`ffx_api.h`, MIT, the same
+-//! five entry points as AMD's PC SDK): `ffxCreateContext`, `ffxConfigure`,
++//! The console DLL exports the FidelityFX API (`ffx_api.h`, MIT, AMD's PC
++//! SDK has the same five entry points): `ffxCreateContext`, `ffxConfigure`,
+ //! `ffxQuery`, `ffxDispatch`, `ffxDestroyContext`. Each takes a chain of
+-//! descriptors that start with `{ u64 type; header* next; }`. Its shaders
+-//! are not in a form our translator reads, so the DLL itself cannot run.
++//! descriptors starting `{ u64 type; header* next; }`. Its shaders are not
++//! in a form our translator reads, so the console DLL itself cannot run.
+ //!
+-//! Stage 1 (this file): the module exists, so the title's `LoadLibrary`
+-//! succeeds instead of failing, and every call answers
+-//! `FFX_API_RETURN_ERROR_NO_PROVIDER` (no upscaler available), which the
+-//! API defines for this case. The descriptor types the title asks for are
+-//! logged, to write stage 2 against: the PC SDK's upscaler run on the
+-//! host's own command list.
+-//! shortcut: no upscaling yet; the title is told so, never told it worked.
++//! Here the calls go to AMD's PC upscaler: `amd_fidelityfx_loader_dx12.dll`
++//! (with `amd_fidelityfx_upscaler_dx12.dll` beside it), looked for in
++//! `VICTORY_FFX_DIR`, else beside our executable. It runs on the host
++//! device, recording into the host list behind the title's list, with the
++//! host copies of the title's textures:
++//! - create: the upscale descriptor (and its version descriptor) is passed
++//!   on; the console backend descriptor is replaced by the PC DX12 one
++//!   naming the host device;
++//! - dispatch (upscale): the command list and each texture are swapped for
++//!   the host's, moved to the states the upscaler expects;
++//! - query and configure: passed on (plain data).
++//!
++//! Without the PC DLLs every call answers `FFX_API_RETURN_ERROR_NO_PROVIDER`
++//! (no upscaler), as the API defines; the title is never told an upscale ran
++//! that did not.
++//! shortcut: descriptor layouts are taken to be the PC SDK 2.x ones (the
++//! console DLL's API version is not known); the first dispatch is logged
++//! word by word to check them against a run.
+ 
+ #![allow(non_snake_case)]
+ 
+ use std::ffi::c_void;
+-use std::sync::Mutex;
++use std::sync::{Mutex, OnceLock};
+ 
+ use crate::{HleModule, hle_export};
+ 
+-/// `FFX_API_RETURN_ERROR_NO_PROVIDER` (ffx_api.h).
++/// `FFX_API_RETURN_OK`.
++const OK: u32 = 0;
++/// `FFX_API_RETURN_ERROR_NO_PROVIDER`.
+ const NO_PROVIDER: u32 = 4;
+ /// `FFX_API_RETURN_ERROR_PARAMETER`.
+ const PARAMETER: u32 = 6;
++/// `FFX_API_RETURN_ERROR_RUNTIME_ERROR`.
++const RUNTIME_ERROR: u32 = 3;
++
++/// `FFX_API_CREATE_CONTEXT_DESC_TYPE_UPSCALE`, `_UPSCALE_VERSION`.
++const CREATE_UPSCALE: u64 = 0x1_0000;
++const CREATE_UPSCALE_VERSION: u64 = 0x1_000b;
++/// `FFX_API_CREATE_CONTEXT_DESC_TYPE_BACKEND_DX12` (PC).
++const BACKEND_DX12: u64 = 0x2;
++/// `FFX_API_DISPATCH_DESC_TYPE_UPSCALE`.
++const DISPATCH_UPSCALE: u64 = 0x1_0001;
++
++/// `ffxApiHeader`.
++#[repr(C)]
++#[derive(Clone, Copy)]
++pub struct Header {
++    ty: u64,
++    next: *mut Header,
++}
++
++/// `ffxCreateBackendDX12Desc`.
++#[repr(C)]
++struct BackendDx12 {
++    header: Header,
++    device: *mut c_void,
++}
++
++/// `FfxApiResourceDescription`.
++#[repr(C)]
++#[derive(Clone, Copy, Debug)]
++struct ResourceDesc {
++    ty: u32,
++    format: u32,
++    width: u32,
++    height: u32,
++    depth: u32,
++    mips: u32,
++    flags: u32,
++    usage: u32,
++}
++
++/// `FfxApiResource`.
++#[repr(C)]
++#[derive(Clone, Copy)]
++struct Resource {
++    resource: *mut c_void,
++    desc: ResourceDesc,
++    state: u32,
++}
++
++/// `ffxDispatchDescUpscale` (FidelityFX SDK 2.x).
++#[repr(C)]
++#[derive(Clone, Copy)]
++struct DispatchUpscale {
++    header: Header,
++    command_list: *mut c_void,
++    color: Resource,
++    depth: Resource,
++    motion_vectors: Resource,
++    exposure: Resource,
++    reactive: Resource,
++    transparency: Resource,
++    output: Resource,
++    jitter: [f32; 2],
++    motion_vector_scale: [f32; 2],
++    render_size: [u32; 2],
++    upscale_size: [u32; 2],
++    enable_sharpening: bool,
++    sharpness: f32,
++    frame_time_delta: f32,
++    pre_exposure: f32,
++    reset: bool,
++    camera_near: f32,
++    camera_far: f32,
++    camera_fov_vertical: f32,
++    view_space_to_meters: f32,
++    flags: u32,
++}
++
++type Create = unsafe extern "C" fn(*mut *mut c_void, *mut Header, *const c_void) -> u32;
++type Destroy = unsafe extern "C" fn(*mut *mut c_void, *const c_void) -> u32;
++type Configure = unsafe extern "C" fn(*mut *mut c_void, *const Header) -> u32;
++type Query = unsafe extern "C" fn(*mut *mut c_void, *mut Header) -> u32;
++type Dispatch = unsafe extern "C" fn(*mut *mut c_void, *const Header) -> u32;
++
++/// The PC upscaler's entry points.
++struct Pc {
++    create: Create,
++    destroy: Destroy,
++    configure: Configure,
++    query: Query,
++    dispatch: Dispatch,
++}
++
++/// The PC loader, loaded on first use; `None` (logged once) without it.
++fn pc() -> Option<&'static Pc> {
++    static PC: OnceLock<Option<Pc>> = OnceLock::new();
++    PC.get_or_init(|| {
++        use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
++        let dir = std::env::var_os("VICTORY_FFX_DIR")
++            .map(std::path::PathBuf::from)
++            .or_else(|| std::env::current_exe().ok().and_then(|e| e.parent().map(|p| p.to_path_buf())))?;
++        let path = dir.join("amd_fidelityfx_loader_dx12.dll");
++        let wide: Vec<u16> = path.as_os_str().encode_wide_null();
++        // SAFETY: a nul-terminated path.
++        let module = unsafe { LoadLibraryW(wide.as_ptr()) };
++        if module.is_null() {
++            tracing::warn!(path = %path.display(), "FidelityFX: AMD's PC upscaler not found (set VICTORY_FFX_DIR); the title is told there is no upscaler");
++            return None;
++        }
++        let get = |name: &[u8]| {
++            // SAFETY: a loaded module and a nul-terminated name.
++            unsafe { GetProcAddress(module, name.as_ptr()) }
++        };
++        // SAFETY: the loader's exports have these signatures (ffx_api.h).
++        let pc = unsafe {
++            Pc {
++                create: std::mem::transmute::<_, Create>(get(b"ffxCreateContext\0")?),
++                destroy: std::mem::transmute::<_, Destroy>(get(b"ffxDestroyContext\0")?),
++                configure: std::mem::transmute::<_, Configure>(get(b"ffxConfigure\0")?),
++                query: std::mem::transmute::<_, Query>(get(b"ffxQuery\0")?),
++                dispatch: std::mem::transmute::<_, Dispatch>(get(b"ffxDispatch\0")?),
++            }
++        };
++        tracing::info!(path = %path.display(), "FidelityFX: AMD's PC upscaler loaded");
++        Some(pc)
++    })
++    .as_ref()
++}
++
++trait WideNull {
++    fn encode_wide_null(&self) -> Vec<u16>;
++}
++impl WideNull for std::ffi::OsStr {
++    fn encode_wide_null(&self) -> Vec<u16> {
++        use std::os::windows::ffi::OsStrExt;
++        self.encode_wide().chain(std::iter::once(0)).collect()
++    }
++}
+ 
+ /// Logs each descriptor type in a chain once per entry point.
+-fn note(entry: &'static str, desc: *const c_void) {
++fn note(entry: &'static str, desc: *const Header, answer: u32) {
+     static SEEN: Mutex<Vec<(&'static str, u64)>> = Mutex::new(Vec::new());
+-    let mut at = desc as *const u64;
++    let mut at = desc;
+     for _ in 0..16 {
+         if at.is_null() {
+             break;
+         }
+-        // SAFETY: the title's descriptor chain: each link starts with its
+-        // type and the next link.
+-        let (ty, next) = unsafe { (at.read_unaligned(), at.add(1).read_unaligned() as *const u64) };
++        // SAFETY: the title's descriptor chain.
++        let h = unsafe { at.read_unaligned() };
+         let mut seen = SEEN.lock().unwrap_or_else(|e| e.into_inner());
+-        if !seen.contains(&(entry, ty)) {
+-            seen.push((entry, ty));
+-            tracing::warn!(entry, desc_type = format_args!("{ty:#x}"), "FidelityFX call: no upscaler provided yet (answered NO_PROVIDER)");
++        if !seen.contains(&(entry, h.ty)) {
++            seen.push((entry, h.ty));
++            tracing::warn!(entry, desc_type = format_args!("{:#x}", h.ty), answer, "FidelityFX call");
+         }
+-        at = next;
++        at = h.next;
++    }
++}
++
++/// The links of a chain, by type.
++fn links(desc: *const Header) -> Vec<*const Header> {
++    let mut out = Vec::new();
++    let mut at = desc;
++    while !at.is_null() && out.len() < 16 {
++        out.push(at);
++        // SAFETY: the title's descriptor chain.
++        at = unsafe { (*at).next };
+     }
++    out
+ }
+ 
+-pub extern "system" fn ffxCreateContext(context: *mut *mut c_void, desc: *const c_void, _mem: *const c_void) -> u32 {
++pub extern "system" fn ffxCreateContext(context: *mut *mut c_void, desc: *mut Header, _mem: *const c_void) -> u32 {
+     if context.is_null() || desc.is_null() {
+         return PARAMETER;
+     }
+-    note("ffxCreateContext", desc);
+     // SAFETY: the title's out pointer.
+     unsafe { context.write(std::ptr::null_mut()) };
+-    NO_PROVIDER
++    let answer = (|| {
++        let pc = pc().ok_or(NO_PROVIDER)?;
++        let device = victory_gpu::list::host_device().ok_or(NO_PROVIDER)?;
++        // A chain of our own: the title's upscale links (copied, so its
++        // memory is not changed) and the PC backend naming the host device.
++        let mut kept: Vec<Vec<u8>> = Vec::new();
++        for link in links(desc) {
++            // SAFETY: a link of the title's chain.
++            let ty = unsafe { (*link).ty };
++            let size = match ty {
++                CREATE_UPSCALE => 16 + 4 + 8 + 8 + 4 + 8, // flags, two sizes, fpMessage (padded)
++                CREATE_UPSCALE_VERSION => 16 + 8,
++                _ => continue,
++            };
++            let mut bytes = vec![0u8; size];
++            // SAFETY: the title's descriptor of that type is at least that long.
++            unsafe { std::ptr::copy_nonoverlapping(link.cast::<u8>(), bytes.as_mut_ptr(), size) };
++            kept.push(bytes);
++        }
++        if !kept.iter().any(|k| u64::from_le_bytes(k[..8].try_into().unwrap_or_default()) == CREATE_UPSCALE) {
++            return Err(NO_PROVIDER);
++        }
++        let mut backend = BackendDx12 { header: Header { ty: BACKEND_DX12, next: std::ptr::null_mut() }, device };
++        // Link: kept[0] -> kept[1] -> ... -> backend.
++        let mut next: *mut Header = &raw mut backend.header;
++        for k in kept.iter_mut().rev() {
++            let h = k.as_mut_ptr().cast::<Header>();
++            // SAFETY: our own copy of a link.
++            unsafe { (*h).next = next };
++            next = h;
++        }
++        let mut made: *mut c_void = std::ptr::null_mut();
++        // SAFETY: a valid chain of descriptors that outlives the call.
++        let r = unsafe { (pc.create)(&raw mut made, next, std::ptr::null()) };
++        if r != OK {
++            tracing::warn!(code = r, "FidelityFX: AMD's PC upscaler refused the context");
++            return Err(r);
++        }
++        // SAFETY: the title's out pointer.
++        unsafe { context.write(made) };
++        tracing::info!("FidelityFX: upscale context made on the host device");
++        Ok(())
++    })();
++    let code = answer.err().unwrap_or(OK);
++    note("ffxCreateContext", desc, code);
++    code
+ }
+ 
+-pub extern "system" fn ffxDestroyContext(_context: *mut *mut c_void, _mem: *const c_void) -> u32 {
+-    NO_PROVIDER
++pub extern "system" fn ffxDestroyContext(context: *mut *mut c_void, _mem: *const c_void) -> u32 {
++    // SAFETY: the title's context pointer.
++    if context.is_null() || unsafe { (*context).is_null() } {
++        return PARAMETER;
++    }
++    match pc() {
++        // SAFETY: a context the PC upscaler made.
++        Some(pc) => unsafe { (pc.destroy)(context, std::ptr::null()) },
++        None => NO_PROVIDER,
++    }
+ }
+ 
+-pub extern "system" fn ffxConfigure(_context: *mut *mut c_void, desc: *const c_void) -> u32 {
+-    note("ffxConfigure", desc);
+-    NO_PROVIDER
++pub extern "system" fn ffxConfigure(context: *mut *mut c_void, desc: *const Header) -> u32 {
++    let code = match pc() {
++        // SAFETY: plain data descriptors, passed on.
++        Some(pc) if !desc.is_null() => unsafe { (pc.configure)(context, desc) },
++        Some(_) => PARAMETER,
++        None => NO_PROVIDER,
++    };
++    note("ffxConfigure", desc, code);
++    code
+ }
+ 
+-pub extern "system" fn ffxQuery(_context: *mut *mut c_void, desc: *mut c_void) -> u32 {
+-    note("ffxQuery", desc);
+-    NO_PROVIDER
++pub extern "system" fn ffxQuery(context: *mut *mut c_void, desc: *mut Header) -> u32 {
++    let code = match pc() {
++        // SAFETY: plain data descriptors, passed on (results written to the
++        // title's memory, as the console DLL would).
++        Some(pc) if !desc.is_null() => unsafe { (pc.query)(context, desc) },
++        Some(_) => PARAMETER,
++        None => NO_PROVIDER,
++    };
++    note("ffxQuery", desc, code);
++    code
+ }
+ 
+-pub extern "system" fn ffxDispatch(_context: *mut *mut c_void, desc: *const c_void) -> u32 {
+-    note("ffxDispatch", desc);
+-    NO_PROVIDER
++/// Host states (`D3D12_RESOURCE_STATES`) and the FidelityFX ones.
++const HOST_READ: u32 = 0x40 | 0x80;
++const HOST_UNORDERED: u32 = 0x8;
++const FFX_READ: u32 = (1 << 2) | (1 << 3);
++const FFX_UNORDERED: u32 = 1 << 1;
++
++pub extern "system" fn ffxDispatch(context: *mut *mut c_void, desc: *const Header) -> u32 {
++    if desc.is_null() || context.is_null() {
++        return PARAMETER;
++    }
++    // SAFETY: the title's descriptor.
++    let ty = unsafe { (*desc).ty };
++    let code = (|| {
++        let pc = pc().ok_or(NO_PROVIDER)?;
++        if ty != DISPATCH_UPSCALE {
++            return Err(NO_PROVIDER);
++        }
++        // SAFETY: an upscale dispatch descriptor.
++        let mut d = unsafe { desc.cast::<DispatchUpscale>().read_unaligned() };
++        static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
++        if !LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed) {
++            tracing::info!(
++                render = ?d.render_size, upscale = ?d.upscale_size, jitter = ?d.jitter,
++                mv_scale = ?d.motion_vector_scale, color = ?d.color.desc, output = ?d.output.desc,
++                near = d.camera_near, far = d.camera_far, fov = d.camera_fov_vertical, flags = d.flags,
++                "FidelityFX: first upscale dispatch"
++            );
++        }
++        let list = d.command_list as *const c_void;
++        let host = |r: &mut Resource, state: u32, ffx: u32, write: bool| {
++            if r.resource.is_null() {
++                return true;
++            }
++            match victory_gpu::list::external_texture(list, r.resource as *const c_void, state, write) {
++                Some(h) => {
++                    r.resource = h;
++                    r.state = ffx;
++                    true
++                }
++                None => false,
++            }
++        };
++        let ok = host(&mut d.color, HOST_READ, FFX_READ, false)
++            && host(&mut d.depth, HOST_READ, FFX_READ, false)
++            && host(&mut d.motion_vectors, HOST_READ, FFX_READ, false)
++            && host(&mut d.exposure, HOST_READ, FFX_READ, false)
++            && host(&mut d.reactive, HOST_READ, FFX_READ, false)
++            && host(&mut d.transparency, HOST_READ, FFX_READ, false)
++            && host(&mut d.output, HOST_UNORDERED, FFX_UNORDERED, true);
++        if !ok {
++            tracing::warn!("FidelityFX: a texture of the dispatch has no host copy; not upscaled");
++            return Err(RUNTIME_ERROR);
++        }
++        d.header.next = std::ptr::null_mut();
++        let r = victory_gpu::list::record_external(list, |host_list| {
++            d.command_list = host_list;
++            // SAFETY: a PC upscale descriptor naming host objects that live
++            // until the list has run.
++            unsafe { (pc.dispatch)(context, &raw const d.header) }
++        })
++        .ok_or(RUNTIME_ERROR)?;
++        if r == OK { Ok(()) } else { Err(r) }
++    })();
++    let code = code.err().unwrap_or(OK);
++    note("ffxDispatch", desc, code);
++    code
+ }
+ 
+ pub(crate) fn module() -> HleModule {
+-- 
+2.56.1.windows.1
+

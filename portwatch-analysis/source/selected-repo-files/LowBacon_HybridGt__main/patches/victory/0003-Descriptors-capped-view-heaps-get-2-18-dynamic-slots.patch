@@ -1,0 +1,100 @@
+From 64dcef417d796406078490f5b67524594accf7c6 Mon Sep 17 00:00:00 2001
+From: HybridGt <hybridgt@localhost>
+Date: Tue, 24 Nov 2026 17:33:00 +0200
+Subject: [PATCH 03/14] Descriptors: capped view heaps get 2^18 dynamic slots,
+ last slot null (HybridGt)
+
+NVIDIA caps shader-visible view heaps at exactly 1,000,000 slots (RTX
+4070 Ti, hgt-gfxdiag probe); GTA VI's heap is 1,245,184. The capped
+layout left 2^16 dynamic slots, which ran out in the world: draws dropped
+with 'no dynamic slots for its tables' (16,384+ in run6, 0 in run7).
+VICTORY_CAPPED_DYNAMIC overrides. Logs the highest title slot written: it
+climbs in 64 Ki steps (724,717 by frame 1622), close to the 737,856 now
+mirrored - a trade-off, not a fix. The last slot stays null for the
+heap index limit. Did NOT stop the device removal (run7).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crates/victory-gpu/src/descriptor/host.rs | 38 +++++++++++++++++++++--
+ 1 file changed, 36 insertions(+), 2 deletions(-)
+
+diff --git a/crates/victory-gpu/src/descriptor/host.rs b/crates/victory-gpu/src/descriptor/host.rs
+index 582f234..9b8a80d 100644
+--- a/crates/victory-gpu/src/descriptor/host.rs
++++ b/crates/victory-gpu/src/descriptor/host.rs
+@@ -73,6 +73,15 @@ const DYNAMIC: u32 = 1 << 18;
+ /// (a capped heap, NVIDIA): the title's slots keep their room first.
+ const MIN_DYNAMIC: u32 = 1 << 16;
+ 
++/// HybridGt: dynamic slots of a capped view heap: [`DYNAMIC`], or
++/// `VICTORY_CAPPED_DYNAMIC` (between [`MIN_DYNAMIC`] and half the heap).
++fn capped_dynamic() -> u32 {
++    std::env::var("VICTORY_CAPPED_DYNAMIC")
++        .ok()
++        .and_then(|v| v.parse::<u32>().ok())
++        .map_or(DYNAMIC, |n| n.clamp(MIN_DYNAMIC, PORTABLE_VIEWS / 2))
++}
++
+ impl HostHeap {
+     pub(crate) fn new(sampler: bool, count: u32) -> Option<Self> {
+         let host = host()?;
+@@ -95,6 +104,10 @@ impl HostHeap {
+         };
+         // The larger dynamic range only where the host takes it on top of
+         // every title slot; else the smaller one, and the cap after that.
++        // HybridGt: a capped heap keeps its last slot null for ever: the
++        // slot translated shaders read instead of one past the heap
++        // (`VICTORY_HEAP_INDEX_LIMIT`).
++        let mut capped = false;
+         let (heap, count, extra) = if sampler {
+             match make(count) {
+                 Ok(heap) => (heap, count, 0),
+@@ -111,8 +124,17 @@ impl HostHeap {
+                 Err(e) if count + MIN_DYNAMIC > PORTABLE_VIEWS => {
+                     // shortcut: descriptors past the host's limit are left
+                     // out; a title that reaches them needs remapping.
+-                    tracing::warn!(error = %e, count, "host view heap capped at {PORTABLE_VIEWS}");
+-                    (make(PORTABLE_VIEWS).ok()?, PORTABLE_VIEWS - MIN_DYNAMIC, MIN_DYNAMIC)
++                    // HybridGt: the capped heap (NVIDIA: exactly 1,000,000
++                    // slots) gets the full dynamic range too. MIN_DYNAMIC ran
++                    // out in the world on an RTX 4070 Ti ("no dynamic slots",
++                    // draws dropped, device removals), as 2^16 did on AMD
++                    // (#59). Grand Theft Auto VI's world writes no title slot
++                    // past 934,464; `highest title slot written` says if it
++                    // ever writes past the smaller title range this leaves.
++                    let dynamic = capped_dynamic();
++                    tracing::warn!(error = %e, count, dynamic, "host view heap capped at {PORTABLE_VIEWS}");
++                    capped = true;
++                    (make(PORTABLE_VIEWS).ok()?, PORTABLE_VIEWS - dynamic, dynamic)
+                 }
+                 Err(e) => {
+                     tracing::warn!(error = %e, count, sampler, "no host descriptor heap");
+@@ -147,6 +169,9 @@ impl HostHeap {
+             kept: Mutex::new(vec![None; (count + extra) as usize]),
+             next: Mutex::new((0, vec![false; extra as usize])),
+         };
++        if capped && extra > 0 {
++            h.next.lock().unwrap_or_else(|e| e.into_inner()).1[extra as usize - 1] = true;
++        }
+         // A slot never written is undefined: shaders reading one (a slot
+         // the title wrote in a way we do not know, or a table entry no
+         // used-resource entry names) read a wild address. Every slot starts
+@@ -333,6 +358,15 @@ impl HostHeap {
+     /// views are made only for draws (`for_draw`), which also copy their
+     /// data: a host copy of a buffer is made on first use.
+     pub(crate) fn mirror(&self, index: u32, handle: u64, for_draw: bool) -> Option<View> {
++        // HybridGt: the highest title slot written, at each new 64 Ki step
++        // (how much of a capped heap the title really needs).
++        if !self.sampler {
++            static HIGHEST_ANY: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
++            let before = HIGHEST_ANY.fetch_max(index, std::sync::atomic::Ordering::Relaxed);
++            if index > before && (index >> 16) > (before >> 16) {
++                tracing::info!(index, count = self.count, dynamic = self.dynamic, "highest title slot written");
++            }
++        }
+         if index >= self.count {
+             // Diagnostic (NVIDIA heap cap): the highest title slot past the
+             // host heap seen so far.
+-- 
+2.56.1.windows.1
+

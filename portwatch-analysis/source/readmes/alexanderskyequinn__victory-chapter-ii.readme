@@ -1,0 +1,475 @@
+# VIctory fork (work in progress)
+
+A work-in-progress fork of [VIctory](https://github.com/Marvisak/VIctory), a
+compatibility layer that runs an Xbox Series title natively on Windows from
+files the user supplies. This fork follows upstream
+`main` and adds fixes aimed at one goal: getting the game's world to render
+correctly and playably on one particular PC.
+
+You need your own copy of the game. The two screenshots below show the
+compatibility layer's output from a local installation. This project is
+independent of the game's developer and publisher. [Asset policy](docs/asset-policy.md)
+
+## Rendering progress on November 25, 2026
+
+The Radeon RX 7900 XTX renders the opening cutscene with the ray-tracing
+builder disabled. The latest build captured the character behind reinforced
+glass before the memory guard stopped the run. An earlier normal-mode run
+reached the first playable room and measured 4.1–4.8 fps there.
+With the experimental ray-tracing builder enabled, the opening scene now
+runs 131 frames to the end of a 275-second guarded run, without tripping
+the invalid-geometry probe or crashing. Lighting in those frames is still
+wrong. [Renderer handoff](HANDOFF.md)
+
+The builder's damaged structure headers came from one stage. Its console
+program marks the loads and stores it uses to pass data between threads as
+coherent, and the translation had not declared the host's views of title
+memory that way. On the Radeon that stage wrote child boxes and pointers
+over a structure's header in **15 of 3,228 dispatches** across three
+guarded runs. With the declaration it did so in **none of 6,762** across
+two runs. A whole-header GPU trace around every builder stage located it:
+`VICTORY_BUILD_HEADER_TRACE=1`.
+
+An opening-scene trace caught the host copying a size before the GPU
+finished computing it. **All 128 sampled copies** picked up the previous
+contents of their size slot. In one case, the host copied a size of
+1,734,784 bytes for a structure that required 5,220,224. The next
+structure began at the smaller size rounded to 256 bytes. A later shader
+read a leaf inside that overlap and selected geometry record 342 from a
+table of 44.
+
+With the experimental same-list fix, **all 509 completed size copies
+across three guarded runs delivered the current result**. The latest run
+verified 322 copies. In 298 cases the value differed from the previous
+one, two slots repeated the same value, and 22 had no earlier sample.
+
+Before that correction, one run exposed a damaged header before compaction
+and a shader selecting record 538 from two. With the correction the
+character and vehicles of the opening scene appear in 3D with unlit skin
+and overexposed highlights. The refit stage still leaves an unset root box
+in 24 of 1,767 dispatches. The images below are the earlier normal-mode
+captures.
+
+| Opening cutscene | First playable room |
+| --- | --- |
+| [![Woman in a red uniform seen through wire-reinforced glass](docs/screenshots/opening-cutscene.jpg)](docs/screenshots/opening-cutscene.jpg) | [![Character facing a sunlit window in a dark room](docs/screenshots/first-gameplay-room.jpg)](docs/screenshots/first-gameplay-room.jpg) |
+| Frame 3956 from the integrated build in normal mode. The memory guard stopped this run during the cutscene. | Frame 4300 from an earlier normal-mode run. Character shading and room geometry still show visible errors. |
+
+### Renderer work from DexNom
+
+This revision adapts shader and buffer-view changes from DexNom's Radeon
+renderer. They cover sampler selection, wave masks, pixel quad sampling,
+cube-map level of detail, ray traversal across guest pages, and root buffer
+views whose guest addresses have been reused. We compared the previous
+build with the integrated build on nine shaders from a local installation.
+Microsoft's DXIL validator accepted **2 of 9 before and 9 of 9 after**.
+The seven recovered programs include a terrain mesh shader and a voxel
+visibility pixel shader. The sample measures shader translation. A local
+run of DexNom's unmodified reference build ended in an access violation
+after 186 seconds, before we could reproduce its reported City results.
+[DexNom's tested source](https://github.com/DexNom/VIctory/tree/2e01ab4760db91820ef5f9a9f85761f83cd6b5d0)
+
+## Chapter II (this repository)
+
+This repository continues from
+[fxceless/victory-fork](https://github.com/fxceless/victory-fork), whose work
+is everything described below, and adds testing on an AMD card (Radeon RX
+7900 XTX) with a few tools made for that:
+
+- `tools\run-guarded.ps1`: launches the title for a bounded time under a
+  watchdog that stops it at a long GPU submission, a silent log, a memory cap
+  or the time limit. Add `-MemoryTrace` to record process private bytes and
+  working set alongside system commit, free commit and available physical
+  memory in a CSV beside the run log.
+- `victory translate --only <text>`, `--hash <16 digits>,...` and
+  `--by-instruction`: translate only the containers named by label or by the
+  hash the GPU layer logs, and count failures by the instruction they stop
+  at.
+
+Fixes made here:
+
+- **View indices are clamped on every host.** The base clamped a view index
+  a shader computes to a null slot only where the host caps the size of view
+  heaps. On a host that does not (this AMD card), an index past the heap
+  read whatever memory lies behind it as a descriptor, and the GPU faulted
+  at the address found there: the device was lost after 9 and after 15
+  minutes in the world, in the skinning and meshlet-culling compute
+  programs. Such a host's view heap is now made 2^21 slots long with a null
+  last slot, and the same clamp applies.
+
+- **Blending is left out on integer render targets.** A mesh pipeline of
+  the world blends into an 8-bit integer target; the host refused the whole
+  pipeline (`E_INVALIDARG`, debug layer message 676) and its draws were
+  dropped.
+- **More per-draw table slots where the view heap has room** (2^19 on a
+  host that does not cap view heaps): 2^18 ran out at about 10,000 draws a
+  frame, and draws were dropped.
+
+- **Title memory is declared globally coherent where the console program
+  asks for it.** The structure builder's bottom-up stage has each thread
+  store its node's box, count itself at the parent with an atomic
+  operation, and the thread that arrives second read the first one's box.
+  The console program marks those loads and stores coherent. A translated
+  program with such loads or stores now declares its root views and its
+  views of title memory by address globally coherent
+  (`VICTORY_COHERENT_MEMORY=0` restores the earlier declaration, `1`
+  applies it to every program; the value is in the shader cache key).
+  Without it that stage sometimes wrote a node's children at offset 0 of
+  the structure, over its header.
+
+- **A builder stage reads a title buffer through the buffer's own copy.**
+  The triangle-reload stage fetches each frame's skinned vertices by
+  address. The directory of title memory gave it the title's page pool in
+  place, while the programs that write those vertices use the host copy of
+  the title buffer around them, so it read an earlier frame or zeros. A
+  pool page that lies whole inside a title buffer with its own copy is now
+  given that copy (`VICTORY_POOL_OVER_BUFFERS=1` restores the earlier
+  order). In one run each, unset root boxes after a refit fell from 13 of
+  716 to 2 of 538, and a later full-length run had none in 7,699 refits
+  over 131 frames with the builder. Lighting is still wrong, and 55 of 602
+  structures still get oversized boxes.
+
+- **Memory the layer hands the title is at console addresses.** On the
+  console every address a title gets fits 40 bits, and its GPU programs
+  keep only those. Three places gave out host heap memory, which on this
+  machine lies above 2^40: a command list's upload memory (where the
+  ray-tracing structure builder keeps the parameter block of each stage),
+  heaps and descriptor heaps made through the device, and the default
+  allocator and C runtime heap of the title's modules. All now come from
+  reservations below 2^37, which is also as far as the GPU side's directory
+  of title memory by address reaches.
+
+Diagnostics added:
+
+- `VICTORY_BACK_LOG=<file>` and `VICTORY_BACK_DUMP=<folder>`: once the
+  ray-tracing structure builder runs, each of its dispatches with its root
+  views and constants, and each range copied back into title memory with
+  the bytes before and after.
+
+- `VICTORY_BUILD_HEADER_TRACE=1` (or a record count; 16,384 by default):
+  the whole 64-byte header of a structure, sampled on the GPU just before
+  and just after every builder stage that is given the structure's root,
+  with the pages that stage's program noted as having no host copy. One
+  log line per dispatch, in submission order, once its list has completed.
+  `VICTORY_BUILD_HEADER_TRIANGLES=<count>` remains for following the
+  structures of one input size through every stage.
+
+- Buffer views left null are counted by reason in the frame report (raw
+  view not on 16 bytes, between elements of the host copy, empty, and so
+  on), and the first few of each reason are logged.
+- The frame report says what became of the pages shaders found empty in
+  title memory by address (given a copy now, not the title's memory, no
+  number left, and so on).
+- `VICTORY_HOST_MAX_WAVE=32` translates shaders as for a card with 32-lane
+  waves. The base was only run on such a card; a card with 64-lane waves
+  (AMD) runs console wave64 compute programs natively instead, a path no
+  card had run. The switch is part of the shader cache key.
+
+**Ray-tracing builder.** Some `DispatchX` calls specify individual threads.
+The host used their X count as the number of groups, causing the box-node
+programs to overwrite neighboring structures. The layer now converts those
+dimensions to groups and masks inactive lanes in the final wave for the
+five verified builder programs. On the Radeon, the 64-byte and 128-byte
+box programs both preserved the bytes beyond the requested output in
+isolated tests. In the opening scene, a triangle-reload lane selected
+record **1,321 from a geometry table containing eight**. Three overlapping
+structure copies had destination spacings that matched the previous results
+in three reused size-query slots. In a second run with asynchronous
+submission and copyback disabled, another lane selected **3,732,840 from
+44**. Its structure header was already corrupt. The fault persists in both
+configurations. The handoff gives the measured sizes and run limits.
+
+A separate 16-byte GPU test reproduced the ordering error seen in the
+opening scene. A buffer copy following a GPU readback in the same command
+list saw the previous contents. Submitting the copy after completion
+returned the expected bytes.
+
+**Page-pool memory.** `VICTORY_INPLACE_POOL=1` opens the title's page pool
+through a view using `OpenExistingHeapFromAddress1`. On this AMD system,
+the older file-mapping-handle path left about 11 GiB committed after the
+process exited. The view path returned system commit to its baseline in
+guarded testing. Peak memory use is still high. A run with 1 MiB sized
+copy windows added 34.6 GiB of system commit while the process peaked at
+24.9 GiB private. The watchdog monitors both process and system limits.
+
+Merged on 2026-11-25 (revision 5), all on the same base commit as this
+repository:
+
+- **[fxceless/victory-fork](https://github.com/fxceless/victory-fork)** up
+  to `c96b4f2`: the depth bounds test, textures picked by index looked at
+  again after their upload, new defaults for copying back, a clamp of view
+  indices on every host (taken there from another fork; it replaces the
+  one made here, with the same null slot), and the shader work of other
+  forks it had collected. This is where most of the gain below comes from.
+- **[uiliannn/VItoriaBr](https://github.com/uiliannn/VItoriaBr)** up to
+  `d5a7580`: its shader work had mostly reached the base already; its last
+  change (interpolation modes reconciled per signature row) is taken from
+  it directly. Its renaming of the project and its README are not.
+- **[Zettrox/ztrx](https://github.com/Zettrox/ztrx)** `90b529f` was looked
+  at: the base as of an earlier commit with its own README and a launcher
+  script, nothing to take.
+
+Kept from this repository through the merges: the blend state for integer
+render targets, the wider run of per-draw table slots, memory handed to
+the title at console addresses, the page pool in place for memory by
+address, and the diagnostics.
+
+After the merge, on the AMD card: 4.1 to 4.8 frames per second in the
+first gameplay scene (207-244 ms per frame; it was 400-550), the cutscene
+before it lit, and the wall around the first room's window drawn. The
+shader census: 25,598 programs emitted, 96 not (108 before).
+
+State on the AMD card (2026-11-25, revision 4, before the merge): the opening cutscene and the
+first gameplay scene render and can be played, at about 2 frames per second
+(400-550 ms per frame), about 25-30 GB of memory, no device loss. It does not
+look right:
+
+- Shadowed areas are black: the ray-traced light does not run. With
+  `VICTORY_BVH_BUILDER=1` all 53 pipelines of the structure builder get host
+  pipelines on this card and the builder runs, which the base reports it
+  never did on a 32-lane card; the title then crashes within seconds, on
+  bounding-box bit patterns where it keeps pointers. At that revision the
+  layer reached title memory by address through numbered host copies of 4 MiB
+  windows, at most 1,023 of them. The builder's first frame in the world
+  numbers 1,013; from the second frame on hundreds of pages a frame have
+  no copy (their reads give 0, their stores are lost), and what is copied
+  back into title memory from such a frame is wrong. With the builder's
+  stores kept out of title memory (`VICTORY_BVH_QUARANTINE=1`) the title
+  runs on, at 5-12 seconds a frame. With four times the copies
+  (`VICTORY_MEMORY_COPIES=4095`) nearly 2,000 windows (8 GiB) were
+  numbered within three minutes and still more were asked for. Copies do
+  not scale to this; the title's memory has to be the card's memory in
+  place (`inplace.rs`, of which the base has a first stage).
+  Begun (on with `VICTORY_BVH_BUILDER=1` or `VICTORY_INPLACE_POOL=1`): the
+  title's page pool is made of committed sections of at most 1 GiB, each
+  opened as a host heap with buffers placed over it; the directory of
+  title memory by address points every page of the pool at its place
+  there as the title maps it (225,000 pages in the first scene, through 9
+  numbers, no copy, no lost access); root views of the same shaders are
+  bound in place too. The builder's frame then takes about 270 ms where it
+  took 600 to 2,000. What such a shader reads and writes through a root
+  view goes by the directory too, page by page (`USER_ROOT_ADDRESS`): the
+  title maps its pool one page at a time, and a structure of several
+  pages is often in no one piece there.
+  The title still dies within seconds of the builder's first frame, at a
+  different place each run. With the pool in place and the builder off it
+  runs as before, so what is left is in what the builder's programs
+  store: none of the 53 had run on a card before, and a store at a wrong
+  address now lands in the title's memory at once. Earlier runs counted
+  100 to 500 pages a frame touched at addresses that are not the title's
+  memory at all. Later captures identified the triangle-reload program
+  and the invalid geometry records documented in the renderer handoff.
+- Walls, floors and terrain are missing in the first gameplay scene, and so
+  are parts of characters. No draw is dropped for it and the debug layer
+  reports no error at draw time. One cause found, not fixed: a buffer view
+  of 12-byte elements that starts neither on 16 bytes nor on an element of
+  its host copy cannot be made on the host and reads zeros.
+- Exposure swings between near black and white.
+
+## Credits
+
+- **[fxceless/victory-fork](https://github.com/fxceless/victory-fork)** is
+  the base of this repository (GPL-3.0-or-later).
+- **[VIctory](https://github.com/Marvisak/VIctory)** by Marvisak and its
+  contributors is the base of everything here: the loader, the runtime
+  services, the Direct3D 12 back end and the shader recompiler. Licensed
+  GPL-3.0-or-later; so is this fork. Upstream's history is kept intact below
+  the single commit that carries this fork's changes.
+- **[XCL](https://github.com/ivall/xcl)** by ivall and its contributors
+  (GPL-2.0-only) was used as a reference for how the same title behaves under
+  another layer. Fixes inspired by it were written anew in VIctory's code.
+- This fork's changes were developed with [Claude Code](https://claude.com/claude-code).
+
+## Inherited RTX 4070 results (2026-11-25)
+
+**Not playable yet: 2.5 to 4 frames per second, and shadowed areas are black.**
+Tested on one machine: Windows 11, Intel i7-14700KF, NVIDIA RTX 4070 12 GB,
+32 GB RAM. The Series X profile is used throughout.
+
+| Stage | State in this fork |
+|-------|--------------------|
+| Boot, menus, start screen | works, 30 fps (as upstream) |
+| Opening cutscene | plays from start to finish, in order, lit: title cards, credits cards, night and dusk shots |
+| Saves | the game autosaves a checkpoint and loads it again |
+| First gameplay scene (the prologue) | renders: characters, textures, sky, sunlit exterior; HUD, pause menu and pad input work |
+| Light in shadow | missing: the game's ray-traced bounce light and ray-traced lamp and sun shadows do not run yet, so anything the sun does not hit directly is black |
+| Frame rate in the world | 2-4 fps: 420-450 ms per frame by default, 240-350 ms with the newer switches (`VICTORY_RELAY=2`, or `VICTORY_LATE_WAIT=3 VICTORY_WIDE_BACK=1 VICTORY_CARD_BUFFERS_MIN_MB=1 VICTORY_CARD_BUFFERS_MB=1024`); it started at 3-6 seconds per frame |
+| Stability | no driver hang or device loss in normal runs (a hang introduced by the wave64 update was found and fixed: its barrier form for 64-lane programs is now off unless `VICTORY_WAVE_WIDE=1`) |
+
+### What this fork changed (summary)
+
+Rendering:
+- Meshlet culling read its scene buffers as the wrong kind of view, so the world drew almost nothing; fixed.
+- Per-draw descriptor tables could run out, after which draws used slots never made for them and the card hung; fixed.
+- Light packed by the game's compute shaders was read back through empty copies (sky, probes, fog); fixed for every mip level and layer.
+- The fog reconstruction, shadow-mask, hair, blend-shape skinning, fire and several material programs did not translate; fixed.
+- Gathers at a named mip level (with and without an offset) read level 0; fixed.
+- Implicit-level samples outside pixel shaders produced invalid DXIL in 730 compute programs; fixed.
+- Rectangle lists, depth and stencil twins for depth textures written by compute, texture read-backs.
+- Ray tracing, in progress and off by default: the game's own structure-builder programs translate, title memory can be read by raw address from shaders, the hardware ray/box and ray/triangle test is emulated in DXIL (checked against a reference on the GPU), and 59 of the 64 trace programs translate. Nothing is lit by it yet. See [docs/fork-ray-tracing.md](docs/fork-ray-tracing.md).
+
+Speed and memory:
+- Waits for memory values, write-watch queries and page queries no longer walk page tables per call.
+- Large title buffers get a copy in card memory, with shader writes found by hashing on the card.
+- Submissions can be sent ahead of the wait for the card (`VICTORY_LATE_WAIT`), with a relay thread that lands results as the card finishes (`VICTORY_RELAY`): in a first five-minute run the card's idle time behind the submitting thread fell from about 136 to 30 ms per frame.
+- Title memory can be opened as a graphics heap so that buffers are used in place instead of copied (`VICTORY_INPLACE`, first stage only; a probe confirmed the approach on the test GPU).
+- The bindless texture queue no longer uploads stale views; the view table no longer grows without bound; the pipeline library is mapped instead of read into memory.
+- An intermittent device loss was traced to the pipeline library file being replaced while mapped; fixed.
+
+- Translated shaders get clean-up passes over the finished module (dead code, constant folding, reuse of values, branch facts); the pack's host instruction count falls by about 43 %, worth about 20 ms of GPU time per frame on the test machine (`VICTORY_SHADER_OPT=0` turns them off).
+
+Most of the newer speed changes sit behind environment switches that are off
+by default (`VICTORY_LATE_WAIT`, `VICTORY_RELAY`, `VICTORY_WIDE_BACK`,
+`VICTORY_CARD_BUFFERS_MIN_MB`, `VICTORY_INPLACE`, `VICTORY_BVH_BUILDER`, ...).
+Each is described in a comment where it is read.
+
+### Known problems
+
+- Everything in shadow is black (see above).
+- The interior of the first gameplay room is sometimes not drawn after the cutscene hands over to gameplay.
+- Around 24 GB of memory is in use during play.
+- A few style lints are switched off for this fork in the workspace `Cargo.toml` until the newer code is tidied.
+- Many changes here are specific to this title and this GPU, and some are marked `shortcut:` in the code where they approximate what the console does.
+
+Everything below this line is upstream VIctory's own README, unchanged; its
+status section describes upstream, not this fork.
+
+---
+
+# VIctory
+
+Runs the title (Xbox Series X|S) natively on Windows, from files
+the user supplies.
+
+The title's x86-64 code runs unchanged inside our process; VIctory supplies
+the platform underneath it and converts the title's data, ahead of time where
+it can and on first use where it must (shaders). See
+[docs/architecture.md](docs/architecture.md).
+
+## Status (2026-11-23)
+
+**Not playable yet.** The title boots, runs its menus at its own 30 fps and
+loads the world, where rendering fails.
+
+| Stage | State |
+|-------|-------|
+| Boot, first-boot screens (accessibility, language, settings, legal) | works, 30 fps |
+| Intro video with sound | works |
+| Start screen, profile and saves | works |
+| Loading into the world (about 50 s) | works |
+| The world (first mission's intro) | reached and runs with indirect draws; its title card renders, the scene after it is still dark; 0.5-1.8 s per frame |
+
+Tested on one machine: Windows 11, AMD RX 6700 XT.
+
+> **Warning.** Entering the world on a real GPU can currently hang it, and
+> Windows then resets the display driver (every monitor goes black for a
+> moment). To look further, use a diagnostics build with
+> `VICTORY_D3D12_WARP=1`, which renders on the software adapter.
+
+What each part does today and what it still needs:
+
+| Subsystem | Today | Needs |
+|-----------|-------|-------|
+| Loader | Runs the title's executable and its DLLs in our process; crash reports name the faulting code and are kept in `crashes.log` | – |
+| Runtime services | One signed-in offline user, licences, packages, saves that survive a kill at any step, text entry dialog | Speech is silent; the dialog and relaunch are untested live |
+| Network | Offline by design: the title cannot reach the network | – |
+| Files and streaming | Archives and streamed data read, zlib and BCPack decoded in parallel | Loading is limited by writes into title memory |
+| Input | XInput pads, keyboard, keyboard stand-in pad | Trigger rumble |
+| Audio | Menu, video and loading sound; XMA voices and Opus streams decode | Reverb is silent; Opus results unverified against the title |
+| GPU: menus | Draws, compute and presentation on host D3D12; only changed title memory is copied | Frame pacing drifts on one screen in release builds |
+| GPU: world | Mesh pipelines, shader-written buffers, descriptor lifetimes, indirect execution (arguments clamped), pipelines made by worker threads and kept on disk | Most of the scene is still missing (untranslated shaders drop draws); frames take seconds; real queries, depth bounds, HDR and scaling are missing |
+| Shaders | Console GPU code recompiled to DXIL at first use, cached on disk. Menus: all. World: mesh 8,191 of 8,506, vertex/pixel 10,617 of 12,346, compute 1,643 of 2,539 | 64-bit image atomics, merged geometry stages, the ray-tracing builder's shaders; some compute programs need a GPU with 64-lane waves |
+| Textures | Console tiled layouts and detiling for the modes the title uses | Render-target metadata planes |
+| Series S mode | Runs through the menus to the loading screen | The world, as above |
+
+## Getting started
+
+Requirements: Windows 10/11 x64, a CPU with AVX2, a Direct3D 12 GPU with
+shader model 6.6 (and mesh shaders for the world), Rust (pinned in
+`rust-toolchain.toml`).
+
+The title also needs several GiB of available Windows commit at startup.
+Check **Committed** under **Task Manager → Performance → Memory**. If
+`crashes.log` reports Windows error 1455, close other applications or increase
+the Windows paging file size, then retry.
+
+```powershell
+cargo xtask install-hooks                # asset-policy check on every commit
+copy victory.example.toml victory.toml   # then set your paths (outside the repo)
+cargo test --workspace                   # needs no game data
+cargo run -p victory -- config           # check your paths
+```
+
+Run the title:
+
+```powershell
+cargo build --release -p victory
+target\release\victory.exe run <game dir>\<the title's exe> --execute
+```
+
+The window caption shows the framerate. Saves, settings and `crashes.log`
+are kept under the data folder (default `%LOCALAPPDATA%\victory\data`), derived
+data under the cache folder.
+
+Input: XInput pads. With none connected the keyboard is a pad while the
+title's window has focus:
+
+| Keys | Pad |
+|------|-----|
+| W A S D / I J K L | left / right stick |
+| arrows | D-pad |
+| Enter, Backspace, X, Y | A, B, X, Y |
+| Q / E, Z / C | shoulders, triggers |
+| F / H | stick clicks |
+| Esc, Tab | Menu, View |
+
+## Commands
+
+```
+victory inspect <exe|dll> [--imports] [--exports]
+victory census [paths...] [--missing] [--strict]
+victory lib-exports <import.lib> [--list]
+victory shader-info [paths...] [--verbose] [--disasm]
+victory translate [paths...] [--validate] [--pipelines] [--list] [--jobs N]
+victory run <exe> [--execute] [--unimplemented trap|zero] [--strict]
+            [--console series-x|series-s] [-- <title arguments>]
+victory config
+```
+
+Logging: `VICTORY_LOG=victory_loader=trace,info` (a release build logs
+info and above).
+
+## Debugging
+
+A release build has no debugging aids. Build them in with
+
+```powershell
+cargo build --profile diag -p victory --features diagnostics   # target\diag\victory.exe
+```
+
+| Variable | Effect |
+|----------|--------|
+| `VICTORY_LOG=<target>=debug,...` | debug and trace output |
+| `VICTORY_STACKS=20,60` | every thread's stack at those seconds |
+| `VICTORY_WATCH=<rva>,...` | logs a title u32 when it changes |
+| `VICTORY_KEYS=30:Enter,35:X` | presses keys at those seconds, focus or not |
+| `VICTORY_CRASH_SAVE=<rva>:<len>,...` | saves title memory to the cache folder on a crash |
+| `VICTORY_CAPTURE=<dir>` | saves presented frames (powers of two, or `VICTORY_CAPTURE_FRAMES=<list>`) |
+| `VICTORY_DUMP_TARGETS=1` | with the two above, saves every render target of those frames |
+| `VICTORY_D3D12_DEBUG=1` | host debug layer |
+| `VICTORY_D3D12_GBV=1` | with the above, GPU-based validation (bad descriptor use reported, not faulted; slow) |
+| `VICTORY_D3D12_DRED=1` | on a GPU failure, the allocation hit and the commands in flight |
+| `VICTORY_PIPELINE_WAIT_MS=24` | reduce the per-frame wait for background pipeline creation from the default of 500 ms. A draw can be omitted until its pipeline is ready |
+| `VICTORY_SKIP_PIPELINES=<hash>,...` | omit draws and dispatches, including indirect ones, whose pipeline contains a listed 16-digit shader hash |
+| `VICTORY_GPU_TIMING=1` | with the above, each list of a submission run and timed on its own; slow lists logged with their slowest commands |
+| `VICTORY_D3D12_WARP=1` | host device on the software adapter (slow; cannot reset the driver) |
+| `VICTORY_SHADER_LOOP_LIMIT=<n>` | translated shader loops stop after `n` iterations per lane instead of 2^20 (own shader cache entries); if a lower `n` makes world frames much faster, loops hitting the limit are what makes them slow |
+| `VICTORY_AUDIO_CAPTURE=<file.wav>` | records what the title plays (our process only) |
+| `VICTORY_XMA_DUMP=<dir>` | saves the first 32 XMA voices' context and input |
+
+Every build appends crashes and host GPU failures to `crashes.log` in the
+title's data folder.
+
+## License
+
+GPL-3.0-or-later. See [LICENSE](LICENSE).

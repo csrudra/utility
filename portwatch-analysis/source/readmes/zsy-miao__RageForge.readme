@@ -1,0 +1,78 @@
+# RageForge
+
+Open-source toolkit for exploring Grand Theft Auto VI's RAGE engine files
+(`RPF9` archives and `TTPF` texture stores). GUI + CLI, Windows x64.
+
+[![Discord](https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/4MGdMd2Jh9)
+
+![RageForge preview](docs/preview.png)
+
+![RageForge World](docs/preview-world.png)
+
+## Features
+
+- **Explorer**: browse every archive by category (vehicles, weapons, characters,
+  props, world, audio, video...) or by archive, with search and sortable columns.
+- **World**: fly over the map in 3D. Map blocks stream around the camera with the
+  game's own LOD hierarchy (HD, LOD, SLOD1-3) up to 6 km, plus sky, time of day,
+  fog and sea. Interiors open as full 3D scenes.
+- **3D viewer** (GPU): textured models, orbit / pan / zoom, export to glTF (`.glb`).
+- **Textures** (`.ttpf`) decoded to images: AMD Gfx10/RDNA2 detiling + BC1–BC7.
+- **Audio** (AWC / Opus): play and export to WAV.
+- **Video** (Bink 2): info, extract `.bk2`, play with RAD's `binkplay`.
+- **Shaders**: RDNA2 pipeline cache parsed and disassembled (GFX10.3 ISA, pseudo-HLSL).
+- **Text / XML / hex** viewers and raw extraction for everything else.
+
+## Download
+
+Grab the latest build from [Releases](../../releases):
+
+- `RageForge-gui-win-x64.zip` — the desktop app
+- `RageForge-cli-win-x64.zip` — the command line tool
+
+Windows x64, self-contained, nothing to install.
+
+## CLI
+
+```
+rageforge index <gameRoot>                        Index every archive (cached)
+rageforge categories <gameRoot>                   Categories with item counts
+rageforge archives <gameRoot>                     Archives with item counts
+rageforge list <gameRoot> [category] [n]          List indexed files of a category
+rageforge search <gameRoot> <text> [n]            Search every archive by name
+rageforge show <gameRoot> <name>                  Preview a model, textures, audio, video, place or text
+rageforge export <gameRoot> <name> <out>          Model .glb, texture dictionary .png, sound .wav, video .bk2,
+                                                  interior or map block .glb, text, otherwise raw
+rageforge export-all <gameRoot> <category> <out>  Export every file of a category
+rageforge export-area <gameRoot> <block> <radius> <out>  A whole map area as one .glb
+rageforge info <archive.rpf>                      Show an RPF9 header
+rageforge ttpf list <store.ttpf>                  List textures in a store
+rageforge ttpf dump <store.ttpf> <out>            Decode every texture to PNG
+rageforge shaders <shaders.rpf> [n] [--hlsl]      Shader cache summary or one shader's disassembly
+```
+
+Run `rageforge` without arguments for the full list.
+
+## Build from source
+
+Requires the .NET 10 SDK.
+
+```
+dotnet build RageForge.slnx -c Release
+```
+
+## Community
+
+Questions, bug reports and findings: join the [Discord](https://discord.gg/4MGdMd2Jh9).
+
+## License
+
+RageForge is licensed under the [GNU Lesser General Public License v3.0](LICENSE)
+(LGPL-3.0-only). The LGPL supplements the [GNU GPL v3.0](COPYING), included as required.
+
+## Status
+
+The RPF9 table of contents (file names and tree) is encrypted (AES-CBC) and its
+key is not yet public, so archive contents are read by carving rather than by the
+directory. Texture stores (`TTPF`) are fully decoded. See
+[docs/RPF9.md](docs/RPF9.md) for the format notes.

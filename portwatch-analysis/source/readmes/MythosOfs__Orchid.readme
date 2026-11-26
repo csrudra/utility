@@ -1,0 +1,410 @@
+<!--
+# SPDX-FileCopyrightText: Copyright 2025 Eden Emulator Project
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# SPDX-FileCopyrightText: 2018 yuzu Emulator Project
+# SPDX-License-Identifier: GPL-2.0-or-later
+-->
+<!-- lang: en-GB -->
+
+<h1 align="center">
+  <br>
+  <img src="dist/Orchid.png" alt="Orchid" width="200">
+  <br>
+  <b>Orchid</b>
+  <br>
+</h1>
+
+<h4 align="center">A very experimental Switch 2 emulator. Orchid started from
+<a href="https://github.com/zortos293/Eglantine">Eglantine</a> and has grown into its own project, with fixes aimed at
+Mario Tennis Fever first, plus the shader, kernel and graphics work other games need.</h4>
+
+> [!NOTE]
+> Orchid is an independent project. Problems with these builds are not caused by the Eglantine
+> or Eden developers, so please do not report them there.
+
+<p align="center">
+  <a href="#project-scope">Project scope</a> |
+  <a href="#branches-and-builds">Branches and builds</a> |
+  <a href="#what-orchid-adds">What Orchid adds</a> |
+  <a href="#performance-and-compatibility">Performance</a> |
+  <a href="#showcase">Showcase</a> |
+  <a href="#download">Download</a> |
+  <a href="#build-the-newest-commit-yourself">Build it yourself</a> |
+  <a href="#documentation">Documentation</a> |
+  <a href="#license">License</a>
+</p>
+
+Orchid opens NXFormat (`.nx`) game archives directly from the file picker or a game directory.
+The reader comes from [nxformat](https://github.com/fab918/nxformat), with the loader adapted
+from [Lichii](https://github.com/sheepbun/Lichii/tree/2f0c8df47af2a4de0477839ed54c80b260377ea8).
+
+## Project scope
+
+Orchid's support and development focus is on demonstrably improving these games:
+
+- Mario Tennis Fever
+- Hyrule Warriors: Age of Imprisonment
+- Pokémon Pokopia
+- Star Fox
+- Super Mario Bros. Wonder
+- Yoshi and the Mysterious Book
+- Donkey Kong Bananza
+- Kirby Air Riders
+- Kirby and the Forgotten Land
+- Xenoblade Chronicles: Definitive Edition, 2 and X: Definitive Edition (Switch 1 and Switch 2
+  Editions)
+- Orbitals
+
+These are the project's target games; inclusion here does not mean a game is already fully
+playable or free of issues. See [Performance and compatibility](#performance-and-compatibility)
+for the currently reported results and their test conditions.
+
+## Community discussions
+
+Use [Ideas](https://github.com/MythosOfs/Orchid/discussions/categories/ideas) for feature suggestions,
+[Game requests](https://github.com/MythosOfs/Orchid/discussions/categories/game-requests) for game
+support requests, and [Q&A](https://github.com/MythosOfs/Orchid/discussions/categories/q-a) for help.
+Upvote an existing discussion to show support and save comments for new information.
+
+The maintainer (@MythosOfs) decides which proposals go on the roadmap or become tracked issues.
+Switch 2 exclusives get priority. Report reproducible bugs in [Issues](https://github.com/MythosOfs/Orchid/issues).
+
+## Branches and builds
+
+| Branch | Channel | Release name |
+|---|---|---|
+| `main` | stable | `v0.<minor>.<patch>`, regular release |
+
+`.github/version` sets the minor version; CI counts the patch up. In 0.5 all branches were merged
+into `main` (formerly `mario-tennis-fever`), including the experimental `mario-tennis-fever-perf`.
+
+Commits land often, but they do not start a build. Release builds are started by hand
+(Actions > release-binaries > Run workflow), so the newest release can be several commits behind
+its branch. To run the newest commit, [build it yourself](#build-the-newest-commit-yourself).
+
+## What Orchid adds
+
+Compared with the Eglantine it started from:
+
+- **Mario Tennis Fever:** startup crash fixed, the NVIDIA crash at match start fixed, and per-game
+  defaults (low GPU accuracy, balanced fences).
+- **Shaders:** many more Ampere instructions lowered (IMAD.WIDE, IADD3 carries, LEA.HI, F2I.U64,
+  I2F from 64-bit pairs, bindless TEX modes and others), mainly from the Fire Emblem: Fortune's
+  Weave bring-up.
+- **System:** Switch 2 built-in fonts served from their own shared memory; kernel thread start and
+  finalize races fixed.
+- **Graphics:** query reports flushed before MME DMA reads, layered cross-format texture copies,
+  separate surface and texture descriptor buffers, geometry shaders and framebuffers kept within
+  device limits.
+- **Experimental branch only:** a performance pass (buffer cache, puller, memory trap and kernel
+  locking changes). Faster on some systems, less tested.
+- **Updates:** release builds check this repository for updates and only offer builds of their
+  own channel.
+
+## Home Menu startup
+
+Run `orchid --home-menu` or choose **Tools > Launch Applet > Home Menu** in the Qt frontend.
+Switch 2 Home Menu firmware is required to launch Switch 2 titles from the applet. Add
+your Switch 2 game folder to Orchid's game list so the applet can find its titles. To relaunch a
+game started from the Switch 2 Home Menu, exit it and select it again from Home Menu. In-game
+restart and program switching are currently unavailable for these launches.
+
+## Performance and compatibility
+
+> [!NOTE]
+> Measured by hand on Version 0.9.5 on one PC: AMD Ryzen 7 5800X3D, AMD Radeon RX 9070 XT,
+> 32 GB RAM, CachyOS (Linux 7.x, Mesa RADV from git), 1x resolution scaling. Other hardware
+> will differ.
+
+| Game | FPS | Notes |
+|---|---|---|
+| Hyrule Warriors: Age of Imprisonment | 60 | drops to 20-40 in Combat |
+| Donkey Kong Bananza | 30-40, 15-25 in heavy areas | 30FPS Mod recommended (Built in) |
+| Mario Tennis Fever | 60 | runs flawlessly |
+| Yoshi and the Mysterious Book | 60 | First Level tested; optional fixed-resolution patch, 1080p/1440p/4K (Built in) |
+| Super Mario Bros. Wonder | 160 | custom FPS targets (only set what you can hit) |
+| Star Fox | 60 |  |
+| Pokémon Pokopia | 60 | |
+| Orbitals | 30 | Background Texture flickering |
+| Kirby and the Forgotten Land – Nintendo Switch 2 Edition + Star-Crossed World | 60 | Playable; reported 100 % completion on v0.12.0 (Windows, Vulkan, NVIDIA) |
+| Kirby Air Riders |DO NOT PLAY MOST LIKELY CRASHES YOUR PC 30 SECONDS IN A RACE|
+
+### Known issues
+
+- Native compute storage and DLSS dispatch tracing are validated on CPU tests and diagnostics only so far. No NVIDIA GLASM same-runtime mixed test or delayed-setter control has run on real hardware, and a full DLSS dispatch sequence was not demonstrated in the tested real-game scenes: Fortune's Weave showed only output evidence and Star Fox never produced the expected program keys in the tested run. On AMD radeonsi, only the normal GLSL SSBO configuration is observed (3774 configure records; gameplay stopped on a memory assertion). The OpenGL mode checker passed its CPU fixtures and a negative control, and Mario Tennis Fever rendered visibly correct models and arena at 1x in the A/B run on the pre-rebase build. Real DLSS behavior in games is not yet confirmed.
+
+## Showcase
+
+Community-reported playthrough highlights on current releases.
+
+![Kirby and the Forgotten Land – Nintendo Switch 2 Edition + Star-Crossed World final boss title card on Orchid v0.12.0 at 60 FPS](docs/screenshots/kirby-forgotten-land-boss-statusbar.webp)
+
+<table>
+  <tr>
+    <td width="49%"><img src="docs/screenshots/kirby-forgotten-land-victory.webp" alt="Kirby and the Forgotten Land Ultimate Cup Z EX victory screen in Orchid v0.12.0"></td>
+    <td width="51%"><img src="docs/screenshots/kirby-forgotten-land-completion.webp" alt="Kirby and the Forgotten Land Star-Crossed World completion screen"></td>
+  </tr>
+</table>
+
+*Kirby and the Forgotten Land – Nintendo Switch 2 Edition + Star-Crossed World, played to 100 % completion on Orchid v0.12.0 (Windows, Vulkan, NVIDIA). Screenshots by [@GameplaysconElPepe](https://github.com/GameplaysconElPepe).*
+
+## Download
+
+Releases are on the [releases page](https://github.com/MythosOfs/Orchid/releases). Each one has:
+
+| File | For |
+|---|---|
+| `orchid-<version>-linux-x86_64-pgo.AppImage` | Linux, profile-guided build (preferred) |
+| `orchid-<version>-linux-x86_64.AppImage` | Linux |
+| `orchid-<version>-windows-x86_64-pgo.zip` | Windows, profile-guided MinGW build (preferred) |
+| `orchid-<version>-windows-x86_64.zip` | Windows |
+| `orchid-<version>-macos-arm64.zip` | macOS 15+ on Apple Silicon, experimental |
+
+Linux: `chmod +x` the AppImage and run it; it needs glibc 2.39 or newer. Windows: extract the zip
+and run `orchid.exe`.
+
+## Build the newest commit yourself
+
+For repeated local Linux testing, use the [faster development build](docs/Build.md#faster-local-linux-test-builds)
+with `./tools/build-local.sh` after installing the dependencies and `ccache`.
+
+Linux. Install the dependencies once:
+
+```sh
+# Arch / CachyOS
+sudo pacman -Syu --needed base-devel boost catch2 cmake enet ffmpeg fmt git glslang libzip lz4 \
+  ninja nlohmann-json openssl opus qt6-base qt6-multimedia qt6-charts qt6-wayland sdl3 zlib zstd \
+  zip unzip vulkan-headers vulkan-utility-libraries libusb spirv-tools spirv-headers
+```
+
+Ubuntu 26.04, Debian 13 and other distributions: see [docs/Deps.md](docs/Deps.md).
+
+Clone `main`, configure and build:
+
+```sh
+git clone https://github.com/MythosOfs/Orchid.git
+cd Orchid
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DYUZU_TESTS=OFF \
+  -DVulkanHeaders_FORCE_BUNDLED=ON -DVulkanUtilityLibraries_FORCE_BUNDLED=ON
+cmake --build build
+./build/bin/orchid
+```
+
+Later, to move to the newest commit (only changed files get rebuilt):
+
+```sh
+git pull
+cmake --build build
+```
+
+The first configure downloads further dependencies into `.cache/cpm`; the two Vulkan flags use the
+bundled headers, as the release builds do, so a newer system Vulkan package cannot break the build. A self-built binary has no
+update checker; `git pull` is the update. Windows (MSVC) and macOS builds are described in the
+[build guide](docs/Build.md).
+
+## Documentation
+
+- [User handbook](docs/user/README.md)
+- [Build guide](docs/Build.md) and [dependencies](docs/Deps.md)
+- [Fire Emblem: Fortune's Weave bring-up notes](docs/FE_FORTUNES_WEAVE.md)
+- [Switch 2 loading notes](NX2_NOTES.md)
+- [Development tools](tools)
+- [Fork scan: taking fixes from Eglantine forks](docs/ForkScan.md)
+
+## Credits
+
+- [zortos293/Lichii](https://github.com/zortos293/Lichii) (Zortos, with capy-ai): release compute IR and SPIR-V backing storage before synchronous driver compilation, adapted from [fd4ce24c9b9390e660be345b467521e7fb08dfd3](https://github.com/zortos293/Lichii/commit/fd4ce24c9b9390e660be345b467521e7fb08dfd3).
+- [Walnutoast830](https://github.com/Walnutoast830): the fixed-resolution patches for Yoshi and the Mysterious Book (1080p, 1440p or 4K without the game's own upscaling, with no anti-aliasing, FXAA or DLAA, HUD size kept), built in as the game's add-on "Fixed resolution (built-in, by Walnutoast830)" ([issue 144](https://github.com/MythosOfs/Orchid/issues/144)).
+
+Orchid takes fixes from Eglantine and its forks; after every release
+[tools/fork-scan.sh](docs/ForkScan.md) lists what they fixed since. Each ported commit names its
+source and author in its message.
+
+- [zortos293/Eglantine](https://github.com/zortos293/Eglantine) (Zortos), the project Orchid
+  started from: paged scalar guest memory access, SPSCQueue value lifetime, timed Event waits on
+  Windows, GPU teardown order, buffer cache and query fixes, native Ampere nanosecond timestamps,
+  the separate pipeline cache file names, an empty content provider for a fresh System, the NPDM
+  platform reset on reload, update control metadata in NUPs, and keeping a Switch 2 Edition base
+  program over a legacy update.
+  Reiixan: balance shader build progress when a queued Vulkan compute pipeline build is dropped.
+  Radu Ursache: no mesh pipelines without `VK_EXT_mesh_shader`.
+  Kaj (co-authored with Claude Opus 5.5): skip guest uploads for new render targets fully
+  overwritten by a clear, adapted with framebuffer render-area, transformed-scissor,
+  linear-attachment and zero-layer guards from
+  [27226d2568c99c70cf78aa37adaf98b60457b2e5](https://github.com/zortos293/Eglantine/commit/27226d2568c99c70cf78aa37adaf98b60457b2e5).
+  Paulo Tumabing: 32-bit global `ATOM.CAS`, adapted to Orchid's storage lowering and atomic routing.
+  Daniel Jesús Martín Flores: fix unsigned bitfield folding at the edges of a 32-bit word.
+- [kurebeyashi-noah/Lichii](https://github.com/kurebeyashi-noah/Lichii) (Kurebayashi): bind both words
+  of 64-bit texture-handle reads and preserve immediate phi operands in SPIR-V.
+- [tomvita/Lichii](https://github.com/tomvita/Lichii) (tomvita): a cancelled game list rescan keeps
+  the registered updates, so Restart boots the updated version.
+- [Djihads80/Eglantine](https://github.com/Djihads80/Eglantine) and its contributors: merged
+  regularly. Idle staging buffers freed (Takoroka), the RangeSet empty-query guard (néo Luigi),
+  test fixes (kraibse).
+- Fork scan of 2026-11-21, audio and texture upload fixes (Cubeb and SDL streams reopen after
+  losing the host device, ASTC opacity scan without a copy, inline uploads in native tiling); each
+  commit names its source:
+  [tomvita/Lichii](https://github.com/tomvita/Lichii) (tomvita),
+  [atmanli/Lichii](https://github.com/atmanli/Lichii) (Luke Evanson),
+  [gamehhh7/Lichii](https://github.com/gamehhh7/Lichii) (SmileyTatsu) and
+  [zortos293/Eglantine](https://github.com/zortos293/Eglantine) (zortos293).
+- Fork scan of 2026-11-21, native compute storage binding safeguards and the opt-in DLSS
+  dispatch trace; each commit names its source:
+  [zortos293/Eglantine](https://github.com/zortos293/Eglantine) (Zortos, bindless handle words
+  read from the host-aligned storage base [e0a04ce8bb](https://github.com/zortos293/Eglantine/commit/e0a04ce8bbeb33408679d8bc3e3e7b44c5b34c14),
+  tracker rules and pass fingerprints b9d6b4a71e and 2c1314aa04),
+  [gamehhh7/Lichii](https://github.com/gamehhh7/Lichii) (SmileyTatsu,
+  [1dda300da0](https://github.com/gamehhh7/Lichii/commit/1dda300da0), derived from rdenno's
+  8820bb79aa relanded upstream), Duck912 (skipped-dispatch launch bound 85001681e0).
+- Fork scan of 2026-11-21, texture lifetime and guest memory fixes (unregistering and writing back
+  images through their own GPU address space, scratch allocation recovery, sparse segments that
+  no longer translate, clear coverage, targets padded to whole GOBs, guest memory span checks,
+  race-free Dynarmic code-page invalidation); each commit names its source:
+  [zortos293/Eglantine](https://github.com/zortos293/Eglantine) (Zortos, zortos293, RomainROCH,
+  Kaj, DuskDarf1).
+- Fork scan of 2026-11-11, 68 fixes for correctness, stability and AMD hosts (audio ADPCM decode,
+  guest memory and address space bookkeeping, shutdown hangs, syncpoint waits behind Yoshi's movie
+  player abort, Vulkan barriers and samplers, shader NaN and atomics handling, texture cache
+  ordering, buffer cache lookups in Donkey Kong Bananza); each commit names its source:
+  [zortos293/Eglantine](https://github.com/zortos293/Eglantine) (Zortos, zorudikku, cerroverb,
+  jpkto, Jay, monsterlag, vouion, Luke Evanson, 15 fixes);
+  [cerroverb/Lichii](https://github.com/cerroverb/Lichii) (cerroverb);
+  [Djihads80/Eglantine](https://github.com/Djihads80/Eglantine) (kraibse, Felipe Lima, Kaj, 3
+  fixes); [tlombardo1-sudo/Lichii](https://github.com/tlombardo1-sudo/Lichii) (Claude, 2 fixes);
+  [K-code-AI/Greenhat-Lichii](https://github.com/K-code-AI/Greenhat-Lichii) (Dr. Sergio);
+  [JoaoVSF99/Lichii](https://github.com/JoaoVSF99/Lichii) (JoaoVSF99);
+  [JuliusBairaktaris/Lichii](https://github.com/JuliusBairaktaris/Lichii) (Julius Bairaktaris);
+  [mariohbd/Lichii](https://github.com/mariohbd/Lichii) (janvitos, Mario, 2 fixes);
+  [rdenno/Eglantine](https://github.com/rdenno/Eglantine) (AManWithAPlan, kraibse, Rhys Denno,
+  rdenno, 4 fixes); [VilmaH/Lichii](https://github.com/VilmaH/Lichii) (viltsu);
+  [dylanflandpro/Lichii](https://github.com/dylanflandpro/Lichii) (dylanflandpro);
+  [sebjager/Eglantine](https://github.com/sebjager/Eglantine) (snowstormxd, Sssnowyyy, 2 fixes);
+  [anthonyloukinas/Lichii](https://github.com/anthonyloukinas/Lichii) (Anthony Loukinas);
+  [marcochiusso-lgtm/Lichii](https://github.com/marcochiusso-lgtm/Lichii) (marcusbooker77,
+  RomainROCH, 2 fixes);
+  [elkarbeenus/Lichii_improvments_ram](https://github.com/elkarbeenus/Lichii_improvments_ram)
+  (zortos293, Claude, 2 fixes); [arnaudcouturier/Lichii](https://github.com/arnaudcouturier/Lichii)
+  (Arnaud Couturier); [ThatGuyMcd/Lichii-TGM](https://github.com/ThatGuyMcd/Lichii-TGM) (Krim,
+  Julius Bairaktaris, 2 fixes); [javocsoft/Lichii](https://github.com/javocsoft/Lichii) (JavocSoft);
+  [Marssvoodoo/Lichii](https://github.com/Marssvoodoo/Lichii) (marcusbooker77);
+  [phalcoon/Lichii](https://github.com/phalcoon/Lichii) (zortos293);
+  [AmateurWizrd/lichii-graft](https://github.com/AmateurWizrd/lichii-graft) (AmateurWizrd, Julius
+  Bairaktaris, 3 fixes); [vouion/Lichii](https://github.com/vouion/Lichii) (Gavin Schiller);
+  [dylandeheer/Stitch](https://github.com/dylandeheer/Stitch) (Dylan de Heer);
+  [bunbeans2-arch/Lichii](https://github.com/bunbeans2-arch/Lichii) (sharkiix);
+  [adamuremek/Lichii](https://github.com/adamuremek/Lichii) (Copilot App);
+  [WareSven/Lichii](https://github.com/WareSven/Lichii) (Codex);
+  [blackxzin/Lichii](https://github.com/blackxzin/Lichii) (blackxzin);
+  [Mvii7/Dozerr](https://github.com/Mvii7/Dozerr) (Claude, 2 fixes);
+  [vv4k4l/Eglantine](https://github.com/vv4k4l/Eglantine) (justr4mzi, notsapinho, thatirishguyyy, 3
+  fixes); [Melon1155/Lichii](https://github.com/Melon1155/Lichii) (jpkto);
+  [drizzt/Lichii](https://github.com/drizzt/Lichii) (Matt Artist);
+  [mja00/Lichii](https://github.com/mja00/Lichii) (Matt Artist);
+  [auz466/Lichiistein](https://github.com/auz466/Lichiistein) (CloudP4bbs, Frizti, 2 fixes);
+  [GoatTech-42/Lichii](https://github.com/GoatTech-42/Lichii) (Luke Evanson);
+  [sexyboomer888-gif/Lichii](https://github.com/sexyboomer888-gif/Lichii) (sexyboomer888-gif);
+  [Uaeriop/Lichii](https://github.com/Uaeriop/Lichii) (bboerge);
+  [sheepbun/lichii-bunx2](https://github.com/sheepbun/lichii-bunx2) (sheepbun).
+- [ZnOw01/Primrose](https://github.com/ZnOw01/Primrose) (ZnOw01): shader cache invalidation
+  lifetime fix, adapted to renderer-thread retirement.
+- [exploitizm/Eglantine](https://github.com/exploitizm/Eglantine) (exploitizm): signed IADD32
+  negative-overflow boundary fix for GLSL and SPIR-V, adapted from
+  [c2f9811073bfe617524d4413742a4d4406fd287a](https://github.com/exploitizm/Eglantine/commit/c2f9811073bfe617524d4413742a4d4406fd287a).
+- [Selevet Eglantine](https://github.com/sylvieistaken/selevet-eglantine) (sylvieistaken): the
+  windowed GPU mapping table diff, hot loop shortcuts, F2I, local spill and texture query lowering,
+  device memory rebuild on layout changes, decoder end of stream, Windows commit retries, and the
+  GPU wait knobs (`EDEN_NX2_GPU_WAIT_SPIN_US`, `EDEN_NX2_BACK_SPIN`, `EDEN_NX2_ACQUIRE_QUEUED`,
+  `EDEN_NX2_SWAP_STABLE`, `EDEN_NX2_AVX512`).
+- [PokeDinner](https://git.eden-emu.dev/Franseven/PokeDinner-a-Eglantine-Fork) (Franseven,
+  [mirror](https://github.com/Apollo422/PokeDinner)), partly from Eden-NS2: any cache hint on
+  native LDG, SUST with a partial channel mask, `EDEN_AUTO_BUTTONS`.
+- Forks of those: Dee1, Greencus and exploitizm (audio manager lifetime, macro binds past the
+  start table), LucyferDev (A64 saturating shift and multiply-accumulate instructions), FZout (page
+  table block ids, game list titles), sagaopc (NUP directory cycles), Quixomatic (eden-cli, Switch 2
+  module names), YLTai (SDL motion after reconnect), Aidan Kinzett and oledz-i (NUP detection,
+  geometry stream 0), NicholasBly and ominixisboss (dynarmic), kipavy (storage CAS loop),
+  adamhahnHU and arisqz (sparse layered images), Pavel Barabanov and andrewleeog (F2I bits, host1x
+  syncpoint actions), MFS-code (Switch 2 GOB order), CarlosKeese and Dennys Kaluzny Pereira
+  (lowering), failaip12 (memory manager bounds).
+- After 0.6.3: godpow and its contributors nowhere02, xDarkWindx, Duck912, ZnOw01 and CloudP4bbs
+  (buffer, texture and staging cache guards, descriptor growth, GPU split wake-up recovery, NPad
+  update filter), failaip12 via cira0100 (data races, UBSan fixes, audio and SDL locking),
+  monteger8 for adamd (Donkey Kong Bananza buffer cache skips, indirect draw reset by hash), Aidan
+  Kinzett (NV12 video decoder), Jonas via jojo-chaechae (x64 call reach, Switch 2 channel setup),
+  SavageCore (mod root guards), cblock85, christianball123, Khobzpro, larryliu985, Doughston
+  (n-popescu) and Xnos666.
+- After 0.7.0: Zortos (native BRA.U, register-handle image access, uniform shifts, global memory
+  helpers, the H.264 decoder reset, Aftermath dumps, Switch 2 mixer stream audio), zirulo via Zortos
+  (the Ocarina of Time boot fix), Paulo Rossatto (loose base dumps, GPU-only regions, 2D blit
+  formats), Raikaru (ssl:s contexts and socket timeouts), Mcm190 (H.264 packet framing), Yuri Olive
+  (decoder end of stream), rdenno (fence download ranges), kraibse (tessellation pipelines), a55uka
+  (contentless NUP sections), Andreas Heider (ANV barriers), Aidan Kinzett (button glyphs), Jonas
+  (H0_NH1 halves), exploitizm (IMAD, I2F and FSET lowering, memory manager reference counts),
+  christianball123 (device index fallback), kdegonia-star (global atomic add) and Takoroka (ISETP.EX
+  and UIMAD.WIDE lowering).
+- rdenno: the Mario Tennis Fever fixes in 0.5.1.
+- [Drizz1le/Lichii](https://github.com/Drizz1le/Lichii) (Inc0rporate, with Claude Opus 5.5):
+  count nested shader returns before reordering demotes for AMD drivers.
+- [DrSergioRFilho/Lichii](https://github.com/DrSergioRFilho/Lichii) (Dr. Sergio, with Claude
+  Fable 5.1): apply LayeredFS mods to NUP titles without reapplying their merged update, from
+  [fe29f5c45ef8f8ab826f148827a1b3962c32d7d7](https://github.com/DrSergioRFilho/Lichii/commit/fe29f5c45ef8f8ab826f148827a1b3962c32d7d7).
+- [chuppatricky/Lichii](https://github.com/chuppatricky/Lichii) (chuppatricky, with Claude Opus 5.5):
+  shadow Ampere RED and SURED data registers, adapted from
+  [fc5d6dc31b49ae614d06c05302f4ee2abdf8ce4c](https://github.com/chuppatricky/Lichii/commit/fc5d6dc31b49ae614d06c05302f4ee2abdf8ce4c).
+- [SoyMoikas/Eglantine](https://github.com/SoyMoikas/Eglantine) (SoyMoikas): uniform-base
+  native Ampere local stores and loads, adapted to Orchid's existing vector lowering and register
+  shadowing from
+  [3c30f286d9631581ea3611c0f30eae46e7f60694](https://github.com/SoyMoikas/Eglantine/commit/3c30f286d9631581ea3611c0f30eae46e7f60694)
+  and
+  [8c06623a4651e5f31d7297932f6b9887dfea9006](https://github.com/SoyMoikas/Eglantine/commit/8c06623a4651e5f31d7297932f6b9887dfea9006).
+- [Hydro74000/Edlws](https://github.com/Hydro74000/Edlws) (Hydro74000): make `UniqueFunction`
+  own copies of lvalue callables while moving rvalues, from
+  [dd8039f6afc92803938d641a484312931acae9ca](https://github.com/Hydro74000/Edlws/commit/dd8039f6afc92803938d641a484312931acae9ca).
+- [DrSergioRFilho/Lichii](https://github.com/DrSergioRFilho/Lichii) (Dr. Sergio,
+  with Claude Fable 5.1): check nested config array bounds against the innermost array, from
+  [08d3388f0f5496be67dd5f83dfdcddd0fcd59358](https://github.com/DrSergioRFilho/Lichii/commit/08d3388f0f5496be67dd5f83dfdcddd0fcd59358).
+- [Shenopi/Lichii](https://github.com/Shenopi/Lichii) (999sian): preserve active custom settings
+  while reloading global configuration, adapted from the config-only changes in
+  [88ffd1f312f9a38fd45575dc8e1c7d66ef9b4f6e](https://github.com/Shenopi/Lichii/commit/88ffd1f312f9a38fd45575dc8e1c7d66ef9b4f6e).
+- [trianglebraindev/Lichii](https://github.com/trianglebraindev/Lichii) (trianglebraindev,
+  with Claude Opus 5.5): two-source `F2IP.U8.F32` byte packing, adapted to Orchid's register
+  shadowing from
+  [ac82c78b5ca4cfbcb11e3043f05a3354f444f027](https://github.com/trianglebraindev/Lichii/commit/ac82c78b5ca4cfbcb11e3043f05a3354f444f027).
+
+- [leadaenima/Lichii](https://github.com/leadaenima/Lichii) (Cursor Agent, co-authored with
+  leadaenima): AMDVLK dynamic subgroup shuffle workaround, adapted from
+  [957913cf14ca1e3776a4984151b63434af543217](https://github.com/leadaenima/Lichii/commit/957913cf14ca1e3776a4984151b63434af543217)
+  and [201450e90a87b494a8d1dc34d32558033a715438](https://github.com/leadaenima/Lichii/commit/201450e90a87b494a8d1dc34d32558033a715438).
+  Graphics use the 32-lane broadcast fallback only when subgroup size 32 can be enforced for
+  that stage. Compute and unsupported graphics stages retain Shuffle; Qualcomm keeps its
+  existing full-subgroup fallback. Pipeline hash diagnostics are omitted.
+- Host and container fixes of the 2026-11-21 fork scan:
+  [zortos293/Eglantine](https://github.com/zortos293/Eglantine) (Daniel Jesús Martín Flores: KIP
+  section, BLZ and NUP parsing, orphaned profile scan, play time and config saves; goof787lord:
+  range map lookups; Luke Evanson: unmapped-write log throttle; Zortos: Joy-Con assignment,
+  sampler fallback, borderless fullscreen, controller Cancel),
+  [Lancito01/Lichii](https://github.com/Lancito01/Lichii) (Andy: motion feedback without integral
+  term), [dzervas/Lichii](https://github.com/dzervas/Lichii) (Dimitris Zervas: Windows partial
+  unmap protections) and [luizIK/Kizuna](https://github.com/luizIK/Kizuna) (Frizti: kernel
+  shutdown order, present device loss). Origins behind these: the sampler fallback comes from
+  [Frizti/Fritchii](https://github.com/Frizti/Fritchii) `ba590516ef`, the kernel shutdown order
+  from [zortos293/Lichii](https://github.com/zortos293/Lichii) #1932 (`a3b4397afd`, Zortos, with
+  ZeroOneTV's variant), the present device-loss handling from HeyListen `619a8d58c` (Yanis
+  Manseur).
+- Network, loader, audio, profile and game-list fixes of the fork-scan batch 1:
+  [zortos293/Eglantine](https://github.com/zortos293/Eglantine) (Zortos: would-block socket
+  logging, non-IPv4 socket domain logging, per-scan game-list patch cache, Switch 2 Edition add-on
+  matching; cerroverb: zero-product IMAD negated constant-buffer addend; Daniel Jesús Martín Flores:
+  duplicated XTS key handling, profile reset current user and numeric `-u` parsing; Dimitris Zervas:
+  real-time Null sink pacing; atk3001: audio controller boot volume),
+  [astraea-emu/nx2](https://github.com/astraea-emu/nx2) (astraea-emu: absent NPDM null check and
+  header tests), [inxomnyaa/Lichii](https://github.com/inxomnyaa/Lichii) (inxomnyaa: avoid folder
+  rescan on Show Game Name toggle) and [atmanli/Lichii](https://github.com/atmanli/Lichii) (Luke
+  Evanson: AM fallback language when control data is missing).
+
+## License
+
+GPLv3 or any later version, see [LICENSE.txt](LICENSE.txt). Started from
+[Eglantine](https://github.com/zortos293/Eglantine), which builds on
+[Eden](https://git.eden-emu.dev/eden-emu/eden), yuzu and Sudachi.

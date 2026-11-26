@@ -1,0 +1,341 @@
+<p align="center">
+  <img src="docs/media/banner.jpg" alt="xbased" width="820">
+</p>
+
+<p align="center">
+  <b>The original Xbox, on your PC.</b><br>
+  xbased is an original Xbox emulator for Windows and Linux.<br>
+  Free and open source, with a console-style dashboard.
+</p>
+
+<p align="center">
+  <b>New:</b> the official website, <a href="https://xbased-emu.com"><b>xbased-emu.com</b></a>, with the downloads, the
+  compatibility list and your own game reports (<a href="https://github.com/crazyriddler/xbased/issues/369">announcement</a>).
+</p>
+
+<p align="center">
+  <a href="https://xbased-emu.com"><img src="https://img.shields.io/badge/website-xbased--emu.com-6fd12a?style=for-the-badge&labelColor=0b1a06" alt="Website"></a>
+  <a href="https://github.com/crazyriddler/xbased/releases/latest"><img src="https://img.shields.io/github/v/release/crazyriddler/xbased?style=for-the-badge&color=6fd12a&labelColor=0b1a06&label=download" alt="Download"></a>
+  <img src="https://img.shields.io/badge/Windows-x64-6fd12a?style=for-the-badge&labelColor=0b1a06&logo=windows&logoColor=white" alt="Windows x64">
+  <img src="https://img.shields.io/badge/Linux-AppImage-6fd12a?style=for-the-badge&labelColor=0b1a06&logo=linux&logoColor=white" alt="Linux AppImage">
+  <img src="https://img.shields.io/badge/Vulkan-renderer-6fd12a?style=for-the-badge&labelColor=0b1a06&logo=vulkan&logoColor=white" alt="Vulkan">
+  <a href="COPYING"><img src="https://img.shields.io/badge/license-GPL--3.0-6fd12a?style=for-the-badge&labelColor=0b1a06" alt="GPL-3.0"></a>
+</p>
+
+<p align="center">
+  <a href="#download">Download</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#screenshots">Screenshots</a> ·
+  <a href="#getting-started">Getting started</a> ·
+  <a href="#building-from-source">Building</a> ·
+  <a href="#credits">Credits</a>
+</p>
+
+<!-- trailer -->
+https://github.com/user-attachments/assets/bf62adff-002a-4dc6-9b28-eee775181646
+
+<p align="center"><sub><a href="https://youtu.be/0Kq3bW7XKxI">Watch on YouTube</a> · <a href="https://github.com/crazyriddler/xbased/releases/download/v1.0/xbased-trailer-1080p60.mp4">Download in 1080p60</a></sub></p>
+<!-- /trailer -->
+
+---
+
+**xbased** runs original Xbox games on a PC with a reimplemented Xbox kernel,
+a high-level NV2A renderer on Vulkan and an accurate MCPX audio core, behind a
+console-style front end of its own.
+No BIOS, MCPX ROM or hard-disk image is needed.
+
+## Download
+
+| Platform | File | |
+|---|---|---|
+| **Windows** 10/11 (x64) | `xbased-1.2.15-windows-x64.zip` | Unzip anywhere and run `xbased.exe`. Portable: everything stays in its folder. |
+| **Linux** (x86-64) | `xbased-1.2.15-x86_64.AppImage` | `chmod +x` it and run. Ubuntu 22.04 or newer, or any distribution of the same age. |
+
+Get them from **[Releases](https://github.com/crazyriddler/xbased/releases/latest)**.
+
+**Requirements:** a GPU with Vulkan 1.1 or newer (1.3 recommended), a CPU with
+SSE4.1, and your own game images (ISO / XISO) dumped from discs you own.
+xbased doesn't include any copyrighted Xbox software.
+
+## Features
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### Like a console
+- **Console-style dashboard**: an animated green orb, drifting hexagons, 3D
+  transitions and navigation sounds.
+- **Gamepad, keyboard or mouse** everywhere; button prompts follow the device
+  you're using.
+- **Borderless full screen by default**, any resolution, ultrawide or portrait,
+  any DPI. On a 144 or 165 Hz monitor without G-Sync or FreeSync, full screen
+  can switch to the monitor's highest mode that's a multiple of 60 Hz
+  (Settings › Video › Full screen refresh), so every frame shows for the same
+  time.
+- **Overscan and crop**: hide a game's borders all round, or its sides and its
+  top and bottom apart, globally or per game; what's cut stays cut, also
+  beside a 4:3 picture.
+- **Exit from the gamepad**, with a confirmation.
+- **Automatic updates**: a new release is offered as xbased starts and
+  installs itself (Settings › Interface turns the check off and on).
+
+</td>
+<td width="50%" valign="top">
+
+### Your library
+- **Automatic box art** and the discs' own title icons.
+- **Big libraries**: hundreds of games across many folders and drives load
+  in the background (a counter shows how many so far) and are playable as
+  they come; the list is back at once the next time.
+- **Search and filters**: by name, publisher, year and region, typed on the
+  keyboard or on an on-screen keyboard with the gamepad. Order by name
+  (numbers first, then A to Z), publisher or year, and jump between letters
+  with the triggers (Z and C on the keyboard).
+- **Three views**: large covers, small covers or icons with names (the View
+  button or V).
+- **Favorites and the last played first**, each one can be turned off.
+- **A page per game**: play, load a state, settings, patches, controls; rename
+  it, pick your own cover image, hide it, or make a **desktop shortcut** that
+  starts it straight away (handy for Steam and other front ends).
+- **Disc images**: ISO, XISO and **CHD** (`chdman createdvd` or `createcd`).
+- **Extracted games**: a folder with the game's `default.xbe` and its files
+  plays as the disc, and shows in the library like an image.
+- **Memory manager**: your games' saves with their icons; export, import and
+  delete.
+- **Import from xemu**: xemu's saves copied in and re-signed so games accept
+  them (Memory, Y).
+- **Broad compatibility** with many games.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### Picture
+- **Internal resolution** up to 8x, aspect ratio (Auto follows the game's
+  own widescreen choice), widescreen and video modes.
+- **Hybrid shaders**: a new shader is drawn at once while its own builds in
+  the background, so games don't stutter compiling.
+- **Interface in 4:3** for bezels and frame shaders over a 4:3 picture.
+- **FXAA** and **anisotropic filtering** up to 16x.
+- **Upscaling**: bilinear or AMD FSR 1.
+- **Downsampling**: the high-resolution picture averaged back to the console's own
+  resolution (or 2x, 4x) for smooth edges with the original look.
+- **CRT filters**: soft scanlines, a classic TV, an arcade monitor.
+- Every setting **global or per game**.
+
+</td>
+<td valign="top">
+
+### Patches & mods
+- **Per-game patches**: 60/120 fps, widescreen, fixes and cheats, toggled per
+  game. Over 160 widescreen, 60 fps and 480p patches ship with it, plus a
+  widescreen database for 90 games that finds its patterns in your disc's
+  executable.
+- **Cheats for 500 games**: the Xbox scene's cheat files (.etm, .xbtf)
+  come with xbased and their options show up in each game's Mods & patches.
+  Add your own to `cheats/<TITLE ID>/`.
+- **Frame rate per game**: Original, up to 30, up to 60, up to 120 or
+  unlocked, where the game allows it (anything but Original can break a
+  game). Games with no frame cap of their own (they swap without waiting for
+  the screen) keep the console's 60 at Original. An unlocked game is held to
+  your monitor's refresh rate by default, never under 60 (Settings › Video ›
+  Uncapped games' limit).
+- **Downloaded content and title updates** copied into
+  `hdd/Partition1/TDATA/<title id>/` are signed for xbased as the game starts.
+- **Add your own**: drop the IPS patches shared online into
+  `mods/<TITLE ID>/` and they show up in the game's menu
+  ([MODS.md](mods/README.md)).
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### Save states & in-game menu
+- **10 save-state slots per game**, with pictures.
+- **In-game menu** with F1, or **Back + Start** / the **Guide** button on a
+  gamepad: states, settings, controls, restart, back to the dashboard.
+- **Shortcuts**: F5 quick save, F8 quick load, Tab fast forward, F2 pause,
+  F12 screenshot, F11 full screen; all configurable, with Ctrl, Alt or Shift
+  too, and on the controller as Guide or Back plus a button, the touchpad
+  or Share.
+
+</td>
+<td valign="top">
+
+### Controls, online, languages
+- **4 controller ports**: Automatic, any gamepad or the keyboard; remap every
+  button, per game too; dead zone and vibration; a Nintendo layout for
+  controllers with A on the right (A and B, X and Y swapped everywhere).
+- **Mouse as a stick**: player 1's mouse can move the left or right stick
+  (click the game to hold it, Esc lets it go), with its own sensitivity, per
+  game too, and its buttons can be assigned like keys.
+- **Xbox Communicator**: a voice headset in player 1's controller, your PC's
+  microphone and speakers, for games with voice chat or voice commands.
+- **Sticks like the Xbox controller's**: a modern stick's circle reaches the
+  Duke's full square, so diagonals register. Stick range and shape are set
+  on a screen that shows both sticks live, the range games expect and the
+  range yours reaches. Triggers get their own calibration screen too (dead
+  zone and full press).
+- **PAL games at 60 Hz**, as with the console's PAL-60 setting on; 50 Hz is
+  an option, for all games or one.
+- **Stereo or 5.1 surround**: the games' Dolby Digital mix, six channels
+  out (Settings › Audio; stereo by default).
+- **Online**: Insignia (the community's Xbox Live replacement), XLink Kai and
+  System Link on your network.
+- **11 languages**, your system's by default. Games start in your language,
+  or in English when the disc doesn't have it.
+
+</td>
+</tr>
+</table>
+
+## Screenshots
+
+<table>
+<tr>
+<td width="50%"><img src="docs/media/dashboard.jpg" alt="Dashboard"><p align="center"><sub>The dashboard</sub></p></td>
+<td width="50%"><img src="docs/media/library.jpg" alt="Library"><p align="center"><sub>Your library, with box art</sub></p></td>
+</tr>
+<tr>
+<td><img src="docs/media/game.jpg" alt="Game page"><p align="center"><sub>A game's page</sub></p></td>
+<td><img src="docs/media/game-settings.jpg" alt="Per-game settings"><p align="center"><sub>Per-game settings</sub></p></td>
+</tr>
+<tr>
+<td><img src="docs/media/patches.jpg" alt="Patches and mods"><p align="center"><sub>Patches & mods</sub></p></td>
+<td><img src="docs/media/states.jpg" alt="Save states"><p align="center"><sub>Save states with pictures</sub></p></td>
+</tr>
+<tr>
+<td><img src="docs/media/ingame-menu.jpg" alt="In-game menu"><p align="center"><sub>The in-game menu</sub></p></td>
+<td><img src="docs/media/crt.jpg" alt="CRT filter"><p align="center"><sub>A CRT filter</sub></p></td>
+</tr>
+<tr>
+<td><img src="docs/media/controls.jpg" alt="Controller ports"><p align="center"><sub>4 controller ports</sub></p></td>
+<td><img src="docs/media/shortcuts.jpg" alt="Shortcuts"><p align="center"><sub>Keyboard shortcuts</sub></p></td>
+</tr>
+<tr>
+<td><img src="docs/media/memory.jpg" alt="Memory manager"><p align="center"><sub>Memory manager</sub></p></td>
+<td><img src="docs/media/online.jpg" alt="Online"><p align="center"><sub>Online: Insignia, XLink Kai, System Link</sub></p></td>
+</tr>
+</table>
+
+<p align="center"><img src="docs/media/ultrawide.jpg" alt="Ultrawide" width="100%"><br><sub>Any screen: the dashboard at 21:9</sub></p>
+
+## Getting started
+
+1. Download xbased from [Releases](https://github.com/crazyriddler/xbased/releases/latest):
+   unzip it anywhere (Windows) or run the AppImage (Linux).
+2. Start it: the dashboard opens. In **Games**, choose **Add games** (the last
+   card, or A on an empty library) to open the file browser: go to the folder
+   with your disc images and press X to add it, or A on a single image to add
+   just that one. It works with a gamepad, the keyboard or the mouse, and
+   lists every drive or mounted disk with its free space.
+3. Choose a game in **Games**. Box art downloads automatically (it can be
+   turned off).
+
+Command line: `xbased <image.iso, .chd or a game's folder> [options]` starts a game directly; options
+are the same as the settings files' lines (`scale=2`, `uncap`, `crt=2`,
+`fullscreen=0`, `mod=<patch>`...). Settings are kept in `xbased.ini` (global)
+and `games/<TITLE ID>.<version>.ini` (per game) beside the executable on
+Windows, in `~/.local/share/xbased/` on Linux.
+
+### Default keyboard controls
+
+| Xbox | Key | Xbox | Key |
+|---|---|---|---|
+| A / B / X / Y | Space / Left Shift / Q / E | Left stick | W A S D |
+| Black / White | C / Z | Right stick | I J K L |
+| Left / right trigger | 1 / 3 | D-pad | Arrow keys |
+| Start / Back | Enter / Backspace | Stick clicks | F / H |
+
+**Shortcuts:** F1 menu, F5 quick save, F8 quick load (Shift: slot 2), Tab fast
+forward (hold), F2 pause, F12 screenshot, F11 full screen. On a gamepad,
+Back + Start or a tap of the Guide button opens the menu and Share takes a
+screenshot. In Settings › Shortcuts any of them can be a key with Ctrl, Alt
+or Shift, and on the controller Guide plus a button (held: the game doesn't
+see that button), the touchpad or Share. Those are buttons the Xbox
+controller doesn't have, so no game uses them. Controllers without a Guide
+button can use Back plus a button instead: the game sees Back pressed, but
+not the button that goes with it.
+
+### Playing on Insignia
+
+[Insignia](https://insignia.live) is the community's free Xbox Live
+replacement. To play on it:
+
+1. In **Online**, set **Network** to **Insignia** (its DNS is filled in).
+2. Get Insignia's Setup Assistant disc image from
+   [insignia.live](https://insignia.live/guide/connect), add it to your games
+   like any other image and start it. It registers this console: follow its
+   steps and enter the code it shows on the website.
+3. For your Xbox Live account you need the Xbox dashboard (version 5960):
+   put its files (`xboxdash.xbe` and its folders) in `hdd/Partition2`, the
+   hard disk's C: drive, beside the executable. Then open it from **Online**
+   with **Xbox dashboard**, and in Xbox Live create a new account or recover
+   the one you have.
+4. Start a game that supports Xbox Live and sign in from its own Xbox Live
+   menu.
+
+The Insignia disc image doesn't go in `hdd/Partition2`: it's started as a
+game. Only the Xbox dashboard's files go there.
+
+## Building from source
+
+xbased builds with clang and CMake on Windows (MSYS2 CLANG64) and Linux, its
+third-party sources fetched at pinned versions by `tools/fetch_deps.sh`. The
+steps, the packages and the options are in [BUILDING.md](BUILDING.md).
+
+## Credits
+
+- **xbased** by **[crazyriddler](https://github.com/crazyriddler)**, its creator
+  and maintainer: the emulator for x86-64 Windows and Linux, the
+  console-style dashboard and front end, the game fixes (Fable, The Thing,
+  BloodRayne 2, NFL Fever 2004, Panzer Dragoon Orta and more), internal
+  resolution up to 8x, 5.1 audio, the automatic updates and every release
+  ([CHANGELOG.md](CHANGELOG.md)).
+- **[hakuX](https://github.com/rfandango/hakuX)**, the emulator xbased started from.
+- Box art from the [libretro-thumbnails](https://github.com/libretro-thumbnails)
+  project. Interface font: Play (SIL Open Font License).
+- SDL3, Zydis, libslirp, libchdr, xxHash, volk, Vulkan Memory Allocator, glslang,
+  SPIRV-Reflect and the other components listed in [LICENSE](LICENSE).
+
+## Thanks
+
+xbased's cheat and patch database is the work of the Xbox community, and
+it's here thanks to them:
+
+- **The cheat makers of the Xbox scene**: xboxtrainers.net, Team Evox-T,
+  Team Xored, Angelfly, k_away, Hitman, RoBoZeO, Falcon3, Thatguy, Xor and
+  everyone else who made the .etm and .xbtf cheat files EvolutionX,
+  Avalaunch and XBMC4Xbox ran (known there as trainers). The files come from
+  the [Xbox Original ETM Trainers](https://archive.org/details/ETMTrainers)
+  collection on the Internet Archive.
+- **[XBMC4Xbox](https://github.com/Rocky5/XBMC4Xbox)** and Team Xored, whose
+  trainer loader showed how those files run (xbased loads the same helper
+  routines for .xbtf files).
+- **[icup321](https://github.com/icup321/XboxGraphicalPatches)** and
+  **[Slippy2k](https://github.com/Slippy2k/XboxGraphicalPatches)** for their
+  widescreen, 60 fps and 480p patches, and the **OgXHD** widescreen
+  database that comes with them.
+- **[xemu](https://xemu.app)** and its [xdb](https://github.com/xemu-project/xdb)
+  title database, which matched every patch to its game.
+- **[raddad772](https://github.com/raddad772)**, whose measurements of the
+  audio chip on a retail console (xemu pull request
+  [#3105](https://github.com/xemu-project/xemu/pull/3105)) the sound
+  emulation follows: the HRTF taps and routing, the filters, the resampler,
+  the volume curve, envelopes, LFOs and ramps.
+- **[P1Login](https://github.com/P1Login)**, for testing on AMD hardware,
+  logs, workarounds for other users and the help across many issues.
+- Everyone who reports issues, tests games and shares saves and logs: that's
+  how the games on the list got fixed.
+
+## License
+
+xbased is free software under the GNU General Public License,
+version 3 or later ([COPYING](COPYING)). The third-party components keep their
+own licenses ([LICENSE](LICENSE), [licenses/](licenses/)).
+
+<sub>xbased is not affiliated with or endorsed by Microsoft. Xbox is a trademark
+of Microsoft Corporation. Game names and box art shown belong to their owners.</sub>

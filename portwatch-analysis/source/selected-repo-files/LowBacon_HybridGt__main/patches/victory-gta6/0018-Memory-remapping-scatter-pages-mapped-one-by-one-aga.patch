@@ -1,0 +1,81 @@
+From 6102b2cd99e1bdc7031eea4bbb6b48c8ad89177a Mon Sep 17 00:00:00 2001
+From: LowBacon <lenni.a.jokitalo@gmail.com>
+Date: Wed, 25 Nov 2026 11:13:40 +0200
+Subject: [PATCH 18/25] Memory remapping: scatter pages mapped one by one again
+ under the one lock (joined pages were several placeholders; error 487 stopped
+ the title, run next8) (HybridGt)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crates/victory-hle/src/modules/xmem.rs | 44 +++++++-------------------
+ 1 file changed, 12 insertions(+), 32 deletions(-)
+
+diff --git a/crates/victory-hle/src/modules/xmem.rs b/crates/victory-hle/src/modules/xmem.rs
+index 6e2e219..13c8167 100644
+--- a/crates/victory-hle/src/modules/xmem.rs
++++ b/crates/victory-hle/src/modules/xmem.rs
+@@ -748,12 +748,12 @@ fn map_pages(physical: &mut Physical, base: usize, n: usize, pages: Option<&[usi
+ /// One page at each address; null `pages`, or a page number 0, unmaps
+ /// (the title passes 0 for addresses to clear).
+ ///
+-/// HybridGt: the locks are taken once for the whole call, not once a page,
+-/// and addresses that follow one another, all mapping or all unmapping, go
+-/// to [`map_pages`] as one range (whose consecutive pages of one section
+-/// become one view). Each page was a call of its own before: the title's
+-/// streaming threads asked for the remapping lock thousands of times a
+-/// frame while texture refreshes held it to read, and both waited.
++/// HybridGt: the locks are taken once for the whole call, not once a page:
++/// the title's streaming threads asked for the remapping lock thousands of
++/// times a frame while texture refreshes held it to read, and both waited.
++/// Each page is still its own [`map_pages`]: neighbouring pages unmapped
++/// one by one are separate placeholders, and one view cannot replace two
++/// (joining them failed with error 487 and the title stopped, run next8).
+ pub extern "system" fn XMemMapPhysicalPagesScatter(
+     addresses: *const *mut c_void,
+     n: usize,
+@@ -764,36 +764,16 @@ pub extern "system" fn XMemMapPhysicalPagesScatter(
+     }
+     // SAFETY: the title passes `n` addresses and, unless null, `n` pages.
+     let addresses = unsafe { std::slice::from_raw_parts(addresses, n) };
+-    let page = |i: usize| -> Option<usize> {
+-        // SAFETY: as above.
+-        let p = if pages.is_null() { 0 } else { unsafe { *pages.add(i) } };
+-        (p != 0).then_some(p)
+-    };
+     let mut physical = physical();
+     let _changing = victory_gpu::title_memory_remapping();
+-    let mut i = 0;
+-    let mut run_pages = Vec::new();
+-    while i < n {
+-        let base = addresses[i] as usize;
+-        let mapping = page(i).is_some();
+-        let mut len = 1;
+-        while i + len < n
+-            && addresses[i + len] as usize == base + len * PAGE
+-            && page(i + len).is_some() == mapping
+-        {
+-            len += 1;
+-        }
+-        let ok = if mapping {
+-            run_pages.clear();
+-            run_pages.extend((i..i + len).filter_map(page));
+-            map_pages(&mut physical, base, len, Some(&run_pages))
+-        } else {
+-            map_pages(&mut physical, base, len, None)
+-        };
+-        if !ok {
++    for (i, &address) in addresses.iter().enumerate() {
++        // SAFETY: as above.
++        let page = if pages.is_null() { 0 } else { unsafe { *pages.add(i) } };
++        let one = [page];
++        let asked = (page != 0).then_some(&one[..]);
++        if !map_pages(&mut physical, address as usize, 1, asked) {
+             return 0;
+         }
+-        i += len;
+     }
+     1
+ }
+-- 
+2.56.1.windows.1
+

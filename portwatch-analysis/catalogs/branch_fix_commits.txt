@@ -1,0 +1,403 @@
+
+===== xcl-dev/xcl|main|nvidia-dev ahead=371 status=ahead =====
+1. D3D12.X: name graphics pipeline blobs after the adapter and driver too
+2. Merge branch 'wm/gfxpso' into world-main (PR #1942 and graphics driver blobs named after adapter, driver and windows)
+3. D3D12.X: count lazy pipelines, binds' waits and a build's time per stage
+4. Memory: tell sparse before a paired CPU view's pages are decommitted
+5. Merge branch 'wm2/memory' into world-main (GPU-view addresses: the memory call sites)
+6. D3D12.X: decommits in a window give holes to the tiles over that memory
+7. D3D12.X: build every lazy graphics pipeline ahead of its first use
+8. D3D12.X: XCL_GFX_PSO_WAIT_MS bounds a draw's wait for its pipeline
+9. D3D12.X: a range a thread asked for lately is not asked for again
+10. Merge branch 'wm2/psoahead' into world-main (lazy graphics pipelines built ahead, XCL_GFX_PSO_WAIT_MS, counters)
+11. D3D12.X: drop copies back recorded before a mirrored tile's memory changed
+12. D3D12.X: give refused GPU-view tiles video memory once there is room
+13. D3D12.X: the graphics wait budget is a thread's share of a second
+14. D3D12.X: XCL_DRED looks for the removal on a thread and has names to report
+15. Recompiler: a mesh program's thread past its record's slots exports nothing
+16. D3D12.X: XCL_DRED=pagefault, and where the two-pass buffers lie
+17. D3D12.X: with XCL_DRED every resource, heap and pipeline has a name to report
+18. D3D12.X: never bind a pipeline under a state that does not fit it
+19. Merge branch 'wm3/harden' (first part) into world-main (shared heap of 2^21 with null views, pipelines never bound in a state that does not fit, views of destroyed resources nulled)
+20. D3D12.X: with XCL_LOOK_STATS=2 split the scan from its gather and pool
+21. D3D12.X: with XCL_LOOK_STATS=2 add up the submitting thread's frame
+22. D3D12.X: let XCL's own pipelines go only once the queues are past them
+23. Merge branch 'wm3/harden' (rest) into world-main (two-pass buffers without an allocator aged, ExecuteIndirect counts and vertex/index views kept inside their window, placed buffers unpinned when the PC object goes, XCL's own pipelines released after the queues)
+24. Merge branch 'wm3/fpsdiag' into world-main (XCL_LOOK_STATS=2: a look's time by what its calls found, the scan's gather and pool, the submit's sparse lock split, the submitting thread's frame, stale looks and XCL's own writes)
+25. xcl run: say when the process is past its video memory budget
+26. Direct DXIL: leave a group barrier of several hardware waves to the HLSL path
+27. D3D12.X: remember the tiles a thread asked for in GPU views, not exact ranges
+28. D3D12.X: keep a compute pipeline's driver blob from a 20 ms build on
+29. Direct DXIL: one split console wave of a compute or mesh group exchanges by counters
+30. Memory: size the coherent window from what the heaps setting puts in it
+31. D3D12.X: a view slot that gets no room in the shared heap names the null views
+32. D3D12.X: XCL_CS_PSO_WAIT_MS limits a dispatch's wait for its pipeline
+33. Memory: let freed sparse pool tiles cool for 2 s before they are reused
+34. D3D12.X: give back page pool heaps of title textures that came free
+35. D3D12.X: build compute pipelines of new shaders ahead of their first use
+36. D3D12.X: frame and target dumps decode HDR and data formats at their texel size
+37. D3D12.X: keep a small compute program's slow-build blob on disk
+38. Memory: keep uma_coherent.txt in the format earlier builds read
+39. Memory: retire sparse pools whose last tiles cooled at a submit that frees none
+40. D3D12.X: let no freed two-pass buffer go for room it cannot make
+41. D3D12.X: build new compute pipelines ahead on one worker at a time
+42. Memory: lower the stored coherent size only for the sparse heaps settings
+43. D3D12.X: name the program of a late non-lazy compute pipeline too
+44. D3D12.X: a console descriptor heap's GetDesc says what the title made it with
+45. Merge branch 'wm4/coherent' into world-main (the coherent window sized from what goes into it, free page pool heaps of title textures given back)
+46. Merge branch 'wm4/heap' into world-main (2 048 PC samplers a shader-visible sampler heap, the null views for a view slot with no room, the shared heap's fill in the log)
+47. Merge branch 'wm4/sparse' into world-main (tile spans remembered a thread, freed sparse pool tiles cool for 2 s, tile mapping calls logged)
+48. Merge branch 'wm4/stall' into world-main (small compute driver blobs kept, XCL_CS_PSO_WAIT_MS, new compute pipelines built ahead)
+49. D3D12.X: a thread forgets the GPU-view tiles it asked for when one is given back
+50. Merge upstream main (1a0bbe3, 96 commits) into world-main
+51. D3D12.X: only a whole texture upload seeds the stream recheck baseline
+52. D3D12.X: read alloc_pool's submit fences without the title's fence hook
+53. D3D12.X: a copy of a destroyed resource's view is the null view
+54. D3D12.X: no giant driver compile of a pipeline nobody has used yet
+55. D3D12.X: pipeline gate comments say what a wanted build does now
+56. Merge branch 'wm5/lists' into wm5/upmerge (a retired segment keeps its last submit, alloc_pool reads its fences without the title's hook)
+57. Merge branch 'wm5/pages' into wm5/upmerge (only a whole texture upload seeds the stream recheck baseline)
+58. Merge branch 'wm5/pipes' into wm5/upmerge (no giant driver compile of a pipeline nobody has used, image-only compute builds go to the backlog)
+59. Merge branch 'wm5/views' into wm5/upmerge (a copy of a destroyed resource's view is the null view)
+60. D3D12.X: a partial upload re-arms the stream recheck without a baseline
+61. Merge branch 'wm5/pages' into wm5/upmerge (a partial upload re-arms the stream recheck without a baseline)
+62. Merge upstream main (379725a: the newer layout's DispatchMesh slot, pipeline labels for DRED) into world-main
+63. Tests: a title's barrier programs left to the HLSL path translate and compile
+64. Recompiler: no translated disk cache while XCL_SAFE_BARRIER is set
+65. D3D12.X: the memory line carries the video memory budget
+66. Tests: the frame dump test's undecoded frame uses a format none decodes
+67. D3D12.X: a frame dump copy that is not done in 2 s is a warning
+68. Tests: check the split exchange's barriers, counters and mesh layouts
+69. Recompiler: say which split exchanges still meet at a group barrier
+70. D3D12.X: the stop file's 12 s line times the device check from its last poll
+71. Tests: the held-submit test sees its thread run before it checks the hold
+72. Tests: translate split geometry with a title's memory windows
+73. Tests: check that the split exchange zeroes its own counters
+74. Docs: say the split exchange spins by default in both translators
+75. Merge branch 'wm6/barrier' into world-main (no disk cache with XCL_SAFE_BARRIER set; split geometry with an ES phase goes to the HLSL path)
+76. Merge branch 'wm6/watch' into world-main (a long driver call is logged, lists are held only for a stop; the stop file has its own thread)
+77. D3D12.X: XCL_DISPATCH_LOOP_BUDGET=0 leaves dispatches without a share
+78. D3D12.X: read XCL_DISPATCH_LOOP_BUDGET outside the translator's sources
+79. Tests: guard both back edges of a loop in the loop-forest tests
+80. Tests: check that a direct loop's count of 0 ends the program
+81. Tests: compile a compute program's HLSL loop counts with DXC
+82. Merge upstream main (06c9f55: direct compute pipelines split into dispatch chains, list Reset #139) into world-main
+83. Recompiler: keep split wave64 compute programs whole instead of chaining them
+84. D3D12.X: a chain piece whose build panics fails instead of hanging its caller
+85. D3D12.X: hold the title while a split program's whole form is built in its call
+86. D3D12.X: log a huge dispatch chain pipeline the driver refuses
+87. D3D12.X: log the compute split counts only when they change
+88. D3D12.X: a Dispatch past 65 535 groups a dimension is said, with its program
+89. Merge branch 'wm8/upmerge' into world-main (upstream main 06c9f55: dispatch chains for split direct compute programs, list Reset #139)
+90. D3D12.X: XCL_TRACE_FORMATS keeps the frame trace to draws into targets of those formats
+91. Recompiler: split wave64 groups of one console wave meet at a group barrier
+92. D3D12.X: the frame trace can start in the world and names what a copied T# samples
+93. Merge upstream main 68a284a into the fork (35 commits: stand-ins that share the driver's pipelines, slabs for split dispatches, pixel-shader lane fixes, texture level pages, page lists at execution, console UAV clears, multi-plane PresentX)
+94. Merge branch 'wm9/upmerge' into world-main (upstream main 68a284a)
+95. Recompiler: loads through s_getpc_b64 read the constant data after the program
+96. D3D12.X: sampled textures go without their top mips while video memory fills up
+97. Merge branch 'wm10/shaders' into world-main (upstream PR #2229: constant tables after the program; PR #1428: dispatches past 65 535 groups folded)
+98. Merge branch 'wm10/dxc' into world-main (upstream PR #688: private heaps for the DXC compiler workers)
+99. D3D12.X: the frame trace says what a draw's depth-stencil view names
+100. kernelx: decode the batches of the queue's CopyPageMappingsBatchX
+101. kernelx: the changed pages of a GPU view, and the views a write reaches
+102. D3D12.X: the frame trace holds the DSV's resource while it describes it
+103. D3D12.X: the frame trace marks ExecuteIndirect draws and gives no stale arguments
+104. D3D12.X: a texture over mapped GPU-view pages is read where they are kept
+105. Merge branch 'wm11/stencil' into world-main (depth buffers with unordered access: the frame trace of DSVs, the registry, a stencil twin behind XCL_DEPTH_UAV_TWIN=1)
+106. D3D12.X: a texture goes up again when a mapping under it changes
+107. D3D12.X: a write where a mapped page is kept reaches its textures
+108. D3D12.X: queue CopyPageMappingsBatchX maps pages into GPU views (#1031)
+109. D3D12.X: XCL_TEXTURE_SAFE_READ=1 copies a texture's memory out before it is read
+110. D3D12.X: the frame trace names the depth buffers shaders may write
+111. kernelx: a page that leaves plain memory has the tiles over it linked again
+112. kernelx: a released block of unified memory leaves no shown page there
+113. D3D12.X: a device removal says what the list the GPU was in had left
+114. xcl run: the memory line and a device removal give the system's commit
+115. Merge branch 'wm11/pages' into world-main (the queue's CopyPageMappingsBatchX maps pages into GPU views)
+116. D3D12.X: the frame trace takes a render target only while a view holds it
+117. D3D12.X: XCL_ACTIVITY counts and times the per-draw buffer mirror sync
+118. D3D12.X: the per-draw mirror sync copies without asking readable()
+119. D3D12.X: XCL_SKIP_CS_KB leaves the biggest compute programs without a pipeline
+120. Merge upstream main (e1d84b7d) into world-main
+121. Merge upstream pull request #2555 (draft): shaders prepared in the game window
+122. Merge upstream main (b49be183: #174, #2371) into world-main
+123. Merge upstream pull request #2437: D3D12.X: the per-draw mirror sync copies without asking readable()
+124. Merge upstream pull request #2385: D3D12.X: sampled textures go without their top mips while video memory fills up
+125. xcl run: a pack's compute pipelines are prepared by worker processes
+126. Merge upstream pull request #2377: Recompiler: split-wave64 one-wave groups meet at a group barrier by default
+127. Merge upstream pull request #2547: D3D12.X: with XCL_PSO_WAIT_MS set, a put-off dispatch waits for its pipeline at the submit instead of being dropped
+128. Merge branch 'wm18/pr2547' (upstream pull request #2547 on the fork's put-off dispatches)
+129. Revert "Merge branch 'wm18/pr2547' (upstream pull request #2547 on the fork's put-off dispatches)"
+130. Revert "Merge upstream pull request #2385: D3D12.X: sampled textures go without their top mips while video memory fills up"
+131. Revert "Merge upstream pull request #2437: D3D12.X: the per-draw mirror sync copies without asking readable()"
+132. D3D12.X: a target dump names the pipelines that drew into each target
+133. D3D12.X: XCL_DUMP_TARGETS follows 3D textures and reads small ones back
+134. D3D12.X: the 3D texture dump reads back up to 256 textures
+135. D3D12.X: a 3D render target keeps off the pages of the title's next texture
+136. D3D12.X: a target dump lists the frame's compute pipelines and their CS
+137. xcl run: one preparation worker builds a pipeline, the others leave it
+138. D3D12.X: record the graphics pipelines a run uses with their state
+139. xcl run: build the graphics pipelines earlier runs used before the title
+140. Merge the fork's nvidia-dev into the work branch
+
+===== xcl-dev/xcl|main|amd-dev ahead=218 status=diverged =====
+1. Recompiler: the mesh pass-through budget accounts DXC's vertex chunks
+2. Recompiler: the pass-through layout is chosen by the vertex budget alone
+3. D3D12.X: the stand-in of a moved AS-slot MS is a mesh pipeline
+4. D3D12.X: the stand-in of a stream has the PC's target formats
+5. D3D12.X: a draw does not wait for a graphics pipeline still being built
+6. D3D12.X: give the two-pass io block the unified memory base
+7. D3D12.X: read two-pass indirect arguments through memory, cap their scratch
+8. D3D12.X: pooled two-pass scratch stays within the recording's budget
+9. D3D12.X: add depth+UAV color twins and format-aliased placed texture copies
+10. kernelx: views of physical pages stay open across a write that cannot fault
+11. kernelx: queue CopyPageMappingsBatchX records the physical page each GPU-view page shows
+12. D3D12.X: stand-ins of pipelines not built yet share the driver's pipelines
+13. local: loop budget experiment
+14. Recompiler: whole-wave reductions of wave32 VS / PS count every live lane
+15. local: #615 over the pipelined presenter (a set of SRVs per present in flight)
+16. D3D12.X: XCL_TEXTURE_LEVEL_PAGES=1 gives a sampled texture's levels their pages with their texels
+17. local: XCL_PSO_MAX_CACHED=1
+18. local: the activity thread asks for a removed device
+19. local: XCL_PSO_SKIP_FILE
+20. local: XCL_LOOP_FILE, past the caches
+21. Revert "local: XCL_LOOP_FILE, past the caches"
+22. Merge origin/main (bd2ac507) into amd-dev
+23. D3D12.X: match 16-bit depth twin steps bit-for-bit in R24G8 sync
+24. D3D12.X: sync format-aliased writers on enhanced barriers and map resolves
+25. Merge origin/main (3ceb5507) into amd-dev
+26. Recompiler: emit global UAV fence on s_barrier in UAV-writing or glc shaders
+27. Recompiler: prefer live lanes in Direct DXIL PS v_readfirstlane and wave64 masks
+28. Direct DXIL: fold Countbits of constants (AMD folds Bfrev(Countbits(K)) wrong)
+29. D3D12.X: a pipeline is forgotten before its address is free
+30. D3D12.X: serialize AMD driver PSO calls, honor DispatchX 0x20, gate BVH RT
+31. Merge origin/main (3f277701) into amd-dev
+32. D3D12.X: make AMD_DRIVER_PSO_LOCK opt-in via XCL_AMD_SERIAL_PSO=1
+33. Merge origin/main (2898511a) into amd-dev
+34. D3D12.X: a create that fails on a lost device keeps the driver's blob
+35. D3D12.X: batch vram tile-mapping fence signals into before_execute
+36. Recompiler: guard 32-bit raw-buffer OOB wraparound in Direct DXIL
+37. D3D12.X: skip mapping uncommitted graphics-reservation texture pages
+38. D3D12.X: build split ExecuteIndirect whole PSO off the title thread (#505)
+39. D3D12.X: ping-pong indirect scratch and dedup arg-order barriers
+40. D3D12.X: index dirty title textures by src range and single-read hash+detile
+41. D3D12.X: reuse persistent detile worker pool in title_textures
+42. D3D12.X: use RwLock for hot read-mostly PSO and UMA lookup tables
+43. D3D12.X: recycle released reserved sampled textures by desc and state
+44. D3D12.X: per-draw mirror sync copies without readable() VirtualQuery
+45. D3D12.X: pack sub-64 KiB sampled textures into 4 KiB-aligned VRAM heaps
+46. Recompiler: enable compute dispatch splitting for native Wave64 [64,1,1]
+47. D3D12.X: count only spawned threads in DetilePool::new
+48. Merge origin/main (72b59b50) into amd-dev
+49. Recompiler: prioritize wanted DXC compiles and reserve worker headroom
+50. D3D12.X: a null ppv validation call does not crash console #14 (#2401)
+51. D3D12.X: fall back to smaller dispatch-chain slabs on scratch OOM
+52. Merge origin/main (06055a7a) into amd-dev
+53. D3D12.X: resolve GPU-view root descriptors to UMA before sparse mirror
+54. Recompiler: make HLSL heap memory windows branchless via MEM_HEAP_NULL
+55. Recompiler: default XCL_HEAP_FLAT on, extend to VS/PS, fix GS heap inputs
+56. D3D12.X: guard zero UMA window VAs for branchless root-UAV loads (#2368)
+57. D3D12.X: tier PSO gating, prioritize MS PSOs, keep >=512 KiB compute async
+58. Merge origin/main (889ef3e8) into amd-dev
+59. D3D12.X: skip redundant format-alias copies when source is unchanged
+60. Merge origin/main (6d051da5) into amd-dev
+61. D3D12.X: retry uploads after lazy mip mapping failures
+62. D3D12.X: per-draw mirror sync copies only pages the title wrote
+63. D3D12.X: clear LAST_CONTENT on unmap/remap and guard present RTV tracking
+64. Merge origin/main (e0d93c84) into amd-dev
+65. Merge origin/main (6d12f58a) into amd-dev
+66. D3D12.X: fix make_scaled_args_buffer hang via backing retention and heap UAVs
+67. GPU: optimize GFX10 2D detile and tile with block slabs and contiguous runs
+68. D3D12.X: hash only written pages of title textures (#2484)
+69. D3D12.X: gate tiny <4 KiB GetCachedBlob stubs as cold compiles
+70. D3D12.X: wire memory-mapped ID3D12PipelineLibrary1 persistence (#2001)
+71. D3D12.X: never skip non-RT producer compute PSOs and throttle under low commit
+72. D3D12.X: fence-gate VRAM tile unmaps, cooling, and late_release
+73. D3D12.X: the GPU wait watchdog does not miss the wake of an armed wait
+74. D3D12.X: register split segment allocators and gate/cache whole-form builds
+75. D3D12.X: forget a command signature's root-changing kind when its address is reused
+76. D3D12.X: isolate >=900 KiB giant compiles, skip heavy preload, fix indirect-branch BVH check
+77. D3D12.X: serialize ID3D12PipelineLibrary1 calls and guard null descs
+78. D3D12.X: defer >=256 KiB graphics/MS PSOs, lower HEAVY_CODE to 16 KiB, add RT name gate and 24 ms frame wait cap
+79. D3D12.X: fence-quarantine released shared descriptor ranges
+80. D3D12.X: add commit-reserve floor and early unwatched texture recheck
+81. D3D12.X: place shader io (u0) in VRAM and hoist preludes per segment
+82. D3D12.X: split pipeline library into immutable read handle and async save worker
+83. Merge origin/main (e1d84b7d) into amd-dev
+84. D3D12.X: read back 256x256 float ocean heightmap textures to console memory
+85. Shaders: warm memory-mapped ID3D12PipelineLibrary1 (.plib) in offline --precompile --pipelines
+86. D3D12.X: pool <=8 MiB upload staging buffers and reclaim idle staging
+87. D3D12.X: break sparse::STATE <-> kernelx::AWAY deadlock in gpu_view
+88. d3d12x: fix prelude/VRAM-io lifetime, snapshot RTV/DSV, expand water
+89. D3D12.X: default XCL_RT_GATE to hold without compiling and cap preload compile slots
+90. D3D12.X: back unresolved outside-UMA GPU-writable buffers in sparse VRAM
+91. D3D12.X: pool exclusive ID3D12PipelineLibrary1 read handles to fix concurrent Load* crash
+92. d3d12x,kernelx: lock-free descriptor copies, PSO bind cache, priority opt-out
+93. D3D12.X: keep GPU-owned and GPU-aliased VRAM textures fully mapped
+94. D3D12.X: read DRED ObjectNameW/pObject and name VRAM/sparse resources
+95. d3d12x: inline indirect-guard batching, RT bind dedup, root VA cache, water state
+96. KernelX / D3D12.X: fix VirtualFree AWAY/home-reuse bugs and post-upload VRAM fence wait
+97. D3D12.X: use RwLock for recording-thread PSO/layout/texture lookups
+98. Merge origin/main (08db8020) into amd-dev
+99. D3D12.X: submit title texture uploads asynchronously on direct title queues
+100. DXIL: guard null/out-of-window BVH nodes and all-zero Box32 children
+101. Recompiler: VS / mesh exports unpack float16 params packed two per dword
+102. d3d12x: indirect draw caps, sharded bind state, stack io, and bitset sync
+103. d3d12x: close inline guard batch on draws and Enhanced/UAV barriers
+104. KernelX: floor title thread priorities and restore fine timer on exit
+105. D3D12.X: add 12s per-frame pipeline wait window per kind and prioritize deferred submits
+106. D3D12.X: skip AMD stub .pso disk cache (#2577) and evict retired texture caches (#2578)
+107. D3D12.X / KernelX: lazy-commit alloc_vram_only sparse buffers on CPU access (#2582)
+108. D3D12.X: enforce wall-clock frame wait windows, bound deferred segments, and keep split whole builds async
+109. D3D12.X: zero recycled VRAM page-pool tiles on mapping queue (#505/#1833)
+110. D3D12.X: fix placed SRV/UAV UAF and cache-race drop in format_alias
+111. D3D12.X: never skip non-spared producer compute shaders, stamp slow graphics once, and guard unbuilt ExecuteIndirect
+
+===== Belobug/VIctory-Belobug-AMD|main|rx9070xt ahead=421 status=diverged =====
+1. HLE: load a host DLL outside the module cache's lock
+2. fix(formats): reject overlapping texture depth slices
+3. xmem: report allocations the host refuses
+4. Shaders: reuse lane guards for unchanged EXEC within a block
+5. Formats: reject multisampled linear texture layouts
+6. fix(pipeline): retry collisions when creating cache staging files
+7. Formats: share immutable texture swizzle tables
+8. loader(crash): verify unwind against known caller frames when RtlCaptureStackBackTrace returns empty
+9. Loader: a clwb in the last bytes of a page is emulated instead of faulting
+10. HLE: test that XGSuggestSwizzleMode picks linear for a 1D texture
+11. XMA: gather frame payloads one byte at a time
+12. GPU: guard zero/overflowing stride in expand_rects and add primitive.rs unit tests
+13. GPU: log the TDR settings, and warn when a GPU hang would freeze the PC
+14. XAsync: canceling a call that already completed leaves it alone, as documented
+15. XNetworking: wire UDP port change callbacks and UTF-16 security queries
+16. HLE: guard dialog commands before initialization
+17. Loader: guard clwb_loop shortcut against u64 overflow and wraparound
+18. Formats: test texture layouts against addrlib's own sizes and addresses
+19. GPU: fences answer for ID3D12Fence1 as documented
+20. GPU: serialize pipeline library atomic writes with unique temp files
+21. gpu(list): log initial pipeline bound on reset/reset_x for parity with create_list
+22. Crash tracing that can stay on: VICTORY_D3D12_DRED=light and =faults; lost texture writes named
+23. Pixel programs read their quad's neighbours with quad operations: helper lanes take no part in wave reads
+24. Speed and room: draws' own records left to the draws in the heap sync, 2^20 table slots, textures kept while the card has room
+25. Shared locks for buffer and window lookups; early pipeline list without a small cap; crash report names what a list binds
+26. Crash report names the indirect executions a list stopped at; constant buffer slots hold their scratch memory
+27. Memory the card was given stays with it while there is room
+28. Formats: a texture of which only the smaller mips are there detiles from its start
+29. Textures from the first level viewed; equal uploads left out; bakes take textures as they are; kept by the card's real room
+30. Streaming: mapping calls ask only for what they need; the thread that loads runs ahead; a streaming log
+31. The process runs above normal priority, pipeline workers below the title's loading
+32. Structure builder: root views as memory by address, windows of its own on the card, upload memory below 2^37
+33. Merge night/stream
+34. Merge night/textures: first level viewed, equal uploads left out, exact bakes
+35. Card memory the CPU maps: windows, sends and scratch (VICTORY_WINDOWS_BAR_MB, VICTORY_SEND_BAR, VICTORY_SCRATCH_BAR); the card's own stamps (VICTORY_CARD_SPANS)
+36. Bakes take what is due now first; textures that change unnoticed are looked at each frame; placed textures over unlike targets said
+37. Snapshot memory, host lists and send memory kept for reuse (VICTORY_SNAPSHOT_POOL=8: as before)
+38. The heaps' records are brought up to date beside the preparing (VICTORY_HEAP_SYNC_ASIDE=0); a made slot is told without the lock (VICTORY_QUICK_MIRROR=0)
+39. A thread asks the write watch ahead of the submissions (VICTORY_ASK_EARLY); the time ahead of the preparing is split
+40. A submission's fills of upload memory are done together on several threads (VICTORY_WIDE_FILLS=0: one by one)
+41. Merge branch 'night/crash' into local/next
+42. Title memory by address: pages in arenas, structures' pages made ready ahead
+43. The first copy into a texture the title fills goes over what title memory holds
+44. Title memory by address: packed structures go up whole when the builder unpacks them; small buffers' pages stay title memory
+45. Merge branch 'night/textures' into local/next
+46. Merge branch 'night/crash' into local/next
+47. The title's idle and lowest threads run below normal: loading no longer waits for idle processors
+48. Pages are mapped side by side: eight threads stand in the host's queue instead of one
+49. Merge branch 'night/stream' into local/next
+50. Refreshes copy and send the 4 KiB parts of a page that were written (VICTORY_PAGE_PARTS=0: the 64 KiB page); the early asking is off
+51. The heaps' records are also looked at between submissions (VICTORY_HEAP_SYNC_EARLY=0: not)
+52. Card memory the CPU maps: scratch switch gone, what the others measured; a test
+53. Merge branch 'night/crash' into local/next
+54. Texture uploads wait for no mapping, ask no guards and hash cheaply; the sweep looks at a part; bakes pass once for what is new
+55. Title memory by address: packed structures that are gone give their pages back; ranges only for views written
+56. Landing goes beside the guards while mappings change; rectangles read without that lock
+57. AMD's wait instructions are replaced in place at their first fault (VICTORY_PATCH_WAITS=0: emulated each time)
+58. Submissions are prepared and sent by a thread of ours (VICTORY_ASYNC_SUBMIT=1, off)
+59. The first copy into a texture the title fills goes over zeros
+60. Merge local/next into night/textures
+61. Title memory by address: the dump names what was built and unpacked; a small buffer's results once a list
+62. Merge branch 'night/crash' into local/next
+63. Merge branch 'night/textures' into local/next
+64. Title memory by address: every list brings up every copy, whoever made it
+65. A texture is not copied onto itself; the process opts out of the efficiency mode (victory-fork a2537066)
+66. Title memory by address: what streaming brings is taken when the list is submitted, not when it is recorded
+67. Merge night/cpu: processor work, wait instructions patched, submit thread (off)
+68. A book of who has and had the card's memory; a check of every view slot
+69. Merge branch 'night/crash' into local/next
+70. The threads a frame waits for are kept on the fast cores (VICTORY_FAST_CORES=0: not; 1: without the helpers)
+71. The crash report names direct mesh dispatches; buffers and groups stay inside what there is
+72. Merge branch 'night/crash' into local/next
+73. Objects let go and lists that ran are kept about two frames longer (VICTORY_BURY_LAG=0: not)
+74. New memory is resident before anything names it (VICTORY_WAIT_RESIDENT=0: as before)
+75. A timeline of a few frames, with the chain each present came out of (VICTORY_TIMELINE)
+76. A measurement: textures of new blocks read by lists sent before; the book knows a block again whose pointer something else had
+77. Merge branch 'local/next' into night/crash
+78. Recording: a lock a descriptor slot, a thread's own answers about buffers, tables left as they are when nothing changed
+79. New card memory is waited for until a queue of its own has run after it (VICTORY_WAIT_RESIDENT=0: not)
+80. Textures are cut from blocks older than every list on the card (VICTORY_RIPE_BLOCKS=0: from new ones too)
+81. Merge branch 'local/next' into night/crash
+82. Merge branch 'night/crash' into local/next
+83. A list makes a view its tables hold once and copies its descriptor (VICTORY_LIST_VIEWS=0: for every table); a draw's tables are gone through without memory of the heap
+84. A copy's buffer is asked for its bytes when they are first needed (copies of tests have none)
+85. Title slots show a new texture after its upload has run (VICTORY_SHOW_AFTER=1; off), and the book says more of one
+86. Merge branch 'night/crash' into local/next
+87. Structure builder and rays: dispatches counted in threads, empty slots never entered, pages that are not there never hit; vertex signatures as DXC orders them
+88. A slot written with another texture goes on showing one that can stand for it (VICTORY_KEEP_SHOWN=1; 0: black, then grey); textures that pop are counted (VICTORY_POP_WATCH)
+89. First uploads of textures picked by index run on a copy queue of their own, their slots show them when they have (VICTORY_UPLOAD_AHEAD=1; off); blips found while the camera moves
+90. Shaders: normalized buffer codes give the nearest float, cube gradients take DXIL's base-2 logarithm, d16 data of integer views keeps its bits, unordered views of vertex programs are declared
+91. Ranges of memory that changed under texture views are joined before they are looked up (DexNom/VIctory 921d8d3b)
+92. List calls written down and translated by threads of ours (VICTORY_THIN=1, off)
+93. Structure builder: fences around its buffer atomics (VICTORY_BVH_FENCES=0: none)
+94. Replay: buffers in heaps opened from memory are made again (without the cross-adapter flag)
+95. Structure builder: submissions that ask for structures' sizes are waited for (VICTORY_BVH_SIZES_WAIT=0: not); a packed structure is one node longer; VICTORY_BVH_TRACE
+96. A stand-in for the title's traced indirect light (VICTORY_AMBIENT, off): estimated from the light visible surfaces send out
+97. Write faults: a block just written rests before it is guarded again (VICTORY_GUARD_REST=0: not), a fault opens the view it came through alone (VICTORY_OPEN_ONE_VIEW=0: every view), guarded blocks kept as bits
+98. Pages are mapped by sixteen threads while the title streams as fast as they are mapped, by the caller alone otherwise (VICTORY_MAP_THREADS=auto, which it is unless set)
+99. Passes over the screen have pipeline workers and a wait of their own (VICTORY_SCREEN_WAIT_MS=0: not); after Belobug 18e57db8
+100. Host heaps' slots are made under locks of their own; the heaps' records and the buffer views picked by index are made on several threads (VICTORY_VIEW_THREADS)
+101. Two measurements for placing memory: bytes over the bus by host copy, and what the title asks its memory to be
+102. The title's writes into guarded blocks go in beside the guard: its memcpy, memmove and memset (VICTORY_COPY_BESIDE=1) and single stores that fault (VICTORY_STORE_BESIDE=1); both off
+103. Frame replay: shaders of another translation (--retranslate, --shaders, --shaders-b turn by turn), times per pass as medians
+104. Merge day/textures
+105. Merge day/faults
+106. Structure builder: accesses stay near the root views, a size that cannot be one counts as none (VICTORY_BVH_BOUNDS=0: neither)
+107. What a landing put into title memory is not sent up again (VICTORY_LAND_ECHO=0: sent)
+108. Writes of the title's that change nothing are not made: faulting stores and copies beside the guards, and flags it sets that are set (VICTORY_WRITE_SITES=<file>: places changed at load to look first; off without it)
+109. The image's name is kept for VICTORY_WRITE_SITES (the program did not build)
+110. Merge day/faults
+111. VICTORY_MAP_THREADS=auto is asked for, not the default: 16 threads map no more pages than one in the dorm, and a frame takes longer
+112. Frame replay: --shaders takes passes of ours too, by their own hash
+113. The title's pipelines written down (VICTORY_PIPELINE_BOOK=1, off) and made ahead of a run, each batch in a process of its own (victory warm)
+114. Merge day/textures
+115. Look-first stubs for moves and vector stores (VICTORY_WRITE_SITES); descriptors copied onto themselves are not written (VICTORY_SAME_RECORDS=0: they are); of tracked pages the parts written are taken (VICTORY_TAKE_PARTS=0: pages); waits for the trackers' locks and the heap sync's parts counted
+116. Merge branch 'local/next' into day/faults
+117. Structure builder: the wait for sizes is off (VICTORY_BVH_SIZES_WAIT=1 turns it on): it mended nothing and costs some 20 ms a frame (light-15)
+118. Sets of heap slots are bits, the heaps' records have threads of their own, what is mirrored of them is counted
+119. Revert "Replay: buffers in heaps opened from memory are made again (without the cross-adapter flag)"
+120. Title bytes under flights' writes compared with AVX2 on threads of their own, the pairs sent up made on them; helpers that work ahead are not kept on the fast cores
+121. Pipelines known to take long are made beside the others, by a quarter of the workers (VICTORY_PIPELINE_SLOW=0: in the order created)
+122. Views mapped beside guarded ones: all views of the page are opened together, under the lock
+123. Copies in the card's memory: the changed runs sorted once and stably, piece runs joined while built; steps on the card: slots made on several threads
+124. Merge branch 'local/next' into day/faults
+125. Textures shaders write that the title reads on the CPU are copied back into title memory (from fxceless f5c03f3b, pull request 999: Geckomacabre 895c0b8f, 04df4350); on by default
+126. Views mapped beside guarded ones: all views of the page are opened together, under the lock
+127. Merge local/next into day/shaders; pipeline workers are all woken
+128. Title buffers' copies down to any size in the card's memory (VICTORY_CARD_BUFFERS_MIN_KB), the card's hashes over the buffer's own bytes (both after fxceless c36971b2)
+129. Merge branch 'day/faults' into local/next
+130. A range shaders write is declared once until the list next writes title memory (from Belobug dd799aad, romainhedouin); VICTORY_DECLARE_ONCE=0 for the old way
+131. A pipeline a list binds again is not kept and named again (from Belobug 92d353f8, romainhedouin)
+132. A root constant buffer not 256-byte aligned is copied into scratch memory once for the draws of a list that bind it (from Belobug 84ea9c12, romainhedouin)
+133. The same render targets are not set again (after ZJOU acf478b8, author local); VICTORY_BIND_CACHE=0 sets them every time
+134. The frame line says how many indirect records ran empty for want of their list's budget, and the largest cost; VICTORY_INDIRECT_REST=0: a record that does not fit takes nothing from the ones after it
+135. Heaps' records copied as bytes: pages read, compared and sorted out on several threads, empty slots that show nothing left alone; pages of places read by steps on the card asked about once
+136. RX 9070 XT fixes: magenta filter, VRAM eviction, keep_shown guard, lock-free compiler VEH
+
+===== JozefDeTremmerie/CCS03|ccs03|perf/next ahead=9 status=diverged =====
+1. Test descriptor allocations that cross the search cursor
+2. GPU: find free descriptor runs across the search cursor
+3. Merge victory-fork PR 932: find free descriptor runs across the search cursor (avt0m4t48)
+4. GPU: test descriptor search across fragmented heaps
+5. GPU: the texture pass's time budget is the frame's, not each pass's
+6. GPU: the guards' view blocks are bits read without their lock (the wide copy workers stood 206 ms a frame waiting for it)
+7. Merge pull request #44 from Apenshot123: find free descriptor runs across the search cursor (victory-fork PR 932)
+8. GPU: guard() asks the kernel where absent blocks' uncommitted memory ends before it takes the guards' lock

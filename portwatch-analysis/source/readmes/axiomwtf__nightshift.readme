@@ -1,0 +1,163 @@
+<p align="center">
+  <img src="nightshift.svg" alt="Nightshift" width="320">
+</p>
+
+# Nightshift
+
+**Grand Theft Auto VI (Xbox Series), running on Windows and Linux with the runtime bundled inside —
+no recompilation. One toolchain. One output binary.**
+
+Nightshift is a single Rust binary that does the whole job: `nightshift make` carves the console's
+shader and asset blobs out of your own game copy, translates its RDNA2 GPU programs to SPIR-V
+(shaders only — game code is never recompiled or pre-translated), applies the patches, and links one
+standalone launcher — `gta6` (ELF) on Linux, `gta6.exe` on Windows — with Nightshift's runtime
+bundled inside it. On Linux the original NT image rides inside the ELF byte-for-byte; the embedded
+runtime maps it and runs it in place, hot-translating every imported and system call through its
+shims and JIT-optimizing the game's x86-64 code as it runs. The console's system software is
+reimplemented as shims, its D3D12 is mapped to Vulkan on both Windows and Linux. Not emulation: the
+game's memory is host memory. After `make`, Nightshift is no longer needed — `gta6` is the whole
+game. Nightshift is owned by AXIOM.
+
+> **Status:** `0.1.0` (in development). The game does not boot yet — every pre-boot step below is
+> complete and verified; a real game executable is now available and boot work runs against it.
+
+## Why
+
+- **Two binaries, both self-contained.** `nightshift` is a single binary — the toolchain. `gta6` /
+  `gta6.exe` is a single binary — the game, with the runtime bundled inside. No script menu. No
+  interpreter. No sidecar. No runtime folder. And after `make`, Nightshift itself is no longer
+  needed: the output game runs on its own.
+- **Rust end to end.** The full pipeline and runtime are Rust. External tools — llvm-mc,
+  spirv-as/spirv-val, ffmpeg, SDL3 — are invoked as processes, not as source.
+- **Both platforms first-class.** Windows and Linux are equal targets from the first line. The
+  loader and host layer are OS-agnostic; there is no Wine/Proton compatibility surface to maintain.
+- **The runtime makes it faster every launch.** The embedded runtime JIT-compiles hot code with
+  live-time optimizations — import constantization, block chaining, inline caches, profile-guided
+  trace fusion — and its JIT and profile caches persist, so each launch starts warmer than the last.
+  The garbage collector only ever runs
+  in pause menus, loading screens and at quit — active gameplay never waits on it.
+- **Clean room.** The repo contains no game content, no keys, no decryption and no protection
+  workarounds, and nothing talks to the network. Everything the build creates comes from your game
+  and stays on your PC.
+- **Verified, not vibes.** 26,503 shaders translated and SPIR-V validated, checked on 30+ GPU and
+  driver combinations. Every translator rule carries its measured confirmation — the test that
+  proves it. Unconfirmed rules do not ship. Bugs get fixes, never skip lists.
+
+## Naming
+
+| Name | Role |
+|------|------|
+| `nightshift` | The toolchain binary: `nightshift make` (pipeline), `nightshift install` (desktop entry) |
+| `gta6` / `gta6.exe` | The output: the game executable with the runtime bundled inside — JIT, tiers, GC, shims, Vulkan host |
+| `nightshift-make` | Stage orchestrator: carve → disassemble → translate → export → link |
+| `nightshift-formats` | Measured-format readers and writers: BCPack, RSC8/TTPF, DDS, GLB, AWC |
+| `nightshift-gfx10` | RDNA2 (gfx10) ISA model: instruction tables, decoding, wave64 semantics |
+| `nightshift-rdna2spirv` | RDNA2 → SPIR-V translation |
+| `nightshift-jit` | The bundled runtime's JIT: code-cache plan, block profiler, tiering, optimization passes |
+| `nightshift-shims` | Console system-software shims: GDK, GameInput (SDL3), XMA decoding |
+| `nightshift-d3d12xs` / `nightshift-vulkan` | Xbox D3D12 ABI proxy mapped onto Vulkan |
+| `pe-image` / `pe-loader` | PE parsing and loading |
+| `nightshift-host` | Process, heap, thread and file hosting (Windows and Linux) |
+
+## Architecture
+
+Two binaries. The runtime is inside the output binary — there are no runtime files, no interpreter,
+no sidecar, and nothing left to install once `make` has run.
+
+```
+nightshift (toolchain) → engine crates → external tools (llvm-mc, spirv-as/spirv-val, ffmpeg, SDL3)
+                                     ↘ links ↘
+                                     gta6 / gta6.exe = game code + patches + bundled runtime
+```
+
+| Component | Role |
+|-----------|------|
+| `nightshift make` | Pipeline: carve shaders and assets from the game package, translate shaders to SPIR-V, export assets, link the launcher (no game-code recompilation — the game's own image, wrapped: NT→ELF container on Linux, native PE on Windows — patches applied, runtime embedded) |
+| `nightshift install` | Write the `.desktop` / Start-menu entry that launches the output game directly |
+| `gta6` / `gta6.exe` | Runtime: run the game's own code in place, hot-translate every imported/system call, tier hot blocks up as they heat, host the console environment, drive Vulkan, run the GC |
+
+## Status
+
+| What                                   | Status                                                                                                                                                                                                        |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shaders: RDNA2 → SPIR-V                | ✅ **26,503 / 26,503** translated and SPIR-V validated (2,236 VS, 12,101 PS, 2,689 CS, 9,282 mesh, 195 geometry), per-shader metadata for pipeline creation                                                    |
+| Shaders: checked on real GPUs          | ✅ 30+ GPU and driver combinations: NVIDIA Turing–Blackwell, AMD GCN3–RDNA4, Intel, Apple M1 (MoltenVK), llvmpipe. Wave64 is exact on 64-wide subgroups; on 32-wide, compute and mesh are exact with emulation |
+| Models                                 | ✅ **382,781** exported with real names, UVs and material references; zero decode failures                                                                                                                     |
+| Textures                               | ✅ BCPack BC1–BC7 rebuild; limitation records are explicit in `manifest.json`, never silently skipped                                                                                                          |
+| Audio                                  | ✅ AWC Opus repackaged losslessly as Ogg Opus; PCM as WAV; XMA2 via ffmpeg                                                                                                                                     |
+| Controllers                            | ✅ GameInput shim on SDL3 — rumble and DualSense effects, any controller SDL supports                                                                                                                          |
+| D3D12 → Vulkan                         | ⚠️ Draws run on Vulkan; the console list tail and descriptor-table record model remain open                                                                                                                   |
+| Booting, story mode, anything playable | ❌ Not yet                                                                                                                                                                                                     |
+
+
+This repository **does not contain the game, keys or an executable**, and it does not explain how to
+get them. You need your own copy, with its files already readable on disk. Nothing here decrypts or
+works around any protection. Never share the files your build produces.
+
+## Usage
+
+```bash
+cargo install --path .   # the toolchain: one binary, nightshift
+nightshift make          # carve → disassemble → translate → export assets → link gta6 | gta6.exe
+                         # (always writes the desktop/menu entry that launches the game directly)
+./gta6                   # the game. No Nightshift installed, no runtime folder — it is all inside
+nightshift uninstall     # remove the desktop/menu entry and Nightshift's caches
+```
+
+## The bundled runtime
+
+Everything below lives inside `gta6` / `gta6.exe`. Not emulation and not "no runtime" — the runtime
+ships in the game binary, Go-style: the game runs in place in host memory (on Linux, out of the
+original NT image embedded in the ELF container) and the runtime translates and optimizes
+everything live — ahead-of-time recompilation of game code never happens.
+
+**Hot translation first.** Every imported function, every rip-relative call across the boundary,
+every system call the game makes is translated at run time by the bundled shims — nothing is
+rewritten on disk, nothing is assembled in advance. Then optimization takes over:
+
+**Tiered JIT execution.** Every code block first runs in place at tier 0. The block profiler counts
+executions; past a threshold the block is JIT-compiled to tier 1 (patches baked in, relocations
+folded, bound imports constantized to direct calls). Deeper heat promotes it to tier 2: hot blocks
+fuse into traces with inline caches and profile-guided inlining. Tier transitions patch 5-byte
+trampolines over block entry points — running threads never stop to wait for compilation — and a
+guard model deopts back down whenever a compiled assumption breaks.
+
+**Live-time optimizations.** Import constantization (bound IAT entries become direct calls into the
+host), patch baking (patches exist only in the JIT IR — compiled code never contains the patched
+bytes), relocation folding, TLS folding (`gs:[...]` TEB reads become direct TLS access), CRT body
+substitution (MSVC memcpy/memset/string routines recognized and replaced with host SIMD), inline
+caches on indirect calls, hot-trace fusion, guard striping (tiers-2 guards that never deopt get
+removed), and block chaining (compiled blocks jump straight to their successor's compiled code — no
+dispatch loop). Guest x86-64 reads game memory directly at the same addresses: zero shadow-memory
+overhead in compiled code.
+
+**GPU and I/O.** Translation-side: D3D12 barriers coalesced before Vulkan sees them, descriptor
+heaps translated incrementally, command buffers and pipelines cached across frames, pipelines
+pre-built from the 26,503 translated shaders, fences mapped to timeline semaphores. Streaming-side:
+`mmap`-served assets, `io_uring` on Linux for async file APIs, learned prefetch (stream order
+recorded per run, replayed ahead of demand). The `make`-time output embeds a static hint table
+(function boundaries, indirect call sites, IAT layout) so the JIT never discovers anything at boot.
+
+**Garbage collection.** The runtime's memory — dead compiled blocks, cold JIT caches, translation
+state, heap slabs — is collected only when the game is not in active gameplay: **pause menus,
+loading screens and quit are all collection points.** Gameplay never waits on the collector: nothing
+it runs competes with the frame. Between collection points the runtime defers — dead code stays
+mapped — and the collector uses the next one to do the full compaction — deep JIT-cache pruning,
+slab defragmentation, pipeline-cache eviction — so every pause or load resets the runtime's
+bookkeeping while the player sees a menu.
+
+**Persistence.** Compiled tier-1/2 code and the hot-block profile persist to disk next to the game,
+keyed by image hash. Launch 1 compiles and records; launch 2 pre-loads compiled code and pre-builds
+GPU pipelines; launch 3+ runs with learned inlining, prefetch and pre-building — the game gets
+faster every launch, with no Nightshift on the system.
+
+**Desktop install.** `nightshift install` (part of `make`, always) writes a `.desktop` entry on
+Linux / Start-menu entry on Windows pointing directly at the output game file, using `nightshift.svg`
+as the icon. Open Rofi, type "Nightshift", play. Uninstall the toolchain afterwards; it is no
+longer part of the game.
+
+## Spec
+
+The full specification — the two-binary guarantee, stage contracts, the runtime contract, the JIT
+tiering and optimization contracts, the GC collection-point rule and the non-negotiable rules — is in
+[`SPEC.md`](./SPEC.md).

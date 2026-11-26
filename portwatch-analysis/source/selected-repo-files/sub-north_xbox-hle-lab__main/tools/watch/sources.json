@@ -1,0 +1,22 @@
+[
+  { "name": "ivall/xcl", "branches": ["main"], "category": "runtime", "url": "https://github.com/ivall/xcl" },
+  { "name": "omonkeyz/xbox-emulator", "branches": ["main"], "category": "runtime", "url": "https://github.com/omonkeyz/xbox-emulator" },
+  { "name": "realdody/americas-recomp", "branches": ["main", "xbox-series"], "category": "shaders", "url": "https://github.com/realdody/americas-recomp" },
+  { "name": "gookie-dev/g6shim", "branches": ["main"], "category": "runtime", "url": "https://github.com/gookie-dev/g6shim" },
+  { "name": "ItsNotRexed/Leonida", "branches": ["main"], "category": "shaders", "url": "https://github.com/ItsNotRexed/Leonida" },
+  { "name": "R0Y00/Xbox2Windows", "branches": ["main"], "category": "shaders", "url": "https://github.com/R0Y00/Xbox2Windows" },
+  { "name": "rpatty-dev/PercyStar", "branches": ["main"], "category": "formats", "url": "https://github.com/rpatty-dev/PercyStar" },
+  { "name": "californiaAlmonds/OpenScarlett", "branches": ["main"], "category": "runtime", "url": "https://github.com/californiaAlmonds/OpenScarlett" },
+  { "name": "jamesstringer90/appsandbox", "branches": ["main"], "category": "vm", "url": "https://github.com/jamesstringer90/appsandbox" },
+  { "name": "Dark3581/AnyBox", "branches": ["main"], "category": "runtime", "url": "https://github.com/Dark3581/AnyBox" },
+  { "name": "benjaminbecker7/gta6pc", "branches": ["main"], "category": "title", "url": "https://github.com/benjaminbecker7/gta6pc" },
+  { "name": "brcly/TuxBox", "branches": ["main"], "category": "runtime", "url": "https://github.com/brcly/TuxBox" },
+  { "name": "drycheetah84/TomBox", "branches": ["main", "master"], "category": "runtime", "url": "https://github.com/drycheetah84/TomBox" },
+  { "name": "Ahmet-Dedeler/rage9-re", "branches": ["main", "master"], "category": "formats", "url": "https://github.com/Ahmet-Dedeler/rage9-re" },
+  { "name": "Ahmet-Dedeler/bcpack-rs", "branches": ["main", "master"], "category": "formats", "url": "https://github.com/Ahmet-Dedeler/bcpack-rs" },
+  { "name": "jadeowaowa/scarlett-layer", "branches": ["main", "master"], "category": "runtime", "url": "https://github.com/jadeowaowa/scarlett-layer" },
+  { "name": "breadbbbb/rpf9-explorer", "branches": ["main", "master"], "category": "formats", "url": "https://github.com/breadbbbb/rpf9-explorer" },
+  { "name": "sammwyy/xvalkyrie", "branches": ["main", "master"], "category": "runtime", "url": "https://github.com/sammwyy/xvalkyrie" },
+  { "name": "rpatty-dev/PercyScarlett", "branches": ["main", "master"], "category": "formats", "url": "https://github.com/rpatty-dev/PercyScarlett" },
+  { "name": "Freminet/ScarlettX", "branches": ["main", "master"], "category": "runtime", "url": "https://github.com/Freminet/ScarlettX" }
+]

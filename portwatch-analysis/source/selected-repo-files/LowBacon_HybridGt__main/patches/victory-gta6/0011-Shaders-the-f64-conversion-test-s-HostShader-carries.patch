@@ -1,0 +1,27 @@
+From 3b1664d78b0ac0b8b785908c9625759e1b63ce2b Mon Sep 17 00:00:00 2001
+From: LowBacon <lenni.a.jokitalo@gmail.com>
+Date: Wed, 25 Nov 2026 09:29:06 +0200
+Subject: [PATCH 11/25] Shaders: the f64 conversion test's HostShader carries
+ heap_samplers (HybridGt)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+(cherry picked from commit 42b9c3ca7b5534ddea080da3a8e239160bbd3de2)
+---
+ crates/victory-shader/src/emit/valu_tests.rs | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/crates/victory-shader/src/emit/valu_tests.rs b/crates/victory-shader/src/emit/valu_tests.rs
+index c8c96e9..e78a562 100644
+--- a/crates/victory-shader/src/emit/valu_tests.rs
++++ b/crates/victory-shader/src/emit/valu_tests.rs
+@@ -1569,6 +1569,7 @@ fn whole_wave_f64_sum_and_cvt_f32_f64() {
+         root_srvs: lowered.root_srvs,
+         root_uavs: lowered.root_uavs,
+         root_indexed_views: Vec::new(),
++        heap_samplers: Vec::new(),
+     };
+     if let Ok(mut v) = validator::Validator::load(validator::Validator::default_path().as_deref()) {
+         let mut copy = shader.dxil.clone();
+-- 
+2.56.1.windows.1
+

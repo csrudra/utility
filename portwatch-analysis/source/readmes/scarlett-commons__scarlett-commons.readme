@@ -1,0 +1,179 @@
+<p align="center">
+  <img src="docs/images/banner.svg" alt="Scarlett Commons: shared tests, specs and tools for Xbox Series X|S to PC compatibility" width="100%">
+</p>
+
+<p align="center">
+  <a href="https://github.com/scarlett-commons/scarlett-commons/blob/status/PROGRESS.md"><img src="https://raw.githubusercontent.com/scarlett-commons/scarlett-commons/status/badges/phase.svg" alt="phase"></a>
+  <a href="https://github.com/scarlett-commons/scarlett-commons/blob/status/PROGRESS.md"><img src="https://raw.githubusercontent.com/scarlett-commons/scarlett-commons/status/badges/tasks.svg" alt="tasks"></a>
+  <a href="https://github.com/scarlett-commons/scarlett-commons/issues?q=is%3Aissue+is%3Aopen+label%3Atask+label%3Aready+no%3Aassignee"><img src="https://raw.githubusercontent.com/scarlett-commons/scarlett-commons/status/badges/ready.svg" alt="ready to take"></a>
+  <a href="cases"><img src="https://raw.githubusercontent.com/scarlett-commons/scarlett-commons/status/badges/cases.svg" alt="test cases"></a>
+  <a href="docs/results.md"><img src="https://raw.githubusercontent.com/scarlett-commons/scarlett-commons/status/badges/results.svg" alt="confirmed on hardware"></a>
+  <a href="https://github.com/scarlett-commons/scarlett-commons/actions/workflows/ci.yml"><img src="https://github.com/scarlett-commons/scarlett-commons/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
+  <a href="AGENTS.md"><img src="https://img.shields.io/badge/AI%20agents-welcome-8250df" alt="AI agents welcome"></a>
+</p>
+
+<p align="center">
+  <b>English</b> · <a href="docs/i18n/ru/README.md">Русский</a> · <a href="docs/i18n/zh-CN/README.md">简体中文</a> · <a href="docs/i18n/es/README.md">Español</a>
+</p>
+
+<p align="center">
+  <a href="#in-plain-words">What is this</a> ·
+  <a href="#status">Status</a> ·
+  <a href="#milestones">Milestones</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#get-involved">Get involved</a> ·
+  <a href="#tools">Tools</a> ·
+  <a href="#faq">FAQ</a> ·
+  <a href="ROADMAP.md">Roadmap</a> ·
+  <a href="https://github.com/scarlett-commons/scarlett-commons/blob/status/PROGRESS.md">Live progress</a>
+</p>
+
+> [!IMPORTANT]
+> **This repository contains no game.** The recompiler works only on your own copy, on your own disk, and
+> nothing it makes is ever shared. **No game data, keys, decryption or links to leaks, ever**: the bot closes any
+> pull request that tries, and every imported commit was scanned for it.
+
+## In plain words
+
+Consoles and PCs are built from similar parts, but software made for one does not run on the other: the
+console's graphics programs (shaders) and system functions work differently. More than a dozen open projects
+are each solving the same problems on their own, and each one rediscovers the same bugs.
+
+We build **an open hybrid recompiler for Xbox Series X|S** (native execution now, static recompilation function by function in parallel) ([engine/](engine/README.md)): it translates the
+console's graphics programs to the PC's (RDNA2 → SPIR-V), loads the title's own code, and stands in for the
+console's system functions (D3D12 → Vulkan and the rest). It starts from the Leonida project's engine, with its
+full history and authors, and follows it automatically.
+
+Around it sits what makes it trustworthy: **a library of small tests that say exactly how the console behaves**,
+checked on real hardware by several people independently, which any project can run against its own code. When
+the tests find a bug, here or elsewhere, it gets fixed where it lives.
+
+The whole plan, without jargon: [docs/plan-explained.md](docs/plan-explained.md).
+The recompiler, broken into tasks with the ready-made tools for each: [docs/engine-plan.md](docs/engine-plan.md).
+
+## Status
+
+**Priority now: a stable, playable build as fast as possible.** Tasks on that path carry the label [`priority:playable`](https://github.com/scarlett-commons/scarlett-commons/issues?q=is%3Aissue+is%3Aopen+label%3Apriority%3Aplayable): comparing with and porting from VIctory where it is ahead (#137), function swap for patching crash sites (#55, #56, #58), shaders translated on first use (#75), texture tiling (#81), title memory uploads (#86), DirectStorage and BCPack (#110, #111), audio (#115-#117), input (#121, #122), the open GPU bug (#130), and the title-run loop (#124 done, #125). Take these first.
+
+**Phase 0 (foundation) is done; the engine track is active.** The rules, the bot, the docs, engine CI, the crash report and the one-command local run are in; the first test cases are in.
+Live numbers, every task and who is on it: **[progress page](https://github.com/scarlett-commons/scarlett-commons/blob/status/PROGRESS.md)**
+(regenerated every 6 hours).
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/scarlett-commons/scarlett-commons/status/images/progress.svg" alt="Tasks by area" width="640">
+</p>
+
+| Area | State | What exists | Next |
+|---|---|---|---|
+| **Recompiler engine** | 🔨 imported | RDNA2 → SPIR-V translator, PE loader, console API shims, D3D12 → Vulkan, their tests, over 10,000 commits of history; developed against GTA VI (build 1.0.2.1), whose build profile lives in Leonida | Engine CI runs on every change ([engine-dev.md](docs/engine-dev.md)); crash report and local run are in; next: function swap (hooks) and reaching the first frame |
+| **Title runs** | ⏳ waiting | [Reports by build hash](docs/title-runs.md), confirmed when two people agree | First registered build and reports |
+| **Rules and bot** | ✅ working | Rule gate, claims, blind drawn reviewers, tests-must-fail-on-base, fix tasks, `/split`, automerge, protected governance files | Mirror token; first outside reviewers |
+| **Shader cases** | 🔨 started | [Format](docs/test-format.md), validator, 3 cases (f32 add; binary64 FMA as literals and run-time inputs) | f32 rounding and denormals, f16/packed, LDS, wave64 cross-lane, images, buffers |
+| **Hardware results** | 🔨 started | [Consensus rules](docs/results.md); the FMA probe was measured on RTX 4090, 3070, Quadro RTX 4000 and RTX 5060 Laptop | An AMD RDNA2 run as the reference; second independent reports |
+| **Reference interpreter** | ⏳ waiting | A GPL-3.0 candidate exists ([landscape](docs/landscape.md)) | Evaluate and import |
+| **System API specs** | 🟦 ready | Tasks for memory, threads, graphics differences, audio, storage, input | Write them from public sources |
+| **Adapters and compatibility table** | ⏳ waiting | Batch PR tester for any repository (`tools/try_prs.py`) | SPIR-V runner, then adapters for five translators |
+| **Translations** | 🔨 started | README, plan, getting started and roadmap in ru, zh-CN, es; AGENTS and CONTRIBUTING in ru | Engine pages; more languages welcome |
+
+Legend: ✅ working · 🔨 in progress · 🟦 ready to take · ⏳ waiting on other tasks
+
+## Milestones
+
+| Milestone | State |
+|---|---|
+| A newcomer, person or agent, can take a task and get it merged without help | ✅ checked by a dry run with a fresh agent |
+| Governance changes can never merge themselves | ✅ |
+| First shared test cases | ✅ 3 cases |
+| First case confirmed by two independent hardware reports | ⏳ |
+| Reference interpreter agrees with hardware on every case | ⏳ |
+| First external translator in the compatibility table | ⏳ |
+| First bug found by the cases and fixed in another project | ⏳ |
+
+## How it works
+
+```mermaid
+flowchart LR
+  T["Task issue<br/>/claim, /split"] --> PR["Pull request<br/>Closes #N + Provenance"]
+  PR --> G{"Gate<br/>game-data guard<br/>licence, ownership,<br/>duplicates"}
+  G -- breaks a hard rule --> X["Closed with reasons<br/>fix and reopen"]
+  G -- ok --> V{"Verify<br/>new tests fail<br/>on the old code"}
+  V --> R["Reviewers drawn at random<br/>blind review form<br/>logs must agree"]
+  R --> M{"Score ≥ 2<br/>24 h quiet"}
+  M -- normal change --> A["Merged automatically"]
+  M -- rules or bot changed --> H["Maintainers merge by hand<br/>after 72 h, 2 approvals"]
+  A --> P["Progress page<br/>badges, chart"]
+```
+
+Details: [docs/architecture.md](docs/architecture.md).
+
+## Get involved
+
+| You are | Start here |
+|---|---|
+| **A developer** | [Getting started](docs/getting-started.md): pick a [ready task](https://github.com/scarlett-commons/scarlett-commons/issues?q=is%3Aissue+is%3Aopen+label%3Atask+label%3Aready+no%3Aassignee), `/claim` it, open a PR |
+| **An AI agent, or its operator** | [AGENTS.md](AGENTS.md): roles, the review form, the one rule ("you are not right because you wrote it") |
+| **Someone with a GPU** | [docs/results.md](docs/results.md): run the cases, submit a result; it counts when a second person agrees |
+| **A reviewer** | Comment `/reviewer on` in the [reviewer pool](https://github.com/scarlett-commons/scarlett-commons/issues/1); you will be drawn at random |
+| **A maintainer of another project** | [docs/landscape.md](docs/landscape.md): how your translator can be plugged into the shared cases without sharing code |
+
+## Tools
+
+| Tool | What it does |
+|---|---|
+| [`tools/try_prs.py`](tools/try_prs.py) | Tests a set of pull requests at once, each alone and all stacked, in **any** repository; also the `try` workflow |
+| [`tools/cases.py`](tools/cases.py) | Validates the shared test cases |
+| [`tools/fails_on_base.py`](tools/fails_on_base.py) | Checks that a change's tests fail without it |
+| [`tools/results.py`](tools/results.py) | Confirms hardware results by agreement between independent reports |
+| [`tools/check_build.py`](tools/check_build.py) | Checks your own files against a hash list without copying anything |
+| [`tools/progress.py`](tools/progress.py) | Builds the progress page, chart and badges |
+| [`tools/local_run.py`](tools/local_run.py) | Builds your own copy with the engine, runs it, writes a scrubbed title-run report |
+| [`tools/title_runs.py`](tools/title_runs.py) | Validates title-run reports and confirms stages by agreement |
+| [`tools/scan_history.py`](tools/scan_history.py) | Runs the game-data guard over every file version in a range of history |
+
+## FAQ
+
+<details><summary><b>Can I play anything with this?</b></summary>
+
+Not yet, and never from this repository alone: it contains no game. The recompiler turns your own copy into a
+PC build; how far that gets today is on the progress page under "Title runs" (no confirmed reports yet).
+</details>
+
+<details><summary><b>Is this legal?</b></summary>
+
+The project contains only hand-written tests, specifications from public sources, and tools, under
+GPL-3.0-or-later. It never contains, links to or processes game data, keys or protected content, and the bot
+enforces that on every pull request. Legal requests are handled as in [SECURITY.md](SECURITY.md).
+</details>
+
+<details><summary><b>Why let AI agents contribute?</b></summary>
+
+Because most of the work is careful, checkable and parallel: write a case, run it, compare words. Every
+contribution, from a person or an agent, faces the same automatic checks and blind reviews by someone else.
+</details>
+
+<details><summary><b>How do you stop fake results?</b></summary>
+
+A hardware result counts only when two different people report the same output digest for the same case,
+commit and hardware class; disagreements are flagged. Reviewers are drawn by the bot, not chosen by the author,
+and pairs that only approve each other are flagged in audits.
+</details>
+
+<details><summary><b>Which projects does this help?</b></summary>
+
+Any translator of RDNA2 shaders or reimplementation of the console's system APIs. The ones we know are listed
+in [docs/landscape.md](docs/landscape.md), with what each can share.
+</details>
+
+## Ground rules
+
+- **No game data, ever.** No archives, executables, shaders in any form, textures, models, audio, video, or
+  logs that quote them.
+- **No keys, decryption, or protection workarounds**, and no links to where to get them or to any leak.
+- **Licence: GPL-3.0-or-later.** Code from other projects comes in only under a compatible licence, with the
+  source named. GPL-2.0-only projects and projects without a licence contribute facts and ideas, never code.
+- **You are not right because you wrote it.** Tests must fail without the change; reviews are blind, against
+  the task, by someone the bot drew.
+
+[CONTRIBUTING.md](CONTRIBUTING.md) · [GOVERNANCE.md](GOVERNANCE.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) ·
+[SECURITY.md](SECURITY.md) · [ROADMAP.md](ROADMAP.md)

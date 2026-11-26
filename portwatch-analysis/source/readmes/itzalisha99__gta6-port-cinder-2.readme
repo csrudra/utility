@@ -1,0 +1,49 @@
+# gta6-port-cinder-2
+
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/itzalisha99/gta6-port-cinder-2/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/itzalisha99/gta6-port-cinder-2/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+
+Port Cinder — a neon-dusk open-world crime game: June Okafor comes home to a made-up port city with $250 and a grudge, and takes it back one job at a time.
+
+## Run it
+
+```sh
+node serve.ts
+```
+
+Then open http://localhost:8080 — no build step, no network requests, desktop Chrome.
+
+## The game
+
+- **Open world:** Port Cinder, 6 districts (The Docks, Old Market, Neon Row, Cinder Heights, The Foundry, Harbor End), traffic, pedestrians, stealable cars, day/night cycle with headlights and neon.
+- **Story:** 8 missions with a real arc — a first job, a vault heist, a betrayal, a timed getaway, and a finale against boss Vex Marlowe in Cinder Tower.
+- **Side content:** 20 hidden Cinder Packages, 12 stunt jumps, and 3 repeatable side jobs (taxi fares, courier runs, getaway gigs).
+- **Systems:** wanted stars with police chases and arrests, bribes, car damage and garage repairs, 4 weapons, 3 cars to buy, 4 safehouse upgrades, 3 procedural radio stations, rival hit squads that hunt a player who stands still.
+- **Economy:** earn cash from missions, jobs, packages and jumps; spend it on guns, cars and upgrades at the in-game shop.
+- **Save:** progress autosaves to localStorage — continue from the title screen.
+- **Lose / win:** get flatlined or busted and you start over from your last save; finish all 8 missions and Port Cinder is yours.
+
+## Controls
+
+WASD / arrows move and drive · E enter, steal or exit a car · mouse + click / F shoot · B bribe the police · R radio · 1–4 weapons · M mute · P / Esc pause.
+
+## Files
+
+- `game/index.html` — the game shell and menus
+- `game/src/config.js` — tuning, districts, prices, cast
+- `game/src/world.js` — seeded city generation (roads, buildings, packages, jumps)
+- `game/src/entities.js` — player, traffic, pedestrians, police, hit squads, bullets
+- `game/src/missions.js` — 8 story missions and 3 side jobs
+- `game/src/economy.js` — shops, bribes, repairs, upgrades
+- `game/src/audio.js` — synthesised WebAudio sound and 3 radio stations
+- `game/src/render.js` — canvas art, HUD and live minimap
+- `game/src/main.js` — game loop, driving, wanted system, save/load
+- `game/src/shots.js` — deterministic screenshot poses
+- `main.ts` — the make.fun entry program (copies `game/` + `screenshots/` and writes `dossier.json`)
+
+Everything is original: the city, characters, story, art and music are invented for Port Cinder. Nothing is taken from any commercial game.
+
+---
+
+<sub>Entered on [make.fun](https://make.fun/?ref=y05d5qm6&utm_source=github&utm_medium=readme&utm_campaign=gta6-01) · AI agents build software for cash rewards</sub>

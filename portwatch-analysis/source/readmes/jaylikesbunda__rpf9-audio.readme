@@ -1,0 +1,166 @@
+# rpf9-audio
+
+**Read-only RPF9/AWC container and audio research toolkit for RAGE-engine files.**
+
+`rpf9-audio` is a small, dependency-free Python command-line tool for inspecting
+RPF9 archives and `ADAT`/AWC audio containers, extracting Opus packets, decoding
+them to WAV, and remuxing them into playable Ogg Opus. It is intended for format
+research, preservation work, and interoperability testing on files you are
+allowed to inspect.
+
+The tool never modifies its input. It performs no decryption, makes no network
+connections, and bundles no game data, audio, keys, DLLs, or listings of
+copyrighted works.
+You supply the files.
+
+## Quickstart
+
+```powershell
+python -m pip install -e .
+rpf9-audio doctor
+rpf9-audio scan "D:\path\to\archive.rpf"
+```
+
+Then inspect one container and list the audio streams it contains:
+
+```powershell
+rpf9-audio list-awc "D:\path\to\sound.awc"
+```
+
+See [QUICKSTART.md](QUICKSTART.md) for the full walkthrough.
+
+## Features
+
+- **RPF9 inspection** — finds 4 KiB-aligned `9FPR` headers and reports archive
+  fields, carving recognizable payloads without touching the input file.
+- **AWC/ADAT parsing** — flags, optional tables, cumulative first-chunk tags,
+  chunk tables, format chunks, stream-format chunks, and both packet framings.
+- **512 KiB music blocks** — detects the per-block header (`0x800`, `0x1000`,
+  `0x2000`, `0x4000`) by packet yield, handles 2 KiB sub-blocks (`u16` length,
+  packet, zero padding), and keeps one decoder across block boundaries.
+- **Direct archive access** — read an AWC inside a large `.rpf` with
+  `--rpf-offset 0x...` and `--length`, without extracting it first.
+- **Streaming output** — WAV is written block by block and finalized atomically;
+  the full PCM stream is never held in memory. Decoding is single-threaded
+  because Opus decoder state is sequential.
+- **Ogg Opus remux** — copies packets verbatim into Ogg pages with correct
+  lacing, granule positions, and CRCs. Optional `--title`, `--artist`,
+  `--album`, `--genre`, `--date`, `--comment`, and `--cover` tags; no tags are
+  written by default. Cover art is embedded as `METADATA_BLOCK_PICTURE`.
+- **`index.json` on extract** — offset, type, size, SHA-256, and audio
+  duration/sample rate/channels where they can be determined.
+- **`--json` everywhere** — every command has a machine-readable mode.
+- **`doctor`** — Python version, libopus discovery and version, optional
+  ffmpeg/flac presence, supported formats, and tool version.
+- **Stable exit codes** — see the table below.
+
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `scan ARCHIVE` | Find RPF9 headers and carved payloads. |
+| `extract ARCHIVE OUTDIR` | Write carved files plus `index.json`, `index.tsv`, `report.txt`. |
+| `list-awc FILE` | Show streams, chunks, formats, and block framing. |
+| `decode FILE OUTDIR` | Decode Opus packets to streaming WAV (48 kHz or 32.768 kHz). |
+| `remux FILE OUTDIR` | Copy Opus packets into Ogg Opus, optionally with tags. |
+| `strings FILE` | Print strings from metadata/animation/marker chunks. |
+| `doctor` | Report the environment and supported formats. |
+| `index OUTDIR` | Summarize an `index.json` produced by `extract`. |
+
+Common options: `--json`, `--quiet` (streaming commands), and
+`--block-header auto|0x800|0x1000|0x2000|0x4000` (AWC audio commands).
+
+### Reading an AWC inside an archive
+
+```powershell
+rpf9-audio list-awc "D:\path\to\archive.rpf" --rpf-offset 0x1200000
+rpf9-audio decode "D:\path\to\archive.rpf" "D:\path\to\wav" --rpf-offset 0x1200000 --length 0x2000000
+```
+
+`--length` is optional and is clamped to the end of the file. All AWC offsets
+remain relative to the AWC itself.
+
+### Tags and cover art
+
+```powershell
+rpf9-audio remux "D:\path\to\sound.awc" "D:\path\to\opus" `
+  --title "Example" --artist "Example Artist" --album "Example Album" `
+  --genre "Example" --date "2026" --comment "NOTE=made with rpf9-audio" `
+  --cover "D:\path\to\cover.png"
+```
+
+Tag values may not contain NUL or newlines. Cover images are accepted as PNG,
+JPEG, GIF, or WebP; other bytes are embedded as `application/octet-stream`.
+The tag/cover block is bounded to 24 MiB.
+
+## Decoding dependency
+
+Decoding needs a `libopus` build already installed on your machine. The tool
+does not ship one. It looks at `--opus-dll`, the `OPUS_DLL` environment
+variable, common application locations, and the system library path. `doctor`
+shows what was found. Remuxing never needs libopus.
+
+## Exit codes
+
+| Code | Meaning |
+| ---: | --- |
+| `0` | Success. |
+| `1` | Internal or unexpected I/O error. |
+| `2` | Command-line usage error. |
+| `3` | Input file is missing or unreadable. |
+| `4` | Input is malformed or not supported. |
+| `5` | A required dependency (libopus) is unavailable. |
+| `6` | Output directory conflict (use `--force`). |
+
+Errors are printed to stderr with the input file and, where relevant, the byte
+offset. `--json` output goes to stdout; progress goes to stderr.
+
+## Limitations
+
+- RPF9 record tables are not decrypted or enumerated as a virtual filesystem.
+  Files are located by carving recognized payloads, which can miss unknown
+  formats or produce an occasional false positive.
+- No decryption or key handling is implemented.
+- Only Opus is decoded. PCM, ADPCM, Vorbis, XMA, and other codecs are reported
+  but not converted.
+- Multi-channel streams with more than two channels are listed but not decoded
+  or remuxed.
+- `--rate 32768` decodes at 48 kHz and then resamples with a streaming linear
+  interpolator; it is not a native 32.768 kHz decoder.
+- WAV output uses a 32-bit RIFF size and is limited to just under 4 GiB.
+- Decoding is single-threaded; `--jobs` is intentionally not offered.
+- `strings` extracts printable ASCII only.
+- The zlib carving pass recognizes common headers by default; `--zlib-all`
+  broadens it at a significant speed cost.
+- Block-header auto-detection selects the candidate that yields the most valid
+  packets, with ties resolved toward the larger header. See
+  [docs/FORMAT.md](docs/FORMAT.md) for confidence notes.
+
+## Safety and legal
+
+- **No game data, audio, keys, or DLLs are bundled.** All test fixtures are
+  synthetic and generated in the test suite.
+- **Read-only.** Inputs are opened read-only and never modified.
+- **Offline.** No network access, downloads, or telemetry.
+- **No decryption or DRM circumvention.** Encrypted data is not processed.
+- **No game executables are run.** libopus is loaded only from a local install
+  or an explicit path.
+- Use this only with files you are legally entitled to inspect, and comply with
+  the applicable license/EULA and local law. Do not redistribute copyrighted
+  audio.
+
+See [docs/LEGAL.md](docs/LEGAL.md) and [SECURITY.md](SECURITY.md).
+
+## Development
+
+```powershell
+python -m pip install -e ".[test]"
+python -m pytest -q
+```
+
+The suite uses synthetic fixtures only. Contributions that add game data,
+captured audio, keys, or broadcast/catalogue metadata are not accepted.
+
+## License
+
+MIT. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

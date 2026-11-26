@@ -1,0 +1,50 @@
+# Xbox Scarlett executable import analysis
+
+The analyzed image is the x64 `game_scarlett_master.exe` from the Scarlett package labeled 1.0.2.1. Both examined copies had SHA-256 `E95020B2FA4A721DB3DF59FDECF75621730AC559D8835252F6C3B658D5A08993`.
+
+## Findings
+
+- The executable has 587 direct imports across 68 import descriptors. Of those, 341 resolved against Windows exports, 209 matched bundled exports, and 37 depended on seven unavailable Xbox DLLs.
+- The unresolved modules are `xmem.dll`, `d3d12_xs.dll`, `chad.dll`, `xg_xs.dll`, `XCRDAPI.dll`, `xapu.dll`, and `AcpHal.dll`.
+- Both Windows Sandbox debug runs armed the entry breakpoint at RVA `0x056A1EC8`. The loader exited with `0xC0000135` before hitting it. Both loader traces reported failures for `xmem.dll` and `twinapi.appcore.dll`. The startup trace reported a failure for `MSVCP140.dll` only in the mapped-folder run.
+- The CodeView record names `game_scarlett_master.pdb`, GUID `2a6912ba-eb4f-427f-4c4c-44205044422e`, age 1. A matching PDB was unavailable. The PE inventory records the `__XMemAllocationHooks__` export and 299,257 x64 unwind records.
+
+## Data
+
+| File | Contents |
+| --- | --- |
+| [PE inventory](Xbox-GDK-PE-inventory.json) | Sections, debug metadata, imports, exports, and selected call-site candidates for the executable and 16 DLLs |
+| [Import audit](Xbox-GDK-import-audit.json) | Import-level resolution by DLL, name or ordinal, and IAT RVA |
+| [Windows preflight](Xbox-GDK-Windows-preflight.json) | Missing dependency groups and the suspended-process result |
+| [Sandbox launch result](sandbox-evidence/launch-result.json) | Exit status from the packaged executable |
+| [Sandbox loader trace](sandbox-evidence/debug-startup.log) | Loader snaps from the mapped package |
+| [Guest-local loader trace](sandbox-evidence/debug-local.log) | Loader snaps after copying the executable and companion DLLs inside the guest |
+| [Guest export checks](sandbox-evidence/guest-windows-exports.json) | Results for 697 distinct module and symbol pairs |
+
+The call-site candidates in the inventory come from byte patterns. Verify instruction boundaries before relying on an address. Export resolution establishes symbol availability. Compatibility of arguments, return values, and object lifetimes requires separate testing.
+
+## Reproduce
+
+The preflight validates the SHA-256 hashes against the inventory. Supply the executable at the repository root and the indexed files at their package-relative paths. The repository contains tooling and results only.
+
+```powershell
+python -m venv .venv
+& .\.venv\Scripts\python.exe .\tools\windows_preflight.py .\Xbox-GDK-PE-inventory.json
+& .\.venv\Scripts\python.exe .\tools\audit_imports.py
+```
+
+On a Windows host with Windows Sandbox enabled, set the three `HostFolder` paths in a copy of the desired `.wsb` file to your package, tools, and results directories. Start the configuration to reproduce the launch or debugger run. The package and tools shares are read-only. The results share is writable, so use a dedicated directory. Guest networking, clipboard sharing, and virtual GPU access are disabled.
+
+- [Launch configuration](tools/game-launch.wsb)
+- [Mapped-package debug configuration](tools/game-debug.wsb)
+- [Guest-local debug and export-check configuration](tools/game-debug-local.wsb)
+
+## Replacement DLL startup
+
+The AnyXboxX build from revision [`427562f`](https://github.com/LooperSalty/AnyXboxX/tree/427562fbcbd359a92096952727347da311cb9f67) exports all 12 `xmem.dll` imports. Windows mapped it in the title process. Continuing with that replacement alone exposed `d3d12_xs.dll` as a loader blocker. [Mapping trace](sandbox-evidence/anyxboxx-xmem-load.log) · [Startup trace](sandbox-evidence/anyxboxx-xmem-startup.log)
+
+Seven replacements were built offline from the pinned [TomBox revision](https://github.com/omonkeyz/xbox-emulator/tree/f89e4106fe8a1728515afa34ceb5097132cadcda). All seven mapped. The loader stopped on the missing `xg_xs.dll!XGSuggestSwizzleMode` export with `0xC0000139`. The local swizzle adapter covers the two XG imports and uses the backing DLL's layout computation for the zero-flag calls observed in the title. It allowed TLS initialization to finish and the debugger to hit the PE entry point. [Original TomBox trace excerpt](sandbox-evidence/tombox-startup-excerpt.log) · [Entry breakpoint trace excerpt](sandbox-evidence/tombox-adapted-entry-excerpt.log) · [Adapter source](tools/XgSwizzleAdapter.cpp)
+
+The subsequent execution trace saw two failed load attempts for `xgameruntime.dll`. A run without loader snaps, with the package files available through read-only mappings, terminated at title RVA `0x05925903` with `0xC0000005`. This instruction dereferences the interface pointer after a failed `GameInputCreate` call. The executable reached its entry point and began startup. Gameplay remains unverified. [Runtime lookup trace excerpt](sandbox-evidence/tombox-execution-excerpt.log) · [Access violation trace](sandbox-evidence/tombox-fast-execution.log)
+
+The updated Sandbox scripts expect locally built DLLs and the original package layout. The TomBox build configuration uses an offline vendored Cargo tree and read-only toolchain mounts. The game binaries, replacement DLLs, vendor tree, and installers are outside Git.

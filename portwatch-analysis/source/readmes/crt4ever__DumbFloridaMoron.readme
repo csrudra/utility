@@ -1,0 +1,134 @@
+<div align="center">
+
+<img src="docs/logo.png" alt="DumbFloridaMoron" width="160">
+
+```
+   ___             __   ______         _    __     __  ___                 
+  / _ \__ ____ _  / /  / __/ /__  ____(_)__/ /__ _/  |/  /__  _______  ___ 
+ / // / // /  ' \/ _ \/ _// / _ \/ __/ / _  / _ `/ /|_/ / _ \/ __/ _ \/ _ \
+/____/\_,_/_/_/_/_.__/_/ /_/\___/_/ /_/\_,_/\_,_/_/  /_/\___/_/  \___/_//_/
+```
+
+**an xbox series title, running natively on a windows pc.**
+a fork of [VIctory](https://github.com/Marvisak/VIctory), tuned for one game and one machine.
+
+![license](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
+![platform](https://img.shields.io/badge/platform-windows%20x64-0078d6)
+![shaders](https://img.shields.io/badge/shaders-26%2C142%20%2F%2026%2C142-brightgreen)
+![imports](https://img.shields.io/badge/imports-993%20%2F%20995-brightgreen)
+![menus](https://img.shields.io/badge/menus-30%20fps-brightgreen)
+![ray tracing](https://img.shields.io/badge/ray%20tracing-partial-orange)
+
+</div>
+
+---
+
+## what it is
+
+A compatibility layer. The title's own x64 code runs on the host CPU. The console's system APIs
+are reimplemented. The console's GPU shaders (GFX10 machine code) are recompiled to DXIL for
+Direct3D 12. **No game files are in this repository.** Bring your own dump of a game you own.
+
+```
+title .exe (x64) ──► loader ──► console APIs (HLE) ──► Windows
+                                       │
+GFX10 shaders ──► decoder ──► IR ──► DXIL ──► D3D12 pipelines ──► your GPU
+```
+
+## progress
+
+Measured on this fork, 25 Nov 2026. The numbers come from the tools in this repo
+(`victory census`, `victory translate`, `victory warm`, `scripts/measure.ps1`).
+
+| area | progress | detail |
+|---|---|---|
+| boot to main menu | `██████████` 100% | menus at a steady 30 fps |
+| world entry | `██████████` 100% | the world loads and the story intro starts; the old hang on entry is fixed |
+| imports resolved | `██████████` 99.8% | 995 across 18 images: 132 console APIs reimplemented, 789 passed to Windows, 72 served by the title's own DLLs, 2 missing |
+| shaders translated | `██████████` 100% | 26,142 of 26,142 GPU programs to DXIL |
+| compute pipelines ahead of time | `██████████` 98.6% | 2,697 of 2,734 built before the first run with `victory warm` |
+| in-world frame rate | `██░░░░░░░░` | 5.6 to 6.6 fps in the first world scenes, about 3 fps in the heavy intro scene (about 7,000 draws a frame), from 0.5 to 1.9 before uploads were pooled, the shader cache kept across builds and copy-backs narrowed to the pages shaders wrote; `--console series-s` renders less. Binding on the title thread fell from about 515 to 218 ms a frame in that scene (upload and texture rings, a per-list memo of what is readable, the heap pass on a budget, fxceless's frame-rate work), so the frame waited on the card. Clamps of indirect draws now run once before each run of draws (from Belobug's fork): the card's waits on shader writes fell from about 13,400 to 710 a frame and its transitions from 19,600 to 414, the card is about 66% busy and the submitting thread is the limit again. Title memory sent to the card fell from about 450 to 140 MB a frame (writes tracked by 4 KiB piece, guarded blocks opened by piece), descriptor tables are built from a stamp and the heap mirror is compared a page at a time: the heavy scene runs at 230 to 285 ms a frame |
+| picture | `█████░░░░░` | about 350 draws a frame are dropped in the heavy scene: of the two console pipeline creation methods that take raw GFX10 code and register state, compute (device slot 0x218) is written but off by default (`VICTORY_RAW_COMPUTE=1`) until it has run well in the game, and graphics (0x1c8) is not written yet |
+| ray tracing | `███░░░░░░░` | the console's BVH builder translates (52 of 52 pipelines) and its ray instruction is lowered to inline DXIL; shadowed areas still come out dark |
+| online | `░░░░░░░░░░` 0% | not a goal |
+
+## what this fork adds
+
+- **76 open upstream PRs merged**, the broken ones fixed first. Every merge and fix says why in its commit.
+- **Both fxceless forks** folded in (the title-specific work and the fx PRs), kept up to date.
+- **World entry no longer hangs.**
+- **Pipelines build over 10x faster in game**: 2,436 in 420 s against 155 in 200 s before.
+- **`victory warm`**: builds the title's compute pipelines into the pipeline library before you play,
+  through the same code path a dispatch takes, so the first run loads them instead of stalling.
+
+| | |
+|---|---|
+| Rust | 146,643 lines in 9 crates |
+| tests | 962 |
+| commits on top of upstream | over 600 |
+
+## quick start
+
+```powershell
+cargo xtask install-hooks                 # asset-policy check on every commit
+copy victory.example.toml victory.toml    # set your paths (outside the repo)
+cargo build --profile diag -p victory --features diagnostics
+target\diag\victory.exe warm <dump>       # optional, once: compute pipelines ahead of time (about 9 min)
+target\diag\victory.exe run <dump>\<title>.exe --execute
+```
+
+Needs Windows 10/11 x64, an AVX2 CPU, a D3D12 GPU with shader model 6.6 and mesh shaders,
+and Rust (version pinned in `rust-toolchain.toml`).
+
+## commands
+
+| command | what |
+|---|---|
+| `victory run <exe> --execute` | start the title |
+| `victory warm <dump>` | build its compute pipelines into the library the runs load |
+| `victory translate <dump>` | run every shader through the recompiler and list what it cannot handle (`--validate`, `--pipelines`) |
+| `victory shader-dump <hash> --out <dir>` | a shader a run's log names, as its container and its code in SP3 syntax |
+| `victory census <dump>` | which imports are reimplemented, passed through or missing |
+| `victory inspect <file>` | one PE image: headers, sections, imports, TLS |
+| `victory config` | the resolved configuration, checked |
+
+## layout
+
+| path | what |
+|---|---|
+| `apps/victory` | the command-line tool |
+| `crates/` | loader, runtime services (HLE), GPU back end, shader recompiler, formats |
+| `scripts/` | `measure.ps1` (one timed run with logs and an fps table), `list-prs.ps1` |
+| `docs/` | architecture, asset policy, the full upstream guide ([docs/victory.md](docs/victory.md)) |
+| `xtask/` | repository checks |
+
+## contributing
+
+Issues and pull requests are welcome. Keep commits small and say why in the message.
+`cargo xtask policy` must pass: no game data, no screenshots, no binaries.
+
+## legal
+
+GPL-3.0-or-later, like upstream ([LICENSE](LICENSE)). Not affiliated with or endorsed by
+Rockstar Games, Take-Two Interactive or Microsoft. Their names and marks belong to them.
+`cargo xtask policy` refuses game data in any commit. See [docs/asset-policy.md](docs/asset-policy.md).
+
+**Takedown requests:** if you are a game company that holds the rights to the title
+and wants this repository gone, mail [hi@crt.fyi](mailto:hi@crt.fyi). It comes down, no lawyers needed.
+
+## credits
+
+[VIctory](https://github.com/Marvisak/VIctory) by Marvisak and contributors is the base of everything here.
+[victory-gta6](https://github.com/fxceless/victory-gta6) by fxceless is the fork this one starts from.
+[VIctory-Belobug-AMD](https://github.com/Belobug/VIctory-Belobug-AMD) by Belobug: indirect clamps hoisted before their draws, twice the dynamic descriptor slots, guards reopened in runs, screen-pass workers, large descriptor tables made once.
+[XCL](https://github.com/xcl-dev/xcl) was a reference for how the same title behaves under another layer.
+
+---
+
+<div align="center">
+
+`greetz: marvisak & the victory crew · fxceless · belobug · the xcl crew · every scener still cracking at 4 am`
+
+**-=crt=-**
+
+</div>

@@ -1,0 +1,125 @@
+# NEON HARBOR — Open-World Crime Game
+
+[![make.fun bounty](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/roymaster46/neon-harbor/rank.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/roymaster46/neon-harbor/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+
+**Neon Harbor** is an original 3D open-world crime game set in a rain-soaked
+neon port city that never sleeps. You are **Rook**, getaway driver for the
+harbor crew. One night, ten jobs, one last ferry — and a 5-star police force
+with helicopters, roadblocks and spike strips trying to end the run before
+dawn. The game boots straight into the middle of the chase: Mission 6,
+stage 3 of 4, four stars up, a police helicopter overhead and a roadblock
+on Harbor Bridge.
+
+Everything is original: the city, characters, vehicles, story and sounds.
+No Rockstar / GTA names, characters, map, art or music are used. All art is
+procedural Three.js geometry with canvas-generated textures, all sound is
+synthesized with WebAudio, and the game ships as plain static files and makes
+**zero network requests** at runtime (Three.js r160 is vendored under
+`game/vendor/`).
+
+## The city
+
+A 960×960 m open world on a street grid: ten districts — Pier 9, Harbor
+Bridge, Neon Row, Downtown, Old Port, Marina, Warehouse Row, Uptown, Canal
+Side and Northgate — each with its own neon colour on the HUD and minimap.
+A black harbor with container cranes, a six-lane bridge with pink and cyan
+edge neon, wet streets that mirror the signs, rain that never stops, and
+lightning over the bay. Landmarks you will learn by heart: Club Mirage,
+Vex Garage, Harbor Arms, The Pearl Casino, the Pier 9 cranes and the Ferry
+Terminal.
+
+## The hook: one night, ten jobs
+
+Every mission is a set piece in the rain: a cab fare that turns into a
+recruitment, a casino garage heist, a canal smuggling run, a dockside deal
+that goes south, a midnight street race, the Harbor Bridge chase, the Pearl
+Casino vault, a convoy ambush on the Northgate highway, a storm-surge
+escape, and the last boat out. Each mission pays cash and respect.
+
+## Systems
+
+- **On foot** — WASD to move, Shift to sprint. Camera follows behind you.
+  Press E near a parked car to steal it (that is a crime — the NHPD notices).
+- **Cars** — 7 cars, from the Harbor Cab to the Harbor One hypercar, plus
+  live traffic on the road grid. Drive with WASD/arrows, Shift for
+  handbrake, N for nitro (top speed ×1.65, ×1.85 with the Nitro Kit).
+  Cars take damage, dent, and can be wrecked.
+- **Police, 5 stars** — wanted level rises with every crime and decays when
+  you stay hidden. 1–2 stars: patrol cars chase and ram you. 3+: a police
+  helicopter joins with a searchlight. 4+: roadblocks. 5 stars: spike
+  strips, the helicopter and roadblocks together. Bribe them at any time
+  (button in the HUD) — the price scales with your stars.
+- **Combat** — 4 weapons (Fists, .38 Harbor, HK-9 SMG, 12G Breacher) with a
+  weapon wheel (Q) and slots (1–4), ammo, falloff damage, and police cars
+  that take damage, smoke, and can be disabled. Kevlar vests absorb 70% of
+  damage before health.
+- **Story missions** — 10 staged missions (M to open the list), each with
+  stages, a live beacon, a crew dialog line with a portrait, and a payout.
+- **Crew** — recruit Mira (driver, nitro lasts 50% longer), Vex (mechanic,
+  half-price repairs) and Kiki (lookout, wanted decays twice as fast).
+  Each has a real gameplay perk and a key (Z / X / C).
+- **Garage & shop** — Vex Garage (G) sells cars and upgrades: tuned
+  engines, nitro kits, plated bodies, grip tires, repairs, plus the
+  safehouse heal. Harbor Arms (B) sells weapons, ammo, armor — and recruits
+  crew.
+- **Respect & rank** — earn respect from missions and jobs to climb from
+  Nobody to Runner, Wheelman, Fixer, Hustler, Harbor Legend and King of the
+  Harbor.
+- **Side jobs** — taxi fares (T), courier runs (C) and vigilante hits (V),
+  all paying cash and respect.
+- **A living harbor** — 12 traffic cars cruising the grid, 22 pedestrians
+  who panic and flee when the heat rises, a storm that deepens through the
+  night, falling rain, lightning, and a police dispatch panel that names
+  every unit, its tactic and its live distance from you.
+- **Radio** — 4 synthesized stations (R to cycle): NEON 101 synthwave,
+  STORM FM night drive, HARBOR TALK evacuation watch, WAVE 90.4 island pop.
+  All music is generated live by WebAudio — no audio files — plus a
+  synthesized engine hum that follows your speed and a two-tone siren when
+  the helicopter is up.
+- **Save** — autosaves every 20 seconds and on demand (Save button) to
+  localStorage; progress, money, weapons, cars, crew and missions persist.
+
+## Controls
+
+| Key | Action |
+| --- | ------ |
+| WASD / arrows | Move / drive |
+| Shift | Sprint / handbrake |
+| Mouse click | Shoot |
+| E | Interact / steal car / exit car |
+| Q / 1–4 | Weapon wheel / weapon slots |
+| N | Nitro |
+| B | Gun shop |
+| G | Safehouse / garage |
+| M | Mission list |
+| R | Cycle radio |
+| V | Vigilante job |
+| T | Taxi job |
+| C | Courier job |
+| P / Esc | Pause |
+
+## Play it
+
+```sh
+node serve.ts
+# open http://localhost:8080
+```
+
+## Tests
+
+```sh
+node --test tests/logic.test.mjs
+```
+
+## Screenshots
+
+1. `screenshots/1-hero.jpg` — Mission 6 HARBOR LIGHTS: 4-star chase across Harbor Bridge, heli spotlight, roadblock ahead, rain
+2. `screenshots/2-rain.jpg` — Neon Row in the storm: traffic, pedestrians, dispatch on the tail, Kiki on the radio
+3. `screenshots/3-pier.jpg` — Pier 9 heist: explosion at Crane 4, 5-star response, spike strip on the docks
+4. `screenshots/4-night.jpg` — Downtown at 2AM: 5-star lockdown, roadblock, heli, the Harbor One at full nitro
+
+## License
+
+MIT — see `LICENSE`.

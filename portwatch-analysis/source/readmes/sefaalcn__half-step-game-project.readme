@@ -1,0 +1,105 @@
+# Half Step Game Project
+
+**Half Step Game Project** is a compatibility layer that runs an Xbox Series
+title natively on Windows from files the user supplies. It is based on
+[VIctory](https://github.com/Marvisak/VIctory) and continues that work under
+this project’s name and signature.
+
+**This repository contains no game files, code or assets.** You need your own
+copy of the game. It is not affiliated with or endorsed by the game's
+developer or publisher.
+
+## Credits
+
+- **[VIctory](https://github.com/Marvisak/VIctory)** by Marvisak and its
+  contributors is the technical base: the loader, the runtime services, the
+  Direct3D 12 back end and the shader recompiler. Licensed GPL-3.0-or-later;
+  so is Half Step Game Project.
+- **[XCL](https://github.com/ivall/xcl)** by ivall and its contributors
+  (GPL-2.0-only) was used as a reference for how the same title behaves under
+  another layer. Fixes inspired by it were written anew in this codebase.
+
+## Status (2026-11-25)
+
+**Not playable yet.** Boot and menus work; the world reaches gameplay with
+severe frame times and missing ray-traced lighting in shadow. This project’s
+ray-tracing structure builder can now obtain host pipelines on a 32-lane GPU
+(see `docs/fork-ray-tracing.md`). End-to-end lighting and playable fps are
+still open.
+
+### Roadmap progress (RT → FPS → Interior)
+
+Playable gate: lit prologue + visible shadows + stable ~15+ fps + no blank
+interior after cutscene. Engine stays title compute RT (no DXR).
+
+```
+Overall  [████████░░░░░░░░░░░░]  ~40%
+```
+
+| Phase | Bar | State |
+|---|---|---|
+| 0 Inventory | `[██████████]` | **Done** — world run, drop hashes, builder gate logged |
+| 1a Wave64 / builder translate | `[██████████]` | **Done** — builder host pipelines (53); `builder runs` |
+| 1b Builder e2e + shadow-mask | `[██████░░░░]` | **Partial** — all-or-none builder on; quarantine-off still crashes title; shader translation of the remaining programs (incl. shadow-mask) is in `half-step-game-project-1` @ 3f095ae, not merged or verified in-game yet |
+| 2 Lit (quarantine off) | `[██░░░░░░░░]` | **Blocked** — quarantine-off → `0xc0000005` Prestream; need wave32-correct builder stores |
+| 3 FPS (~15+) | `[███░░░░░░░]` | **Measured** — 16 GiB stable; `WIDE_BACK` in profile; world ~1 fps (~1.2 s/frame) with builder+Q after the window-scan skip (was ~0.4 fps); the skip only applies under quarantine, so re-measure once lit |
+| 4 Interior blank | `[░░░░░░░░░░]` | **Not started** |
+
+**16 GiB hosts:** use `scripts/run-16gb.ps1`. Full measurements and next
+targets: [`docs/dev-notes-16gb.md`](docs/dev-notes-16gb.md).
+
+Tested on Windows 11 with Direct3D 12 (RTX 5060 wave32). Series X profile by
+default.
+
+## Getting started
+
+Requirements: Windows 10/11 x64, a CPU with AVX2, a Direct3D 12 GPU with
+shader model 6.6 (and mesh shaders for the world), Rust (pinned in
+`rust-toolchain.toml`).
+
+```powershell
+cargo xtask install-hooks                # asset-policy check on every commit
+copy victory.example.toml victory.toml   # then set your paths (outside the repo)
+cargo test --workspace                   # needs no game data
+cargo run -p victory -- config           # check your paths
+```
+
+Run the title:
+
+```powershell
+cargo build --release -p victory
+target\release\victory.exe run <game dir>\<the title's exe> --execute
+```
+
+The window caption shows **Half Step Game Project** and the framerate. Saves,
+settings and `crashes.log` are kept under the data folder (default
+`%LOCALAPPDATA%\victory\data`), derived data under the cache folder.
+
+Environment variable names still use the `VICTORY_*` prefix for compatibility
+with existing tooling and docs.
+
+Input: XInput pads. With none connected the keyboard is a pad while the
+title's window has focus (see upstream VIctory key map in prior docs).
+
+## Commands
+
+```
+victory inspect <exe|dll> [--imports] [--exports]
+victory census [paths...] [--missing] [--strict]
+victory lib-exports <import.lib> [--list]
+victory shader-info [paths...] [--verbose] [--disasm]
+victory translate [paths...] [--validate] [--pipelines] [--list] [--jobs N]
+victory run <exe> [--execute] [--unimplemented trap|zero] [--strict]
+            [--console series-x|series-s] [-- <title arguments>]
+victory config
+```
+
+Logging: `VICTORY_LOG=victory_loader=trace,info` (a release build logs
+info and above).
+
+## License
+
+GPL-3.0-or-later. See [LICENSE](LICENSE).
+
+Copyright for modifications in this tree: Half Step Game Project.
+Upstream VIctory remains copyright its respective authors.

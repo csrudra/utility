@@ -1,0 +1,114 @@
+From 7f7f6babebc7e555b977075b01e231277e40ac0d Mon Sep 17 00:00:00 2001
+From: LowBacon <lenni.a.jokitalo@gmail.com>
+Date: Wed, 25 Nov 2026 10:52:50 +0200
+Subject: [PATCH 16/25] Descriptor mirroring: VICTORY_SYNC_TIMING=1 times its
+ phases per frame (HybridGt diagnostic)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crates/victory-gpu/src/descriptor.rs      | 11 +++++++
+ crates/victory-gpu/src/descriptor/host.rs | 37 +++++++++++++++++++++++
+ 2 files changed, 48 insertions(+)
+
+diff --git a/crates/victory-gpu/src/descriptor.rs b/crates/victory-gpu/src/descriptor.rs
+index 2ea083e..59a1380 100644
+--- a/crates/victory-gpu/src/descriptor.rs
++++ b/crates/victory-gpu/src/descriptor.rs
+@@ -254,6 +254,17 @@ pub(crate) fn sync_line(frames: f64) {
+         host::COPIED_TABLED.swap(0, std::sync::atomic::Ordering::Relaxed) as f64 / frames,
+         micros as f64 / 1000.0 / frames
+     );
++    if host::sync_timing() {
++        let t = [0, 1, 2, 3, 4].map(|i| host::SYNC_TIMES[i].swap(0, std::sync::atomic::Ordering::Relaxed) as f64);
++        tracing::info!(
++            "descriptor mirroring per frame (VICTORY_SYNC_TIMING=1): {:.0} calls; lock and lookup {:.2} ms,              buffer and texture bookkeeping {:.2} ms, making host descriptors {:.2} ms, keeping resources {:.2} ms",
++            t[4] / frames,
++            t[0] / 1e6 / frames,
++            t[1] / 1e6 / frames,
++            t[2] / 1e6 / frames,
++            t[3] / 1e6 / frames
++        );
++    }
+ }
+ 
+ /// Title descriptor slots in a changed byte range that have host counterparts.
+diff --git a/crates/victory-gpu/src/descriptor/host.rs b/crates/victory-gpu/src/descriptor/host.rs
+index 1717c0b..f9951fc 100644
+--- a/crates/victory-gpu/src/descriptor/host.rs
++++ b/crates/victory-gpu/src/descriptor/host.rs
+@@ -856,6 +856,38 @@ pub(crate) fn probe_view_limit() {
+ /// table past them is made afresh in these slots like any other.
+ pub(crate) const DYNAMIC: u32 = 1 << 18;
+ 
++/// HybridGt, `VICTORY_SYNC_TIMING=1`: nanoseconds spent in the phases of
++/// [`HostHeap::mirror`] (0: lock and view lookup, 1: buffer and texture
++/// bookkeeping, 2: making the host descriptor, 3: keeping its resource) and
++/// the calls timed (4), since the last frame line. Off: one load of a flag.
++pub(crate) static SYNC_TIMES: [std::sync::atomic::AtomicU64; 5] = [const { std::sync::atomic::AtomicU64::new(0) }; 5];
++
++pub(crate) fn sync_timing() -> bool {
++    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
++    *ON.get_or_init(|| std::env::var_os("VICTORY_SYNC_TIMING").is_some_and(|v| v == "1"))
++}
++
++struct SyncLap(Option<std::time::Instant>);
++
++impl SyncLap {
++    fn start() -> Self {
++        if sync_timing() {
++            SYNC_TIMES[4].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
++            SyncLap(Some(std::time::Instant::now()))
++        } else {
++            SyncLap(None)
++        }
++    }
++
++    fn mark(&mut self, phase: usize) {
++        if let Some(at) = self.0 {
++            let now = std::time::Instant::now();
++            SYNC_TIMES[phase].fetch_add((now - at).as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
++            self.0 = Some(now);
++        }
++    }
++}
++
+ impl HostHeap {
+     pub(crate) fn new(sampler: bool, count: u32) -> Option<Self> {
+         let host = host()?;
+@@ -1880,6 +1912,7 @@ impl HostHeap {
+         let [tag, i, generation] = unsafe { (handle as *const [u32; 3]).read_unaligned() };
+         // Generations start at 1, so a made slot's key is never 0.
+         let key = u64::from(generation) << 32 | u64::from(i);
++        let mut lap = SyncLap::start();
+         let mut made = self.made.lock().unwrap_or_else(|e| e.into_inner());
+         let view = (tag == VIEW_TAG).then(|| view_at(i, generation)).flatten();
+         let Some(view) = view else {
+@@ -1895,6 +1928,7 @@ impl HostHeap {
+             }
+             return None;
+         };
++        lap.mark(0);
+         if made[index as usize] != key {
+             // Views of other textures in the memory this one describes
+             // are stale: their host slots read nothing from here on, and
+@@ -1904,6 +1938,7 @@ impl HostHeap {
+                     self.unmake(&mut made, stale);
+                 }
+             }
++            lap.mark(1);
+             // A view of a texture object that has no host copy yet waits
+             // for it, as buffer views wait for a draw: the slot is made
+             // when the texture is first used (`super::make_waiting`), or
+@@ -1937,7 +1972,9 @@ impl HostHeap {
+             if kept.is_none() && !self.sampler {
+                 null_for(&view, self.cpu(index));
+             }
++            lap.mark(2);
+             self.keep(index, kept.flatten());
++            lap.mark(3);
+         }
+         Some(view)
+     }
+-- 
+2.56.1.windows.1
+

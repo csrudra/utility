@@ -1,0 +1,210 @@
+From 88dfff9f5e07ad70dfe104551878094c8ef75884 Mon Sep 17 00:00:00 2001
+From: LowBacon <lenni.a.jokitalo@gmail.com>
+Date: Wed, 25 Nov 2026 11:42:31 +0200
+Subject: [PATCH 20/25] Title buffer copies that would wait for flights run on
+ the card, in the list's prelude (VICTORY_GPU_BUFFER_COPIES=1, off by default)
+ (HybridGt)
+
+A title CopyBufferRegion / buffer CopyResource is done on the CPU at
+submission. When its source or destination is memory a flight's shaders
+may write, the submission first waited for those flights' copy-back: one
+of the two 'title memory read' settles a frame, 154 ms of waiting in run
+next9. With the switch such a copy, where both ends have host copies (not
+in place, not the same copy), becomes: a refresh of the source range, the
+destination range declared written by the GPU (copy-back brings it to
+title memory), and a CopyBufferRegion between the host copies in the
+list's prelude between two UAV barriers, where the CPU copy ran too.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crates/victory-gpu/src/host.rs   | 106 ++++++++++++++++++++++++++++++-
+ crates/victory-gpu/src/shadow.rs |   7 ++
+ 2 files changed, 111 insertions(+), 2 deletions(-)
+
+diff --git a/crates/victory-gpu/src/host.rs b/crates/victory-gpu/src/host.rs
+index 017dfa8..8859188 100644
+--- a/crates/victory-gpu/src/host.rs
++++ b/crates/victory-gpu/src/host.rs
+@@ -1806,6 +1806,10 @@ enum Step {
+     /// Brings a texture's staging buffer up to date: once per submission,
+     /// whichever lists sample it, until a `Copy` or `Run` intervenes.
+     Texture(std::sync::Arc<crate::texture::Staging>),
++    /// HybridGt: a title buffer copy done on the card between host copies
++    /// (destination copy, offset in it, source copy, offset in it, bytes),
++    /// recorded in the list's prelude ([`gpu_buffer_copies`]).
++    GpuCopy(std::sync::Arc<crate::shadow::Shadow>, u64, std::sync::Arc<crate::shadow::Shadow>, u64, u64),
+ }
+ 
+ /// What a list does on the CPU when it is submitted: copies between host
+@@ -2316,6 +2320,65 @@ static LATE_STATS: [std::sync::atomic::AtomicU64; 18] = [const { std::sync::atom
+ static LATE_WAITED: [std::sync::atomic::AtomicU64; 11] = [const { std::sync::atomic::AtomicU64::new(0) }; 11];
+ 
+ /// Whether `[from, to)` touches one of `ranges` (in order, joined).
++/// HybridGt: title buffer copies done on the card since the last frame line.
++pub(crate) static GPU_COPIES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
++
++/// HybridGt: whether title buffer copies that would wait for flights are done
++/// on the card instead (`VICTORY_GPU_BUFFER_COPIES=1`; off by default).
++fn gpu_buffer_copies_on() -> bool {
++    static ON: OnceLock<bool> = OnceLock::new();
++    *ON.get_or_init(|| relay() && std::env::var_os("VICTORY_GPU_BUFFER_COPIES").is_some_and(|v| v == "1"))
++}
++
++/// HybridGt: before a submission sent behind flights is prepared, each title
++/// buffer copy ([`Step::Copy`]) whose source or destination a flight's
++/// shaders may write is done on the card instead of on the CPU, where it has
++/// a host copy at both ends: the source range is refreshed, the destination
++/// range is declared written by the GPU (its bytes come back to title
++/// memory with the copy-back, as a shader's would), and the copy itself runs
++/// in the list's prelude, ahead of the list's commands, where the CPU copy
++/// ran too (at submission). On the CPU it waited for those flights' copy-back
++/// first: one of the two "title memory read" settles a frame, 154 ms of
++/// waiting in run next9. Copies without host copies at both ends, within one
++/// host copy, or under copies made in place, stay on the CPU.
++fn gpu_buffer_copies(runs: &[&HostList]) {
++    if !gpu_buffer_copies_on() {
++        return;
++    }
++    let written = {
++        let line = line();
++        if line.written.is_empty() {
++            return;
++        }
++        line.written.clone()
++    };
++    for list in runs {
++        let mut deferred = list.deferred();
++        if !deferred.copies.iter().any(|s| matches!(s, Step::Copy(..))) {
++            continue;
++        }
++        let steps = std::mem::take(&mut deferred.copies);
++        let mut out = Vec::with_capacity(steps.len() + 4);
++        for step in steps {
++            if let Step::Copy(dst, src, len) = step
++                && (touches(&written, src, src + len) || touches(&written, dst, dst + len))
++                && let Some(to) = crate::shadow::find(dst as u64, len as u64)
++                && let Some(from) = crate::shadow::find(src as u64, len as u64)
++                && !std::sync::Arc::ptr_eq(&to, &from)
++                && let Some(at) = to.offset_of(dst as u64, len as u64)
++                && let Some(off) = from.offset_of(src as u64, len as u64)
++            {
++                out.push(Step::Refresh(from.clone(), src, len));
++                out.push(Step::GpuWrite(to.clone(), dst, len));
++                out.push(Step::GpuCopy(to, at, from, off, len as u64));
++                continue;
++            }
++            out.push(step);
++        }
++        deferred.copies = out;
++    }
++}
++
+ fn touches(ranges: &[(usize, usize)], from: usize, to: usize) -> bool {
+     if from >= to {
+         return false;
+@@ -2400,7 +2463,7 @@ fn blocked_by(written: &[(usize, usize)], runs: &[&HostList], count: bool) -> Op
+                     }
+                 }
+                 Step::Run(_) => return Some(WHY_RUN),
+-                Step::Refresh(..) | Step::GpuWrite(..) | Step::Host(_) => {}
++                Step::Refresh(..) | Step::GpuWrite(..) | Step::Host(_) | Step::GpuCopy(..) => {}
+             }
+         }
+     }
+@@ -4551,6 +4614,9 @@ impl Host {
+         // Flights in the air ([`late`]): a submission that is waited for
+         // settles them first, one sent ahead only if preparing it reads
+         // what they write.
++        if late {
++            gpu_buffer_copies(runs);
++        }
+         if !late {
+             self.settle(&mut submitted, WHY_SYNC);
+         } else if let Some(why) = late_blocked(runs) {
+@@ -5430,7 +5496,16 @@ impl HostList {
+             (real != *first)
+                 .then(|| transition(&copy.texture, host_state(real), host_state(*first)))
+         }));
+-        if barriers.is_empty() && syncs.is_empty() {
++        let gpu_copies: Vec<(ID3D12Resource, u64, ID3D12Resource, u64, u64)> = self
++            .deferred()
++            .copies
++            .iter()
++            .filter_map(|step| match step {
++                Step::GpuCopy(dst, at, src, from, len) => Some((dst.buffer.clone(), *at, src.buffer.clone(), *from, *len)),
++                _ => None,
++            })
++            .collect();
++        if barriers.is_empty() && syncs.is_empty() && gpu_copies.is_empty() {
+             return None;
+         }
+         let Some((allocator, list)) = self
+@@ -5454,6 +5529,26 @@ impl HostList {
+                 if !barriers.is_empty() {
+                     list.ResourceBarrier(&barriers);
+                 }
++                // HybridGt: title buffer copies on the card, where the CPU copy
++                // would have waited for flights: what earlier work wrote, then
++                // the copies, then their bytes for what follows.
++                if !gpu_copies.is_empty() {
++                    let all = D3D12_RESOURCE_BARRIER {
++                        Type: D3D12_RESOURCE_BARRIER_TYPE_UAV,
++                        Flags: D3D12_RESOURCE_BARRIER_FLAG_NONE,
++                        Anonymous: D3D12_RESOURCE_BARRIER_0 {
++                            UAV: std::mem::ManuallyDrop::new(D3D12_RESOURCE_UAV_BARRIER {
++                                pResource: std::mem::ManuallyDrop::new(None),
++                            }),
++                        },
++                    };
++                    list.ResourceBarrier(std::slice::from_ref(&all));
++                    for (dst, at, src, from, len) in &gpu_copies {
++                        list.CopyBufferRegion(dst, *at, src, *from, *len);
++                    }
++                    list.ResourceBarrier(std::slice::from_ref(&all));
++                    GPU_COPIES.fetch_add(gpu_copies.len() as u64, Ordering::Relaxed);
++                }
+                 list.Close()
+             })
+         };
+@@ -5836,6 +5931,9 @@ impl HostList {
+                     }
+                     continue;
+                 }
++                // Recorded in the prelude; its refresh and the written range
++                // are steps of their own beside it.
++                Step::GpuCopy(..) => continue,
+                 Step::Texture(staging) => {
+                     if batch.texture_due(staging) {
+                         staging.refresh();
+@@ -6428,6 +6526,10 @@ impl Meter {
+                     told / 1000.0
+                 );
+             }
++            let gpu_copies = GPU_COPIES.swap(0, Ordering::Relaxed) as f64 / frames;
++            if gpu_copies > 0.0 {
++                tracing::info!("title buffer copies done on the card per frame (VICTORY_GPU_BUFFER_COPIES=1): {gpu_copies:.1}");
++            }
+             let [through, left] = [0, 1].map(|i| crate::texture::UNLOCKED[i].swap(0, Ordering::Relaxed) as f64 / frames);
+             if through + left > 0.0 {
+                 tracing::info!(
+diff --git a/crates/victory-gpu/src/shadow.rs b/crates/victory-gpu/src/shadow.rs
+index 756462d..2b3268f 100644
+--- a/crates/victory-gpu/src/shadow.rs
++++ b/crates/victory-gpu/src/shadow.rs
+@@ -2197,6 +2197,13 @@ impl Shadow {
+     }
+ 
+     /// The title memory the copy is of: its start and length.
++    /// HybridGt: where `[address, address + len)` lies in the copy's buffer,
++    /// if all of it does and the copy is not title memory itself (in place).
++    pub(crate) fn offset_of(&self, address: u64, len: u64) -> Option<u64> {
++        (self.place.is_none() && address >= self.start && address.checked_add(len)? <= self.start + self.len)
++            .then(|| address - self.start)
++    }
++
+     pub(crate) fn span(&self) -> (u64, u64) {
+         (self.start, self.len)
+     }
+-- 
+2.56.1.windows.1
+

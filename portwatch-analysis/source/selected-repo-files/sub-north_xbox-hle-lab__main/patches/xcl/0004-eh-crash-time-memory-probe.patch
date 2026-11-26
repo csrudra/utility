@@ -1,0 +1,191 @@
+From e33bb9024b18d3ff7771013c50bceb96fcd0dfa7 Mon Sep 17 00:00:00 2001
+From: lab <lab@local>
+Date: Mon, 23 Nov 2026 16:25:13 +0000
+Subject: [PATCH] eh: add XCL_CRASH_PROBE crash-time memory dump
+
+Diagnosing an unhandled exception means guessing which value at which
+address the title tripped over. XCL_CRASH_PROBE takes a comma-separated
+list of `addr:len` pairs (hex, length capped at 256 bytes) and dumps them
+as hex and ASCII when the unhandled-exception filter runs. The reads go
+through ReadProcessMemory, so a bad address cannot fault the handler
+itself.
+
+Two symbolic entries cover the usual case: `tls0` follows slot 0 of the
+TLS array through the pointers it holds, and `reg` adds the records
+behind the context pointer that chain ends at. Logging only: nothing
+changes when the variable is unset.
+
+Base: 9add721
+---
+ crates/xcl/src/eh.rs | 141 +++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 141 insertions(+)
+
+diff --git a/crates/xcl/src/eh.rs b/crates/xcl/src/eh.rs
+index 0102a29..b764b30 100644
+--- a/crates/xcl/src/eh.rs
++++ b/crates/xcl/src/eh.rs
+@@ -61,6 +61,126 @@ pub fn set_title_filter(f: usize) -> usize {
+     TITLE_FILTER.swap(f, Ordering::AcqRel)
+ }
+ 
++/// One entry of `XCL_CRASH_PROBE`.
++#[derive(Debug, PartialEq, Eq)]
++enum Probe {
++    /// Slot 0 of the x64 TLS array and the pointer chain it starts.
++    Tls0,
++    /// The first records behind the context pointer that chain ends at.
++    Reg,
++    /// Raw bytes at an absolute address.
++    Mem { addr: usize, len: usize },
++}
++
++/// Parse one comma-separated `XCL_CRASH_PROBE` entry: `tls0`, `reg`, or `addr:len` with both
++/// numbers in hex and an optional `0x` on the address. Lengths are capped at 256 bytes.
++fn parse_probe(part: &str) -> Option<Probe> {
++    let part = part.trim();
++    if part == "tls0" {
++        return Some(Probe::Tls0);
++    }
++    if part == "reg" {
++        return Some(Probe::Reg);
++    }
++    let (addr, len) = part.split_once(':')?;
++    let addr = usize::from_str_radix(addr.trim_start_matches("0x"), 16).ok()?;
++    let len = usize::from_str_radix(len, 16).ok()?;
++    Some(Probe::Mem { addr, len: len.min(256) })
++}
++
++/// `addr` as one line of hex plus a printable-ASCII column.
++fn hex_dump(addr: usize, bytes: &[u8]) -> String {
++    let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
++    let asc: String = bytes
++        .iter()
++        .map(|b| if (0x20..0x7f).contains(b) { *b as char } else { '.' })
++        .collect();
++    format!("probe {addr:#x} ({}): {hex} |{asc}|", bytes.len())
++}
++
++/// Read `len` bytes from any address through `ReadProcessMemory`: unlike a direct dereference it
++/// cannot fault, and it does not depend on the emulator's own `readable()` map.
++unsafe fn rpm(addr: usize, len: usize) -> Option<Vec<u8>> {
++    use windows_sys::Win32::System::Diagnostics::Debug::ReadProcessMemory;
++    use windows_sys::Win32::System::Threading::GetCurrentProcess;
++
++    let mut buf = vec![0u8; len];
++    let mut read = 0usize;
++    let ok = ReadProcessMemory(
++        GetCurrentProcess(),
++        addr as *const std::ffi::c_void,
++        buf.as_mut_ptr().cast(),
++        len,
++        &mut read,
++    );
++    (ok != 0 && read == len).then_some(buf)
++}
++
++/// Slot 0 of the x64 TLS array: `gs:[0x58]`, the block it points at, and the pointer that block
++/// holds at `+0x7f0`. `None` when the array itself is unreadable; later links then come back 0.
++unsafe fn tls_chain() -> Option<(usize, usize, usize)> {
++    let slots: usize;
++    std::arch::asm!("mov {}, gs:[0x58]", out(reg) slots);
++    if slots < 0x10000 || !crate::gpu::shader::readable(slots, 8) {
++        crate::xlog_error!("probe: TLS slot array {slots:#x} unreadable");
++        return None;
++    }
++    let base = (slots as *const usize).read_unaligned();
++    let ctx = if base >= 0x10000 && crate::gpu::shader::readable(base + 0x7f0, 8) {
++        ((base + 0x7f0) as *const usize).read_unaligned()
++    } else {
++        0
++    };
++    Some((slots, base, ctx))
++}
++
++/// `XCL_CRASH_PROBE=0xADDR:LEN,0xADDR:LEN,tls0,reg`: at an unhandled exception, dump memory so the
++/// crash report names the value at an address instead of leaving it to be guessed. Entries are
++/// comma-separated and unknown forms are skipped. `tls0` prints the slot-0 TLS chain above with
++/// the dword at `ctx+0xc04`; `reg` adds the first records at `ctx+0x300 + i*0x100`.
++unsafe fn crash_probe() {
++    let Ok(spec) = std::env::var("XCL_CRASH_PROBE") else { return };
++    for part in spec.split(',') {
++        match parse_probe(part) {
++            None => {}
++            Some(Probe::Tls0) => {
++                let Some((slots, base, ctx)) = tls_chain() else { continue };
++                let count = ctx
++                    .checked_add(0xc04)
++                    .and_then(|a| rpm(a, 4))
++                    .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
++                    .unwrap_or(u32::MAX);
++                crate::xlog_error!(
++                    "probe tls0: slots={slots:#x} base={base:#x} ctx@+0x7f0={ctx:#x} count@ctx+0xc04={count}"
++                );
++            }
++            Some(Probe::Reg) => {
++                let Some((_, _, ctx)) = tls_chain() else { continue };
++                crate::xlog_error!("probe reg: ctx={ctx:#x}");
++                let Some(count) = ctx
++                    .checked_add(0xc04)
++                    .and_then(|a| rpm(a, 4))
++                    .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
++                else {
++                    continue;
++                };
++                crate::xlog_error!("probe reg: count={count}");
++                for i in 0..count.min(4) as usize {
++                    let a = ctx.wrapping_add(0x300 + i * 0x100);
++                    match rpm(a, 0x40) {
++                        Some(b) => crate::xlog_error!("reg[{i}] {}", hex_dump(a, &b)),
++                        None => crate::xlog_error!("probe reg[{i}] {a:#x}: unreadable"),
++                    }
++                }
++            }
++            Some(Probe::Mem { addr, len }) => match rpm(addr, len) {
++                Some(bytes) => crate::xlog_error!("{}", hex_dump(addr, &bytes)),
++                None => crate::xlog_error!("probe {addr:#x}: unreadable ({len} bytes)"),
++            },
++        }
++    }
++}
++
+ unsafe extern "system" fn unhandled_filter(info: *const EXCEPTION_POINTERS) -> i32 {
+     crate::hle::d3d12x::real::log_device_removed();
+     if !info.is_null() && !(*info).ExceptionRecord.is_null() {
+@@ -101,6 +221,7 @@ unsafe extern "system" fn unhandled_filter(info: *const EXCEPTION_POINTERS) -> i
+             modules::describe_address(addr)
+         );
+         crate::xlog_error!("{msg}");
++        crash_probe();
+         crate::report::write_final(Some(msg));
+         crate::log::flush();
+     }
+@@ -764,6 +885,26 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn parses_crash_probe_entries() {
++        assert_eq!(parse_probe("tls0"), Some(Probe::Tls0));
++        assert_eq!(parse_probe(" reg "), Some(Probe::Reg));
++        assert_eq!(parse_probe("0x7ff6a000:40"), Some(Probe::Mem { addr: 0x7ff6a000, len: 0x40 }));
++        assert_eq!(parse_probe("1234:10"), Some(Probe::Mem { addr: 0x1234, len: 0x10 }));
++        // lengths are capped so one entry cannot flood the log
++        assert_eq!(parse_probe("0:ffff"), Some(Probe::Mem { addr: 0, len: 256 }));
++        assert_eq!(parse_probe(""), None);
++        assert_eq!(parse_probe("1000"), None);
++        assert_eq!(parse_probe("zz:10"), None);
++        assert_eq!(parse_probe("1000:zz"), None);
++    }
++
++    #[test]
++    fn crash_probe_dump_is_hex_and_ascii() {
++        assert_eq!(hex_dump(0x1234, b"A\x00z\x7f "), "probe 0x1234 (5): 41007a7f20 |A.z. |");
++        assert_eq!(hex_dump(0, &[]), "probe 0x0 (0):  ||");
++    }
++
+     #[test]
+     fn finds_both_cookie_checks() {
+         let pc = [0x48, 0x3B, 0x0D, 1, 2, 3, 4, 0x75, 0x10, 0x48, 0xC1, 0xC1, 0x10, 0x66, 0xF7, 0xC1, 0xFF, 0xFF, 0x75, 0x01, 0xC3, 0x48, 0xC1, 0xC9, 0x10, 0xE9, 0, 0, 0, 0, 0xCC];
+-- 
+2.55.0.windows.5
+
