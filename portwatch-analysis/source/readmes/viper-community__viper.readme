@@ -1,0 +1,173 @@
+<div align="center">
+
+# 🐍 VIper
+
+### The modding framework for GTA VI
+
+Trainers, script mods and tools, written in Rust: one `viper.exe`, double-click, play.
+
+[![Release](https://img.shields.io/github/v/release/viper-community/viper?style=for-the-badge&color=8a2be2)](https://github.com/viper-community/viper/releases)
+[![Downloads](https://img.shields.io/github/downloads/viper-community/viper/total?style=for-the-badge&color=ff1493)](https://github.com/viper-community/viper/releases)
+![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-00a2ed?style=for-the-badge&logo=windows)
+![Rust](https://img.shields.io/badge/Rust-SDK-dea584?style=for-the-badge&logo=rust)
+[![License](https://img.shields.io/badge/license-LGPL--2.1%2B-blue?style=for-the-badge)](LICENSE)
+[![Discord](https://img.shields.io/badge/Discord-join-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/vpjxTeAgd)
+
+**[Download](https://github.com/viper-community/viper/releases)** · **[Write a mod](docs/writing-a-mod.md)** · **[How it works](docs/architecture.md)** · **[Discord](https://discord.gg/vpjxTeAgd)**
+
+</div>
+
+---
+
+## What is Viper?
+Viper patches your game's .exe to let you add mods, and gives you a few basic mods to start with. The installer also includes an XBOX emulator, [AnyXboxX](https://github.com/LooperSalty/AnyXboxX)'s build of [VIctory](https://github.com/Marvisak/VIctory), so all you need is your game dump and viper to start playing.
+Viper also lets YOU develop mods - just give it to your claude code and start having some fun.
+
+## LEGAL NOTICE
+VIper contains no game code, data, executables or keys, and gives no instructions for obtaining
+them. You may use ONLY game files that you legally own and dumped YOURSELF, from your own console,
+on your own machine. Downloading, sharing or receiving game files, dumps or keys from anyone else
+is prohibited and may be illegal. If you cannot meet this condition, do not use VIper. Not
+affiliated with, endorsed by or sponsored by Rockstar Games or Take-Two Interactive;
+Grand Theft Auto and GTA are their trademarks. Provided "as is", without warranty of any kind.
+
+## How to Install
+1. Download the latest viper from the [releases page](https://github.com/viper-community/viper/releases).
+2. Extract the zip.
+3. Put `viper.exe` in the game folder (or don't, and then viper will ask you where the game is).
+4. Run `viper.exe` (it makes a modded copy of your game's .exe; the original is never changed).
+5. Enjoy!
+
+Next time, click `viper.exe` again too.
+
+## Default Mods
+1. `viper_trainer`: Spawning vehicles, invincibility, weapons, etc.
+
+## Community Mods
+| Mod Name | Mod Link | Built By |
+| -------- | -------- | -------- |
+|          |          |          |
+
+Be the first to make a mod and send it to us! (Look for the admins in [discord server](https://discord.gg/vpjxTeAgd))
+
+## How to Add Mods
+Viper creates a `/mods` folder in the game folder. Any DLL you put there will be loaded as a viper mod.
+
+## Advanced Usage
+
+**Hotkeys** (the built-in trainer): F4 menu · F5 spawn vehicle · F6 give weapons · F7 clear wanted
+level · F8 never wanted · F9 invincible.
+
+**Settings:** put a `viper.toml` next to the game (example:
+[`mods/examples/trainer/viper.toml`](mods/examples/trainer/viper.toml)). Rebind any hotkey
+(`spawn_vehicle = "Ctrl+F5"`, or `"none"`), pick the vehicle to spawn, the weapons to give, and
+more. A mod's own settings go next to it as `mods\<name>.toml`.
+
+**Command line** (from a command prompt in the game folder):
+
+| Command | What it does |
+|---|---|
+| `viper` | Find the game, link in the mods, start it (same as double-clicking) |
+| `viper <game.exe>` | The same for that file (or drag the game's `.exe` onto `viper.exe`) |
+| `viper --no-mods` | Start your original copy, unmodified |
+| `viper ... -- <args>` | Pass arguments to the game |
+| `viper mods` | List the mods in the mods folder |
+| `viper store list` / `search <words>` / `info <id>` | Browse the VIper mod store |
+| `viper store install <id>` / `remove <id>` / `upgrade` | Manage mods from the store |
+| `viper update` | Install the newest VIper release by hand |
+| `viper patch` | Only remake the modded copy (after changing `mods\`), without starting the game |
+| `viper --runtime <victory.exe>` | Start the game with another [VIctory](https://github.com/Marvisak/VIctory) build instead of the built-in one (or set `runtime = "<path>"` under `[viper]` in `viper.toml`) |
+
+**Updates:** when you start `viper.exe` it checks for a newer VIper and asks before installing it.
+Every update is signed and checked before anything is replaced; the version it replaced is kept as
+`viper.previous.exe`. Turn the check off with `update = false` under `[viper]` in `viper.toml`.
+
+**What it does to your files:** your original executable is never changed. VIper writes a modded
+copy next to it (`<game>.viper`) and remakes it by itself whenever your mods change. It isn't an
+`.exe` on purpose: it only runs inside VIper, so always start with `viper.exe`.
+
+## Troubleshoot Installation
+
+| Problem | Fix |
+|---|---|
+| Windows says "Windows protected your PC" | `viper.exe` is new and unsigned: click **More info**, then **Run anyway**. |
+| "unsupported game build" | VIper supports `game_scarlett_master.exe` **1.0.2.1** only; it checks the file's contents, not its name. |
+| It can't find the game | Put `viper.exe` in the game folder, or pick the game's `.exe` in the window it opens. |
+| "does not support AVX2" | Your CPU is too old: the game needs AVX2. |
+| The game closes after a few seconds; the crash report says "device removed" | The graphics card refused one of the game's commands. Update your graphics driver and VIper (newer VIper releases carry newer VIctory fixes, including NVIDIA ones). Still happening? Run the game with another VIctory build: `viper --runtime <path to victory.exe>`. |
+| GPU errors, black world | The game needs a Direct3D 12 GPU with shader model 6.6 and mesh shaders, and about 10 GB of VRAM. |
+| The wrong graphics card is used (two GPUs) | The game uses the first one Windows lists, named in the VIper window. Pick another in Windows Settings → Display → Graphics, for `viper.exe`. |
+| "`xg_xs.dll` / `chad.dll` / `d3d12_xs.dll` / `xmem.dll` was not found" | You opened the game's `.exe` (or the modded copy) directly. Those are console parts the runtime provides: always start `viper.exe`. |
+| Error 1455, out of memory | The game needs about 33 GB of RAM plus paging file: close other programs or enlarge the paging file. |
+| "the title's own DLLs are missing" | Copy every file of your dump next to the game's `.exe`. |
+| A mod misbehaves | Start with `viper --no-mods` to check the game itself, then remove mods from `mods\` one by one. |
+| Something else | The VIper window says what went wrong. Details: `%LOCALAPPDATA%\VIper\launcher.log` (starting the game), `%LOCALAPPDATA%\victory\data\<title>\crashes.log` (the game stopping) and, once the game runs, `viper.log` next to the game (the mods). |
+
+## How to Develop Mods
+
+A mod is a small Rust crate built as a DLL. Register **actions bound to hotkeys** and act on the
+game through typed, checked handles:
+
+```rust
+use viper::{Error, Key};
+
+viper::register!(|m: &mut viper::Mod| {
+    // Vehicles and weapons by the names the game shows.
+    m.action("spawn_banshee", Key::F5, |g| {
+        let banshee = g.find_vehicle_models("Banshee").into_iter().next().ok_or(Error::NotFound)?;
+        let me = g.player()?;
+        let car = g.spawn_vehicle(banshee.model, me.ahead(5.0)?, me.heading()?)?;
+        me.enter(&car)
+    });
+    m.action("give_rifle", Key::F6, |g| {
+        let rifle = g.weapons().into_iter().find(|w| w.name == "Assault Rifle").ok_or(Error::NotFound)?;
+        g.player()?.give_weapon(rifle.weapon, 250)
+    });
+    m.action("clear_wanted", Key::F7, |g| g.player()?.clear_wanted_level());
+});
+```
+
+Build it and drop the DLL into the game's `mods` folder:
+
+```sh
+cd mods/examples/trainer && cargo build --release
+# → target/x86_64-pc-windows-msvc/release/viper_trainer.dll
+```
+
+Any OS works (macOS, Linux, Windows) with a stable Rust toolchain; no MSVC or Windows SDK is needed,
+since mods link with `rust-lld` against no system libraries. Start from the examples in
+`mods/examples/` (`trainer`, `waypoint`) and read **[Writing a mod](docs/writing-a-mod.md)**.
+
+## Contributing
+
+```sh
+./build.sh       # the example mods and viper-patch, into dist/
+cargo test       # layout checks, config, hotkeys, hashing, the patcher, updates
+```
+
+| Path | What |
+|---|---|
+| `crates/viper` | The mod SDK: `register!`, `Mod`, `Game`, `Player`, `Vehicle`, `Weapon`, the menu |
+| `crates/viper-rt` | The `no_std` runtime inside the game: OS access, logging, config, hotkeys, engine calls |
+| `crates/viper-layout` | The supported build: addresses, signatures, offsets, the link-block ABI |
+| `crates/viper-patch` | The patcher (library + CLI), mods folder, store and updater |
+| `crates/viper-play` | `viper.exe`: the patcher with [AnyXboxX](https://github.com/LooperSalty/AnyXboxX)'s build of [VIctory](https://github.com/Marvisak/VIctory) built in |
+| `crates/viper-release` | Release tooling: update manifests, store index, signing |
+| `mods/examples/` | Example mods |
+| `docs/` | [Architecture](docs/architecture.md), [writing a mod](docs/writing-a-mod.md), [releasing](docs/releasing.md) |
+
+Every game address VIper uses is checked against the supported executable by short byte
+signatures; a mismatch is a refusal, never a guess. Pull requests should keep that rule, come with
+tests, and add an example when they add a feature.
+
+## Credits
+
+The game runs on [**VIctory**](https://github.com/Marvisak/VIctory) by Marvisak and its
+contributors, as built by [**AnyXboxX**](https://github.com/LooperSalty/AnyXboxX) (LooperSalty),
+which gathers fixes from [fxceless/victory-fork](https://github.com/fxceless/victory-fork) and
+others (its `THIRD_PARTY.md` credits each author). `viper.exe` carries their code unmodified, under
+the GPL-3.0; `viper --license` says where the exact source is.
+
+**License:** VIper is [LGPL-2.1-or-later](LICENSE); contributions are accepted under the same
+terms. `viper.exe` links VIctory as AnyXboxX builds it (GPL-3.0-or-later), so that program as a whole is
+GPL-3.0-or-later. The menu font is DejaVu Sans (`crates/viper/menu/DejaVu-LICENSE`).

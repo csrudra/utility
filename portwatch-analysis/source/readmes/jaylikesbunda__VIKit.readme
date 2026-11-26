@@ -1,0 +1,97 @@
+﻿<p align="center">
+  <img src="docs/assets/wordmark.svg" alt="VIKit" width="320">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=flat-square" alt="License: GPL-3.0">
+  <img src="https://img.shields.io/badge/Platform-Windows%20x64-0078D6.svg?style=flat-square" alt="Platform: Windows x64">
+  <img src="https://img.shields.io/badge/Graphics-Direct3D%2012-107C10.svg?style=flat-square" alt="Graphics: Direct3D 12">
+</p>
+
+<p align="center">
+  <b>Clean-room Windows x86-64 compatibility runtime for running Xbox Series (Scarlett) GDK / D3D12.X executables on PC Direct3D 12.</b><br>
+  <a href="docs/design.md">Architecture</a> ·
+  <a href="docs/building.md">Building &amp; Running</a> ·
+  <a href="docs/legal.md">Scope &amp; Legal</a> ·
+  <a href="tools/README.md">Components</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a>
+</p>
+
+VIKit maps an Xbox Series PE32+ executable natively on Windows x64, implements a clean-room host layer for Xbox/GDK APIs (`XMem`, `DirectStorage`, `AcpHal`, `GameInput`, `XAudio2`, `XTaskQueue`, `XAsync`), proxies `D3D12.X` and `PresentX` onto PC Direct3D 12, and provides RDNA2 (`gfx1013`) shader translation and Xbox texture detiling.
+
+> [!NOTE]
+> This repository contains **only original and GPL/MIT-licensed runtime source code and synthetic test fixtures**. It does not include any third-party software binaries, game files, copyrighted assets, keys, or DRM/entitlement bypasses.
+
+---
+
+## Architecture
+
+| Component | Path | Purpose |
+|---|---|---|
+| **PE32+ Loader** | `tools/guest-loader` | Maps Xbox Series PE32+ binaries & companion DLLs natively on Windows x64 (relocations, TLS, `.pdata`, drive mapping, crash/JSONL tracing) |
+| **GDK Host Layer** | `tools/gdk-host` | Clean-room implementations of `XMem` (write-watch GPU staging), `DirectStorage` (zlib + BCPack), `AcpHal`, `GameInput` (XInput + keyboard), `XAudio2`, `XTaskQueue`/`XAsync`, `dxcompiler_xs`, offline `XUser`/`XNetworking` stand-ins |
+| **D3D12.X Proxy** | `tools/devicex-proxy` | COM wrapper over PC `ID3D12Device` with `+0x600` console inline-PM4 padding, `CreatePlacedResourceX`, `PresentX` bridge, shadow descriptor heaps (`xdesc`), CPU texture upload (`cpuup`), logical-HLSL binder, per-frame CSV frametimes, and window-bar CPU/RAM/VRAM/GPU telemetry |
+| **PresentX Bridge** | `tools/presentx-bridge` | DXGI swapchain presentation and frame-pacing bridge |
+| **Texture Detiling** | `tools/texture-boot`, `tools/detile` | Native GFX10/RDNA2 swizzle-pattern detiling (adapted from AMD AddrLib MIT) |
+| **Shader Tooling** | `tools/shader-decode`, `tools/shader-translate` | RDNA2 (`gfx1013`) decoder (LLVM-verified) and HLSL/DXIL translation pipeline |
+| **Runtime Trace** | `tools/runtime-trace` | Crash-safe JSONL event recorder shared by loader and proxy |
+
+---
+
+## Quick Start
+
+### Requirements
+- Windows 10 / 11 (x64) with a Direct3D 12 GPU
+- MinGW-w64 UCRT (`gcc`, `g++`, `ar`) on `PATH`
+- Python 3.10+
+- Optional: Git Bash (for `.sh` helper scripts)
+
+### 1. Build the Runtime
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\guest-loader\build.ps1 -NoFixtures
+```
+
+This builds `tools\guest-loader\build\guest-loader.exe` and `tools\guest-loader\build\gdkhost_proxy.dll`.
+
+### 2. Run an Executable
+
+**PowerShell:**
+```powershell
+.\tools\guest-loader\run-title.ps1 -Exe "D:\Path\To\Package\title.exe"
+```
+
+**Git Bash:**
+```bash
+bash tools/guest-loader/run-title.sh /d/Path/To/Package/title.exe
+```
+
+Optional environment variables:
+- `DEVICEX_DXIL_CACHE_MMAP` — path to a local pre-translated DXIL cache directory
+- `DEVICEX_PRESENTX_MONITOR` — target display EDID vendor code (e.g. `DEL`, `SAM`, `MEI`)
+- `DEVICEX_FRAMETIME_DUMP` — `1` (default) writes per-frame timing breakdown to `<run-dir>/frames/frametimes.csv`
+- `GDKHOST_D3D12_DEBUG` — `1` enables the D3D12 debug layer
+
+The live window title bar displays real-time FPS, frametime (ms), process CPU %, RAM usage, GPU VRAM usage/budget, and active GPU name for debugging.
+
+### 3. Run Self-Checks (No External Binaries Required)
+
+```powershell
+python scripts\check_public_tree.py
+python scripts\check_docs.py
+```
+
+---
+
+## Credits & Third-Party Notices
+
+- **XValkyrie** ([sammwyy/xvalkyrie](https://github.com/sammwyy/xvalkyrie), GPL-3.0): ACP/`AcpHal` client in `tools/gdk-host` and Xbox descriptor / CPU-upload modules in `tools/devicex-proxy` are adapted under GPL-3.0-or-later with §5(a) modification notices. See [LICENSES/PROVENANCE.md](LICENSES/PROVENANCE.md).
+- **VIctory** ([Marvisak/VIctory](https://github.com/Marvisak/VIctory), GPL-3.0-or-later): Consulted for Xbox GDK runtime ABI facts (`QueryApiImpl` GUIDs, offline `XUser`/`XNetworking`/`GameInput`/`DirectStorage` layouts, and deferred PSO patterns). No source code copied; reimplemented modules are GPL-3.0-or-later. See [LICENSES/PROVENANCE.md](LICENSES/PROVENANCE.md).
+- **AMD AddrLib** ([GPUOpen-Drivers/pal](https://github.com/GPUOpen-Drivers/pal), MIT): GFX10/RDNA2 swizzle patterns ported in `tools/detile` and `tools/texture-boot`.
+- **Mesa3D** ([mesa/mesa](https://gitlab.freedesktop.org/mesa/mesa), MIT): GFX10 resource-descriptor format tables used as reference data.
+- **LLVM / AMDGPU** ([llvm.org](https://llvm.org/), Apache-2.0 with LLVM-exception): External disassembler used for decoder verification.
+- **xcl** ([ivall/xcl](https://github.com/ivall/xcl), GPL-2.0-only) and **ScarlettX** ([Freminet/ScarlettX](https://github.com/Freminet/ScarlettX)): Consulted for published console ABI/layout documentation only; no code integrated.
+
+## License
+
+GPL-3.0 (`LICENSE`). Adapted runtime modules are GPL-3.0-or-later. See [NOTICE](NOTICE) and [LICENSES/PROVENANCE.md](LICENSES/PROVENANCE.md) for complete provenance and §5(a) notices.

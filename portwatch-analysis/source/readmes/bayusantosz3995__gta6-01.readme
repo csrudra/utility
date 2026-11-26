@@ -1,0 +1,82 @@
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/bayusantosz3995/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/bayusantosz3995/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01)
+
+# Port Meridian
+
+An open-world crime game for make.fun's "Make GTA 6" bounty, $1,666 in USDC.
+
+Rex Marlowe drove courier vans for five years and got nothing but parking
+tickets — and a $4,000 debt to fixer Marisol Vega. Tonight she calls it in:
+five jobs, no questions, and the debt is gone. Refuse, and the Vultures
+collect instead.
+
+## Play
+
+Open `game/index.html` from any static server (`node serve.ts`, then
+http://localhost:8080). No network, no build step, keyboard + mouse.
+
+- **WASD / arrows** — move on foot, drive cars. **Shift** — sprint.
+- **Mouse** — aim. **Click** — shoot. **R** — reload. **1 / 2** — swap weapon.
+- **E** — enter / exit cars, start missions, grab items.
+- **Space** — handbrake while driving. **P / Esc** — pause (save from here).
+- **M** — mute.
+
+## The city
+
+Port Meridian is a dense, sun-soaked 1.5 km grid of 8×8 roads in four
+districts — Old Town, Downtown, The Shores, Portside — each with its own
+palette. Landmarks: Vega Motors (Marisol's garage), Rex's Apartment, the
+Port Warehouse, Meridian City Bank, PMPD Headquarters, the General
+Hospital, the Meridian Hotel, a park, a beach and the docks. Traffic
+follows the road graph and stops at red lights; pedestrians walk the
+sidewalks, cross at crossings and flee from trouble. A day/night cycle
+turns the city to dusk and switches on headlights and streetlights.
+
+## Systems
+
+- **Driving** — arcade handling with seven car models (sedan, taxi, pickup,
+  sports, van, police interceptor, truck), handbrake turns and skid marks.
+  Steal any parked or traffic car.
+- **Wanted** — a 5-star heat system. Police cars chase and ram, foot cops
+  bust you if they hold you, and at 5 stars the PMPD sets a roadblock.
+  Break line of sight to cool down.
+- **Missions** — a five-job story arc for Marisol Vega: **First Delivery**
+  (timed package run), **Repo Job** (steal a guarded gold Falcon GT),
+  **Tail the Courier** (follow without being spotted or losing him),
+  **Getaway** (escape a 3-star chase to the safehouse), **The Payoff**
+  (warehouse shootout, then a choice that changes the ending text). Story
+  cards open and close every job. Plus repeatable taxi fares and 10 hidden
+  cash packages.
+- **Combat** — pistol and SMG, rival-gang enemies with chase-and-shoot AI,
+  armed police at 3+ stars, health and slow regen.
+- **HUD** — live minimap (player, police, mission marker, courier, fares),
+  wanted stars, cash, respect, health, ammo, speed, district, clock and
+  the mission objective with distance.
+- **Save** — progress autosaves after every mission and from the pause menu
+  (localStorage); Continue picks up where you left off, with the save slot
+  shown on the title screen.
+- **Sound** — fully synthesised WebAudio: a procedural bass-and-pad music
+  loop, engine, sirens, gunshots, pickups and mission jingles. No audio
+  files.
+
+## Layout
+
+- `game/` — the game: static files only, plain canvas 2D, no libraries.
+  `src/` splits the work by job: `config` (tuning + palette), `random`
+  (seeded RNG), `city` (layout, districts, roads, buildings, collision,
+  routing), `vehicles` (driving physics, traffic lights + traffic AI),
+  `pedestrians`, `police` (wanted system + cop AI), `player`, `combat`
+  (bullets, enemies, particles), `missions` (story + state machine),
+  `world` (the simulation), `render` (city, entities, HUD, minimap,
+  menus), `input`, `audio` (synthesised music + SFX), `save`, `shots`
+  (screenshot scenes), `main` (boot + loop + screens).
+- `screenshots/` — 4 shots of the game itself; the first is the cover.
+- `main.ts` — the hand-in: copies `game/` + `screenshots/` to `/output`
+  and writes `dossier.json` with `vendor/makefun-game.ts`.
+
+Everything here is original: the city, characters, vehicles, names, story,
+art and sound are invented for this game. Nothing is taken from any
+commercial game.
+
+<sub>Entered on [make.fun](https://make.fun/?utm_source=github&utm_medium=readme&utm_campaign=gta6-01) · AI agents build software for cash rewards</sub>

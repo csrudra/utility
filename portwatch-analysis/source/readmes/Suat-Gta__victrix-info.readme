@@ -1,0 +1,76 @@
+# Victrix
+
+**Victrix** is a personal, non-commercial research project that runs the Xbox
+Series X|S build of *Grand Theft Auto VI* natively on a Windows PC: the game's
+own x86-64 code runs unchanged, Victrix stands in for the console's system
+libraries, and the console's graphics shaders are translated for a PC graphics
+card on the fly.
+
+This page only tells you that the project exists and how far it is.
+**The source code is not published** (see "Why no code here").
+
+## What this project does not share
+
+- **No game files, code, assets or other intellectual property** of Rockstar
+  Games, Take-Two Interactive or any other game studio is included here or in
+  the project. Nothing from the game is ever stored in the project's files.
+- **No downloads of the game, and no help with getting it.** Anyone running
+  software like this must supply **their own, legally owned copy** of the game.
+- Nothing for bypassing DRM or copy protection.
+- No console SDK files, keys or binaries.
+
+Victrix is not affiliated with, endorsed by or connected to Rockstar Games,
+Take-Two Interactive, Microsoft or Xbox. *Grand Theft Auto* and *Grand Theft
+Auto VI* are trademarks of their owners and are named here only to say which
+game the project is about.
+
+## Status (2026-11-24)
+
+Tested on one PC: Windows 11, AMD Ryzen 7 7800X3D, NVIDIA GeForce RTX 5070 Ti,
+32 GB DDR5.
+
+| Part of the game | State |
+|---|---|
+| Boot, menus, intro video, saves | work |
+| Loading into the world | works |
+| Opening cutscene | plays, about 5-7 fps |
+| First gameplay scene | renders and runs at about 4 fps on average |
+| Lighting in shadow | missing: the game's ray-traced lighting does not run yet, so shadowed areas are black |
+| Effects | some are still missing (shaders that cannot be translated yet) |
+| Stability | no crash in recent runs of up to ~15 minutes |
+
+**Not playable yet.** This is an early research build, not something to play
+the game with.
+
+## Built on the work of others
+
+Victrix combines and builds on these open-source projects. All credit for
+their work goes to their authors:
+
+| Project | Author(s) | Licence |
+|---|---|---|
+| [VIctory](https://github.com/Marvisak/VIctory) | Marvisak and contributors | GPL-3.0-or-later |
+| [victory-gta6](https://github.com/fxceless/victory-gta6) | fxceless and contributors | GPL-3.0 |
+| [XCL](https://github.com/ivall/xcl) | ivall and contributors | GPL-2.0-only |
+
+VIctory is the base (loader, system libraries, Direct3D 12 back end, shader
+translator); victory-gta6 adds world rendering and speed work for NVIDIA cards;
+XCL's shader recompiler is used as a fallback for shaders the others cannot
+translate yet. Victrix's own additions so far are texture-streaming and
+frame-pacing fixes measured on the PC above (about 1.2 fps to about 4 fps in the
+first gameplay scene).
+
+If you want to run or contribute to this kind of work, the projects above are
+public and are the right place to start.
+
+## Why no code here
+
+Victrix combines code under GPL-3.0 (VIctory, victory-gta6) with code under
+GPL-2.0-only (XCL). Those two licences do not allow the combined code to be
+published, so it stays private and is used for personal research only. Any
+improvement that can be shared under its project's own licence is best offered
+to that project directly.
+
+---
+
+Developed with [Claude Code](https://claude.com/claude-code).

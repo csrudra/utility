@@ -1,0 +1,57 @@
+From 6ea3c570f90ff771a90c978ccba9dd053b562414 Mon Sep 17 00:00:00 2001
+From: lab <lab@local>
+Date: Mon, 23 Nov 2026 15:16:02 +0000
+Subject: [PATCH 2/2] kernelx: implement XMemVirtualAlloc (console virtual
+ memory)
+
+Base: 217ac85
+---
+ crates/xcl/src/hle/kernelx.rs | 25 +++++++++++++++++++++++++
+ 1 file changed, 25 insertions(+)
+
+diff --git a/crates/xcl/src/hle/kernelx.rs b/crates/xcl/src/hle/kernelx.rs
+index 4f1e1fe..4b4e55d 100644
+--- a/crates/xcl/src/hle/kernelx.rs
++++ b/crates/xcl/src/hle/kernelx.rs
+@@ -38,6 +38,7 @@ pub fn exports() -> Vec<(&'static str, usize)> {
+         VirtualProtectEx,
+         XMemAlloc,
+         XMemFree,
++        XMemVirtualAlloc,
+         XMemAllocDefault,
+         XMemFreeDefault,
+         XMemSetAllocationHooks,
+@@ -222,6 +223,30 @@ type XMemFreeFn = unsafe extern "system" fn(*mut c_void, u64);
+ static XMEM_ALLOC_HOOK: AtomicUsize = AtomicUsize::new(0);
+ static XMEM_FREE_HOOK: AtomicUsize = AtomicUsize::new(0);
+ 
++pub unsafe extern "system" fn XMemVirtualAlloc(
++    address: *mut c_void,
++    size: usize,
++    alloc_type: u32,
++    attributes: u64,
++    protect: u32,
++) -> *mut c_void {
++    let t = alloc_type & 0x0000_FFFF;
++    let ty = if t == 0 { mem::MEM_RESERVE | mem::MEM_COMMIT } else { t };
++    // Console protection values are the small 0x01..0x80 set; PC PAGE_* values pass through.
++    let prot = if protect == 0 || protect < 0x1000 { mem::PAGE_READWRITE } else { protect };
++    let p = mem::VirtualAlloc(address, size, ty, prot);
++    crate::xlog_info!(
++        "XMemVirtualAlloc: addr={:p} size={:#x} type={:#x} attrs={:#x} prot={:#x} -> {:p}",
++        address,
++        size,
++        alloc_type,
++        attributes,
++        protect,
++        p
++    );
++    p
++}
++
+ pub unsafe extern "system" fn XMemAlloc(size: usize, attrs: u64) -> *mut c_void {
+     match XMEM_ALLOC_HOOK.load(Ordering::Acquire) {
+         0 => XMemAllocDefault(size, attrs),
+-- 
+2.55.0.windows.5
+

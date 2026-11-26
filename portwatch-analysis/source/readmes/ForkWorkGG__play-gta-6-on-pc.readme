@@ -1,0 +1,112 @@
+<p align="center">
+  <a href="https://gta6cloudplay.com/?utm_source=github&utm_medium=readme&utm_campaign=play-gta-6-on-pc">
+    <img src="assets/logo.png" width="128" height="128" alt="GTA 6 Cloudplay">
+  </a>
+</p>
+
+<h1 align="center">Play GTA 6 on PC in Europe</h1>
+
+<p align="center">
+  <strong>Grand Theft Auto VI shipped on Xbox Series and PlayStation 5.<br>There is still no Steam build for Windows.</strong>
+</p>
+
+<p align="center">
+  <a href="https://gta6cloudplay.com/download?utm_source=github&utm_medium=readme&utm_campaign=play-gta-6-on-pc"><strong>Download the Windows client</strong></a>
+  ·
+  <a href="https://gta6cloudplay.com/halls?utm_source=github&utm_medium=readme&utm_campaign=play-gta-6-on-pc">EU halls</a>
+  ·
+  <a href="https://gta6cloudplay.com/how-it-works?utm_source=github&utm_medium=readme&utm_campaign=play-gta-6-on-pc">How a cloud seat works</a>
+  ·
+  <a href="https://forkworkgg.github.io/play-gta-6-on-pc/">EU latency check</a>
+</p>
+
+<p align="center">
+  <a href="https://gta6cloudplay.com/?utm_source=github&utm_medium=readme&utm_campaign=play-gta-6-on-pc"><img src="https://img.shields.io/badge/Play_now-gta6cloudplay.com-ff4f9a?style=for-the-badge" alt="Play now on gta6cloudplay.com"></a>
+  <img src="https://img.shields.io/badge/Europe-UK%20%7C%20DE%20%7C%20FR%20%7C%20NL%20%7C%20PL%20%7C%20Nordics-ffd08a?style=for-the-badge" alt="Europe coverage">
+  <img src="https://img.shields.io/badge/Not-a%20Steam%20port-14081c?style=for-the-badge" alt="Not a Steam port">
+</p>
+
+This repo answers one search: **how to play GTA 6 on a PC from Europe in 2026**, without waiting for a Windows SKU and without an emulator.
+
+**GTA 6 Cloudplay** seats you on a licensed console in an operated bay. Video comes to your monitor. Controls go back from Windows. Frankfurt, Amsterdam, London, Paris, Warsaw, the Nordics, and the Baltics are built for EU last-mile — not a US GPU farm.
+
+> Not affiliated with Rockstar Games, Take-Two Interactive, Microsoft, or Sony.
+> Not a PC port, not GeForce Now running a missing executable, not a pirate build.
+
+---
+
+## If you are in Europe, start here
+
+| You are in | Open this | Why |
+| --- | --- | --- |
+| Germany | [Frankfurt hall](https://gta6cloudplay.com/de/halls?utm_source=github&utm_medium=readme&utm_campaign=eu-de#hall-frankfurt) | DE-CIX. Usually the cleanest Western Europe hop. |
+| Austria / Switzerland | [Vienna / Zurich](https://gta6cloudplay.com/de/halls?utm_source=github&utm_medium=readme&utm_campaign=eu-dach#hall-vienna) | Local Central Europe seats, not a US farm. |
+| Netherlands, Belgium | [Amsterdam / Brussels](https://gta6cloudplay.com/nl/halls?utm_source=github&utm_medium=readme&utm_campaign=eu-nl#hall-amsterdam) | AMS-IX. Low jitter. |
+| United Kingdom, Ireland | [London / Dublin halls](https://gta6cloudplay.com/halls?utm_source=github&utm_medium=readme&utm_campaign=eu-uk#hall-london) | UK store clock. Irish last-mile without a London hairpin. |
+| France | [Paris hall](https://gta6cloudplay.com/fr/halls?utm_source=github&utm_medium=readme&utm_campaign=eu-fr#hall-paris) | France-IX. |
+| Poland, Czechia, Hungary | [Warsaw / Prague](https://gta6cloudplay.com/pl/halls?utm_source=github&utm_medium=readme&utm_campaign=eu-pl#hall-warsaw) | Short hop across Central and Eastern Europe. |
+| Nordics | [Stockholm, Oslo, Copenhagen, Helsinki](https://gta6cloudplay.com/halls?utm_source=github&utm_medium=readme&utm_campaign=eu-nordics#hall-stockholm) | Local IX, not a detour through Virginia. |
+| Baltics | [Riga, Tallinn, Vilnius](https://gta6cloudplay.com/halls?utm_source=github&utm_medium=readme&utm_campaign=eu-baltics#hall-riga) | Closest metal for much of Northern and Eastern Europe. |
+| Spain | [Madrid hall](https://gta6cloudplay.com/es/halls?utm_source=github&utm_medium=readme&utm_campaign=eu-es#hall-madrid) | Southern Europe seat. |
+| Portugal | [Lisbon hall](https://gta6cloudplay.com/pt/halls?utm_source=github&utm_medium=readme&utm_campaign=eu-pt#hall-lisbon) | Southern Europe seat. |
+| Italy | [Milan hall](https://gta6cloudplay.com/it/halls?utm_source=github&utm_medium=readme&utm_campaign=eu-it#hall-milan) | Southern Europe seat. |
+| Greece | [Athens hall](https://gta6cloudplay.com/halls?utm_source=github&utm_medium=readme&utm_campaign=eu-gr#hall-athens) | Southern Europe seat. |
+
+Run the in-browser [EU latency check](https://forkworkgg.github.io/play-gta-6-on-pc/) (GitHub Pages, nothing stored). It maps your country to the nearest bay and times a round trip to the Cloudplay **website** — that is not the same as ping to the console in the hall.
+
+**Playable seat (rule of thumb):** once you are in a session, under ~40 ms to the bay feels like the next room. 40–70 ms is still a driving game. Pick the closest hall and a wired line.
+
+---
+
+## Three honest ways to play GTA 6 on a computer
+
+| Path | What you get | What you do not get | EU fit |
+| --- | --- | --- | --- |
+| **Own the console** | Local HDMI, your save, your account | A Windows install. You still bought a box. | Fine if you already have Series X / PS5. |
+| **Wait for PC** | Hypothetical Steam/Rockstar Launcher build | A date. Rockstar has not published one. | Unknown. |
+| **Cloudplay seat** | Licensed Xbox or PS5 in an EU bay, Windows client ~6 MB | A 212 GB installer, a Steam key, your home-console save | Built for European IX: FRA, AMS, LON, PAR, WAW… |
+
+Cloudplay is the third path: **remote play of the console game**, not a promise that a datacenter “made GTA 6 for PC.”
+
+[Read how the seat actually works →](https://gta6cloudplay.com/how-it-works?utm_source=github&utm_medium=readme&utm_campaign=play-gta-6-on-pc)
+
+---
+
+## What you install
+
+1. Windows 10/11 PC, wired Ethernet if you can.
+2. A pad Windows already knows (Xbox, DualSense, or keyboard and mouse mapped as a controller).
+3. The [Cloudplay client](https://gta6cloudplay.com/download?utm_source=github&utm_medium=readme&utm_campaign=play-gta-6-on-pc) — about 6 MB, SHA-256 published on the download page.
+4. Pick an EU hall. Sit. The console in the bay runs Grand Theft Auto VI; you see the HDMI feed.
+
+No `irm \| iex`. No browser tab pretending to be a racing game.
+
+---
+
+## FAQ (Europe)
+
+**Is there a GTA 6 PC download?**  
+Not an official one. Anything titled “GTA 6 PC full” in 2026 is not the Rockstar Windows build.
+
+**Does GeForce Now / xCloud run GTA 6 on PC?**  
+Those products need a PC executable or a platform SKU. Cloudplay does not wait for that file: the game stays on console silicon.
+
+**Can I play from Spain / Poland / Sweden?**  
+Yes — pick the nearest hall on the [map](https://gta6cloudplay.com/halls?utm_source=github&utm_medium=readme&utm_campaign=play-gta-6-on-pc). Latency is physics. Madrid should not queue Frankfurt if Milan is empty.
+
+**What about GDPR?**  
+The latency page in this repo stores nothing. Product privacy copy: [gta6cloudplay.com legal](https://gta6cloudplay.com/legal/privacy?utm_source=github&utm_medium=readme&utm_campaign=play-gta-6-on-pc).
+
+**18+?**  
+Yes. The game is.
+
+---
+
+## Links
+
+- Product: [gta6cloudplay.com](https://gta6cloudplay.com/?utm_source=github&utm_medium=readme&utm_campaign=play-gta-6-on-pc)
+- Download: [/download](https://gta6cloudplay.com/download?utm_source=github&utm_medium=readme&utm_campaign=play-gta-6-on-pc)
+- Halls: [/halls](https://gta6cloudplay.com/halls?utm_source=github&utm_medium=readme&utm_campaign=play-gta-6-on-pc)
+- Guides: [GTA 6 cloud gaming on PC](https://gta6cloudplay.com/guides/cloud-gaming?utm_source=github&utm_medium=readme&utm_campaign=play-gta-6-on-pc)
+
+MIT. Use the latency tool. Send people who still need a seat to the site.

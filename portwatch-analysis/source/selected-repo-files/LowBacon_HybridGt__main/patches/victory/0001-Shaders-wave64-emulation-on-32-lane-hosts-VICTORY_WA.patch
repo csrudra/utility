@@ -1,0 +1,882 @@
+From 9518cdcf3b7170417a2fd0ed6a7dfcd1893ecd56 Mon Sep 17 00:00:00 2001
+From: HybridGt <hybridgt@localhost>
+Date: Tue, 24 Nov 2026 18:02:45 +0200
+Subject: [PATCH 01/14] Shaders: wave64 emulation on 32-lane hosts
+ (VICTORY_WAVE64_EMULATE), Agility SDK opt-in
+
+From GTA6-PC-Native (github.com/ZigZagBoi1/GTA6-PC-Native) at 05b9566,
+patches/victory-01-wave64-emulation-and-agility-sdk.patch, GPL-3.0-or-later;
+applied with CRLF stripped, one hunk re-placed by hand (v_readfirstlane
+and its test, upstream moved), emulate_wave64: false added to three newer
+test initializers. NVIDIA GPUs run 32-lane waves: translated wave64
+compute programs declare WaveSize(64), which they refuse, and wave64
+cross-lane logic in mesh/pixel programs is wrong there.
+victory-shader: 121 passed, 1 ignored.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ apps/victory/src/main.rs                      |  17 +
+ crates/victory-gpu/src/shader_cache.rs        |  24 +-
+ crates/victory-shader/src/emit/lower.rs       | 492 ++++++++++++++++--
+ crates/victory-shader/src/emit/mod.rs         |  12 +
+ crates/victory-shader/src/emit/shader.rs      |   8 +
+ crates/victory-shader/src/emit/valu_tests.rs  |   1 +
+ .../src/emit/waterfall_tests.rs               |   1 +
+ 7 files changed, 524 insertions(+), 31 deletions(-)
+
+diff --git a/apps/victory/src/main.rs b/apps/victory/src/main.rs
+index 4cf7c31..a8ad5b3 100644
+--- a/apps/victory/src/main.rs
++++ b/apps/victory/src/main.rs
+@@ -14,6 +14,23 @@ use std::path::PathBuf;
+ use anyhow::Result;
+ use clap::{Parser, Subcommand, ValueEnum};
+ 
++// Local addition: DirectX Agility SDK opt-in, so Windows 10 loads D3D12Core.dll 1.614 from .\D3D12\ next to the
++// executable. The inbox Windows 10 runtime refuses the *_HEAP_DIRECTLY_INDEXED root signature flags.
++#[repr(transparent)]
++pub struct SdkPath(*const u8);
++// SAFETY: a pointer to a static, never-written string.
++unsafe impl Sync for SdkPath {}
++
++#[used]
++#[unsafe(no_mangle)]
++#[allow(non_upper_case_globals)]
++pub static D3D12SDKVersion: u32 = 614;
++
++#[used]
++#[unsafe(no_mangle)]
++#[allow(non_upper_case_globals)]
++pub static D3D12SDKPath: SdkPath = SdkPath(c".\\D3D12\\".as_ptr().cast());
++
+ #[derive(Parser)]
+ #[command(
+     name = "victory",
+diff --git a/crates/victory-gpu/src/shader_cache.rs b/crates/victory-gpu/src/shader_cache.rs
+index 998ec71..4479a6c 100644
+--- a/crates/victory-gpu/src/shader_cache.rs
++++ b/crates/victory-gpu/src/shader_cache.rs
+@@ -72,11 +72,25 @@ fn build() -> &'static [u8; 32] {
+ pub(crate) fn host_shader(container: &[u8]) -> Result<HostShader, String> {
+     let translate = |c: &[u8]| victory_shader::emit::translate(c).map_err(|e| e.to_string());
+     match CACHE.get() {
+-        Some(cache) => cached(cache, build(), container, translate),
++        Some(cache) => {
++            let key = key(build(), victory_shader::emit::wave64_emulation());
++            cached(cache, &key, container, translate)
++        }
+         None => translate(container),
+     }
+ }
+ 
++/// The build part of an entry's key. Translations made with 64-lane waves
++/// emulated (`VICTORY_WAVE64_EMULATE`) differ from the plain ones of the
++/// same build, so that mode's byte is hashed into the key; without it the
++/// key is the build, as it always was.
++fn key(build: &[u8; 32], emulate_wave64: bool) -> [u8; 32] {
++    if !emulate_wave64 {
++        return *build;
++    }
++    *blake3::hash(&[&build[..], &[1u8]].concat()).as_bytes()
++}
++
+ /// The cache entry's converter: the build and the container in, the
+ /// encoded translation out. `ran` tells a miss from a hit.
+ struct Translate<F> {
+@@ -348,6 +362,14 @@ mod tests {
+         files
+     }
+ 
++    #[test]
++    fn emulated_translations_have_their_own_key() {
++        let build = [7u8; 32];
++        assert_eq!(key(&build, false), build, "plain entries keep their key");
++        assert_ne!(key(&build, true), build);
++        assert_ne!(key(&build, true), key(&[8; 32], true));
++    }
++
+     #[test]
+     fn entries_round_trip_and_reject_damage() {
+         let bytes = encode(&shader());
+diff --git a/crates/victory-shader/src/emit/lower.rs b/crates/victory-shader/src/emit/lower.rs
+index c5fbd80..8194d67 100644
+--- a/crates/victory-shader/src/emit/lower.rs
++++ b/crates/victory-shader/src/emit/lower.rs
+@@ -56,6 +56,9 @@ pub(crate) struct Parts<'a> {
+     pub prims: Vec<SigElement>,
+     /// Mesh: what the group id arrives multiplied by.
+     pub mesh_stride: u32,
++    /// Compute programs needing the console's 64-lane waves run on any host
++    /// wave size (see [`Emulated`]) instead of declaring `WaveSize(64)`.
++    pub emulate_wave64: bool,
+ }
+ 
+ enum Stop {
+@@ -189,8 +192,15 @@ struct Lower<'a> {
+     /// Compute code that reads other lanes: thread ids follow the host
+     /// lanes, so lane n is console lane n.
+     console_lanes: bool,
+-    /// Mesh: the thread index in the group (made in the entry block).
++    /// Mesh, and compute with emulated waves: the thread index in the group
++    /// (made in the entry block).
+     flat: Option<V>,
++    /// Compute whose 64-lane console waves run on any host wave size.
++    emulated: Option<Emulated>,
++    /// Instruction of `cur_ir` being lowered (none between instructions).
++    cur_i: Option<usize>,
++    /// Guarded regions (`begin_guarded`) `cur` is inside.
++    guarded: u32,
+     /// Mesh: IR blocks whose `s_barrier` is left out.
+     no_barrier: HashSet<usize>,
+     /// Vertex and mesh outputs holding 16-bit values: row, whether two per
+@@ -257,6 +267,108 @@ enum MaskData {
+ /// What a value holding a lane mask read as a number stops with.
+ const LANE_MASK: Why = "a lane mask read as data";
+ 
++/// A compute program whose console waves have 64 lanes, on a host whose
++/// waves may be smaller (`Parts::emulate_wave64`): no wave size is declared
++/// and no host wave operation is used. A thread's console lane is its flat
++/// index in the group modulo 64, its console wave the 64 threads sharing the
++/// quotient, as the console lays a group out. What a lane needs of the
++/// others goes through group-shared memory, one exchange per use: every
++/// thread stores a dword in its slot between two group barriers and reads
++/// the slots of its console wave after the second (the first keeps the
++/// stores off the previous exchange's reads).
++///
++/// A barrier is only defined where every thread of the group arrives, so an
++/// exchange is only made in blocks every thread runs once and outside lane
++/// guards ([`NOT_UNIFORM`] otherwise, and the program is not translated).
++// shortcut: a thread a loop's iteration limit ends (`LOOP_LIMIT`) no longer
++// arrives at later barriers.
++// shortcut: programs sharing LDS within one wave without barriers keep
++// their `WaveSize`: the two halves of an emulated wave would race.
++struct Emulated {
++    /// Per IR block: every thread of the group runs it exactly once.
++    uniform: Vec<bool>,
++    /// Threads in a group.
++    total: u32,
++    /// Made in the entry block: the flat thread index, the console lane and
++    /// the flat index of the console wave's first lane.
++    ids: Option<(V, V, V)>,
++    /// The exchange memory: a dword per thread.
++    scratch: Option<V>,
++}
++
++/// What a cross-lane operation of an emulated wave stops with where not
++/// every thread of the group arrives.
++const NOT_UNIFORM: Why = "an emulated wave operation outside uniform control flow";
++
++/// D3D12's limit on a compute shader's group-shared memory, in bytes.
++const GROUP_SHARED_LIMIT: u32 = 32768;
++
++/// Per block: whether every lane that runs the program to its end runs the
++/// block exactly once (it dominates every block the program ends in and is
++/// on no cycle). Nothing is, in a program that never ends.
++fn uniform_blocks(blocks: &[crate::ir::Block]) -> Vec<bool> {
++    let order = crate::ir::reverse_postorder(blocks);
++    let mut index = vec![usize::MAX; blocks.len()];
++    for (n, &b) in order.iter().enumerate() {
++        index[b] = n;
++    }
++    let idom = crate::ir::idoms(blocks, &order, &index);
++    let mut uniform = vec![false; blocks.len()];
++    let ends: Vec<usize> = order
++        .iter()
++        .copied()
++        .filter(|&b| blocks[b].exit.successors().is_empty())
++        .collect();
++    let Some((&first, rest)) = ends.split_first() else {
++        return uniform;
++    };
++    // A block and its dominators, from the block up to the entry.
++    let chain = |from: usize| {
++        let mut out = vec![from];
++        let mut d = from;
++        while idom[d] != d && idom[d] != usize::MAX {
++            d = idom[d];
++            out.push(d);
++        }
++        out
++    };
++    let mut common = chain(first);
++    for &e in rest {
++        let c = chain(e);
++        common.retain(|b| c.contains(b));
++    }
++    for b in common {
++        // On a cycle: the block is reachable from one of its successors.
++        let mut seen = vec![false; blocks.len()];
++        let mut stack = blocks[b].exit.successors();
++        let mut cyclic = false;
++        while let Some(n) = stack.pop() {
++            if n == b {
++                cyclic = true;
++                break;
++            }
++            if !std::mem::replace(&mut seen[n], true) {
++                stack.extend(blocks[n].exit.successors());
++            }
++        }
++        uniform[b] = !cyclic;
++    }
++    uniform
++}
++
++/// The value that leaves the other operand of `op` unchanged.
++fn neutral(op: super::wave::Op) -> u32 {
++    use super::wave::Op;
++    match op {
++        Op::AddU | Op::AddF | Op::Or | Op::Xor | Op::MaxU => 0,
++        Op::MinU | Op::And => u32::MAX,
++        Op::MinI => 0x7FFF_FFFF,
++        Op::MaxI => 0x8000_0000,
++        Op::MinF => 0x7F80_0000,
++        Op::MaxF => 0xFF80_0000,
++    }
++}
++
+ /// Instructions that read a lane mask (not EXEC implicitly, not a lane's
+ /// bit) as a number.
+ fn reads_mask_as_data(st: &Structured, i: &Inst) -> bool {
+@@ -360,6 +472,7 @@ impl<'a> Lower<'a> {
+                 && (i.name().contains("store") || i.name().contains("atomic"))
+         });
+         let mut console_lanes = false;
++        let mut emulated = None;
+         if let StageIo::Cs(cs) = x.native.io {
+             s.threads = Some(cs.threads);
+             s.lds_dwords = cs.lds_bytes() / 4;
+@@ -399,8 +512,19 @@ impl<'a> Lower<'a> {
+                 })
+             };
+             let wave = if x.native.wave64 { 64 } else { 32 };
+-            let one_wave = cs.threads.iter().product::<u32>() <= wave;
+-            if console_lanes || one_wave && s.lds_dwords > 0 {
++            let total = cs.threads.iter().product::<u32>();
++            let one_wave = total <= wave;
++            let unfenced_lds = one_wave && s.lds_dwords > 0;
++            if x.emulate_wave64 && x.native.wave64 && console_lanes && !unfenced_lds {
++                // No wave size: the lanes' exchanges go through group-shared
++                // memory (see `Emulated`).
++                emulated = Some(Emulated {
++                    uniform: uniform_blocks(&p.blocks),
++                    total,
++                    ids: None,
++                    scratch: None,
++                });
++            } else if console_lanes || unfenced_lds {
+                 s.wave_size = Some(wave);
+             }
+         }
+@@ -487,6 +611,9 @@ impl<'a> Lower<'a> {
+             src0: None,
+             console_lanes,
+             flat: None,
++            emulated,
++            cur_i: None,
++            guarded: 0,
+             no_barrier,
+             half_outputs: half_outputs(&x.native.io, &x.outputs),
+             mask_data: match x.native.stage {
+@@ -709,6 +836,7 @@ impl<'a> Lower<'a> {
+     /// the section are made from what the simulation found them to be.
+     fn section_inst(&mut self, b: usize, i: usize, start: usize) {
+         const UNKNOWN: Why = "a whole-wave section step the simulation does not follow";
++        self.cur_i = Some(i);
+         let inst = &self.x.p.blocks[b].insts[i];
+         for &(_, w) in &inst.writes {
+             let val = if self.section_out.contains(&w) {
+@@ -765,6 +893,9 @@ impl<'a> Lower<'a> {
+         let x = self.i32_of(src)?;
+         let id = self.s.m.i32(ident);
+         let x = self.s.m.select(c, on, x, id);
++        if self.emulated.is_some() {
++            return self.emulated_shape(op, x, prefix);
++        }
+         self.s.flags |= flags::WAVE_OPS;
+         let float = matches!(op, Op::AddF | Op::MinF | Op::MaxF);
+         let (i32t, f32t) = (self.s.t.i32, self.s.t.f32);
+@@ -821,6 +952,233 @@ impl<'a> Lower<'a> {
+         Ok(if float { self.as_int(r) } else { r })
+     }
+ 
++    // ---- emulated console waves (see `Emulated`) ----
++
++    /// The flat thread index, the console lane and the flat index of the
++    /// console wave's first lane, made in the entry block.
++    fn console_ids(&mut self) -> (V, V, V) {
++        if let Some(ids) = self.emulated.as_ref().and_then(|e| e.ids) {
++            return ids;
++        }
++        let flat = self.mesh_thread();
++        let e = self.s.entry;
++        let (k63, not63) = (self.s.m.i32(63), self.s.m.i32(!63));
++        let lane = self.s.m.bin(e, Bin::And, flat, k63);
++        let base = self.s.m.bin(e, Bin::And, flat, not63);
++        let ids = (flat, lane, base);
++        if let Some(em) = self.emulated.as_mut() {
++            em.ids = Some(ids);
++        }
++        ids
++    }
++
++    /// Whether an exchange can be made where the instruction being lowered
++    /// stands: in a block every thread runs once, outside lane guards.
++    // shortcut: an instruction under a lane guard is refused although only
++    // its result is guarded; allow it once guarded regions are told apart.
++    fn exchange_site(&self) -> Result<(), Why> {
++        let em = self.emulated.as_ref().expect("emulated");
++        let guard = self
++            .cur_i
++            .is_some_and(|i| self.x.st.guards[self.cur_ir][i].is_some());
++        if guard || self.guarded != 0 || !em.uniform[self.cur_ir] {
++            return Err(NOT_UNIFORM);
++        }
++        Ok(())
++    }
++
++    /// The exchange memory, made on first use.
++    fn scratch(&mut self) -> Result<V, Why> {
++        let (made, total) = {
++            let em = self.emulated.as_ref().expect("emulated");
++            (em.scratch, em.total)
++        };
++        if let Some(g) = made {
++            return Ok(g);
++        }
++        let bytes = u64::from(self.s.lds_dwords) * 4 + u64::from(total) * 4;
++        if bytes > u64::from(GROUP_SHARED_LIMIT) {
++            return Err("emulated wave operations beyond the host's group-shared memory");
++        }
++        let g = self.s.wave_scratch(total);
++        self.emulated.as_mut().expect("emulated").scratch = Some(g);
++        Ok(g)
++    }
++
++    /// A thread-group sync with a group-shared fence, at the end of `at`.
++    fn group_barrier(&mut self, at: usize) {
++        let mode = self.s.m.i32(1 | 8);
++        let void = self.s.t.void;
++        self.s
++            .op(at, "barrier", Attr::NoDuplicate, void, 80, &[mode]);
++    }
++
++    /// An exchange's first half, at the end of `at` (which every thread must
++    /// run): this thread's `word` goes to its slot, between two barriers.
++    fn publish(&mut self, at: usize, word: V) -> Result<(), Why> {
++        let g = self.scratch()?;
++        let (flat, _, _) = self.console_ids();
++        self.group_barrier(at);
++        let slot = self.s.m.element(at, g, flat);
++        self.s.m.store(at, slot, word);
++        self.group_barrier(at);
++        Ok(())
++    }
++
++    /// After [`Lower::publish`]: the word lane `lane` (0 to 63) of this
++    /// thread's console wave published, `absent` for a lane past the
++    /// group's last thread (a group need not fill its last wave).
++    fn published(&mut self, at: usize, lane: V, absent: V) -> V {
++        let (flat, _, base) = self.console_ids();
++        let (g, total) = {
++            let em = self.emulated.as_ref().expect("emulated");
++            (em.scratch.expect("published"), em.total)
++        };
++        let index = self.s.m.bin(at, Bin::Add, base, lane);
++        if total % 64 == 0 {
++            let slot = self.s.m.element(at, g, index);
++            return self.s.m.load(at, slot);
++        }
++        // No load outside the array: an absent lane reads this thread's slot.
++        let n = self.s.m.i32(total);
++        let inside = self.s.m.cmp(at, pred::IULT, index, n);
++        let index = self.s.m.select(at, inside, index, flat);
++        let slot = self.s.m.element(at, g, index);
++        let word = self.s.m.load(at, slot);
++        self.s.m.select(at, inside, word, absent)
++    }
++
++    /// Console lanes a group has in any of its waves: 64, or fewer when the
++    /// whole group is smaller.
++    fn console_lanes_used(&self) -> u32 {
++        self.emulated.as_ref().expect("emulated").total.min(64)
++    }
++
++    /// The low and high dwords of the console wave's mask whose bit in this
++    /// lane is `bit`, at the end of `at` (which every thread must run).
++    fn emulated_ballot(&mut self, at: usize, bit: V) -> Result<(V, V), Why> {
++        let i32t = self.s.t.i32;
++        let word = self.s.m.cast(at, Cast::ZExt, bit, i32t);
++        self.publish(at, word)?;
++        let zero = self.s.m.i32(0);
++        let (mut lo, mut hi) = (zero, zero);
++        for k in 0..self.console_lanes_used() {
++            let lane = self.s.m.i32(k);
++            let w = self.published(at, lane, zero);
++            let sh = self.s.m.i32(k & 31);
++            let b = self.s.m.bin(at, Bin::Shl, w, sh);
++            if k < 32 {
++                lo = self.s.m.bin(at, Bin::Or, lo, b);
++            } else {
++                hi = self.s.m.bin(at, Bin::Or, hi, b);
++            }
++        }
++        Ok((lo, hi))
++    }
++
++    /// `x` of lane `lane` of this thread's console wave (0 for a lane the
++    /// group does not have).
++    // shortcut: what the console reads from a lane that does not exist is
++    // not known; no program was seen to depend on it.
++    fn emulated_read_lane(&mut self, x: V, lane: V) -> Result<V, Why> {
++        self.exchange_site()?;
++        let at = self.cur;
++        self.publish(at, x)?;
++        let (k63, zero) = (self.s.m.i32(63), self.s.m.i32(0));
++        let lane = self.s.m.bin(at, Bin::And, lane, k63);
++        Ok(self.published(at, lane, zero))
++    }
++
++    /// `x` of the first lane of this thread's console wave that runs the
++    /// instruction (of lane 0 when none does).
++    fn emulated_read_first(&mut self, x: V) -> Result<V, Why> {
++        self.exchange_site()?;
++        let at = self.cur;
++        // Every lane arriving here runs the instruction (`exchange_site`).
++        let on = self.s.m.bool(true);
++        let (lo, hi) = self.emulated_ballot(at, on)?;
++        let (zero, one) = (self.s.m.i32(0), self.s.m.i32(1));
++        let mut first = zero;
++        for k in (0..self.console_lanes_used()).rev() {
++            let word = if k < 32 { lo } else { hi };
++            let sh = self.s.m.i32(k & 31);
++            let t = self.s.m.bin(at, Bin::LShr, word, sh);
++            let t = self.s.m.bin(at, Bin::And, t, one);
++            let set = self.s.m.cmp(at, pred::NE, t, zero);
++            let lane = self.s.m.i32(k);
++            first = self.s.m.select(at, set, lane, first);
++        }
++        self.publish(at, x)?;
++        Ok(self.published(at, first, zero))
++    }
++
++    /// `op` over `x` of every lane of this thread's console wave, or with
++    /// `prefix` over the lanes below this one (and this one when inclusive).
++    fn emulated_shape(
++        &mut self,
++        op: super::wave::Op,
++        x: V,
++        prefix: Option<bool>,
++    ) -> Result<V, Why> {
++        use super::wave::Op;
++        if prefix.is_some() && !matches!(op, Op::AddU | Op::AddF) {
++            return Err("a wave prefix of an operation other than a sum");
++        }
++        self.exchange_site()?;
++        let at = self.cur;
++        self.publish(at, x)?;
++        let me = self.console_ids().1;
++        // Lanes the group lacks and lanes a prefix leaves out change nothing.
++        let none = self.s.m.i32(neutral(op));
++        let mut acc = none;
++        for k in 0..self.console_lanes_used() {
++            let lane = self.s.m.i32(k);
++            let mut w = self.published(at, lane, none);
++            if let Some(inclusive) = prefix {
++                let p = if inclusive { pred::IULE } else { pred::IULT };
++                let counts = self.s.m.cmp(at, p, lane, me);
++                w = self.s.m.select(at, counts, w, none);
++            }
++            acc = self.fold(at, op, acc, w);
++        }
++        Ok(acc)
++    }
++
++    /// `a op b` on register dwords.
++    fn fold(&mut self, at: usize, op: super::wave::Op, a: V, b: V) -> V {
++        use super::wave::Op;
++        let m = |l: &mut Self, p: u8| {
++            let first = l.s.m.cmp(at, p, a, b);
++            l.s.m.select(at, first, a, b)
++        };
++        match op {
++            Op::AddU => self.s.m.bin(at, Bin::Add, a, b),
++            Op::Or => self.s.m.bin(at, Bin::Or, a, b),
++            Op::And => self.s.m.bin(at, Bin::And, a, b),
++            Op::Xor => self.s.m.bin(at, Bin::Xor, a, b),
++            Op::MinU => m(self, pred::IULT),
++            Op::MaxU => m(self, pred::IUGT),
++            Op::MinI => m(self, pred::SLT),
++            Op::MaxI => m(self, pred::SGT),
++            Op::AddF | Op::MinF | Op::MaxF => {
++                let (i32t, f32t) = (self.s.t.i32, self.s.t.f32);
++                let fa = self.s.m.cast(at, Cast::Bitcast, a, f32t);
++                let fb = self.s.m.cast(at, Cast::Bitcast, b, f32t);
++                let r = match op {
++                    Op::AddF => self.s.m.bin(at, Bin::Add, fa, fb),
++                    // FMax 35, FMin 36.
++                    Op::MaxF => self
++                        .s
++                        .op(at, "binary.f32", Attr::ReadNone, f32t, 35, &[fa, fb]),
++                    _ => self
++                        .s
++                        .op(at, "binary.f32", Attr::ReadNone, f32t, 36, &[fa, fb]),
++                };
++                self.s.m.cast(at, Cast::Bitcast, r, i32t)
++            }
++        }
++    }
++
+     fn run(mut self) -> Result<Lowered, Stop> {
+         let p = self.x.p;
+         let order = crate::ir::reverse_postorder(&p.blocks);
+@@ -892,6 +1250,7 @@ impl<'a> Lower<'a> {
+                 }
+                 i += 1;
+             }
++            self.cur_i = None;
+             self.mask_ok = self.mask_data == MaskData::Console;
+             self.tail[b] = Some(self.cur);
+             self.exit(b)?;
+@@ -1194,11 +1553,12 @@ impl<'a> Lower<'a> {
+         let (x, y) = match self.ballots.get(&lo) {
+             Some(&xy) => xy,
+             None => {
+-                let at = match self.def_block.get(&lo) {
++                let def = self.def_block.get(&lo).copied();
++                let at = match def {
+                     // Program inputs (EXEC on entry).
+                     None => self.s.entry,
+-                    Some(&b) if b == self.cur_ir => self.cur,
+-                    Some(&b) => self.tail[b].ok_or("a lane mask written after its use")?,
++                    Some(b) if b == self.cur_ir => self.cur,
++                    Some(b) => self.tail[b].ok_or("a lane mask written after its use")?,
+                 };
+                 if !self.balloting.insert(lo) {
+                     return Err("a lane mask whose lanes depend on its own value");
+@@ -1206,13 +1566,25 @@ impl<'a> Lower<'a> {
+                 let bit = self.boolean(m, at);
+                 self.balloting.remove(&lo);
+                 let bit = bit?;
+-                let i32t = self.s.t.i32;
+-                let four = self.s.m.named_struct("dx.types.fouri32", vec![i32t; 4]);
+-                let r = self
+-                    .s
+-                    .op(at, "waveActiveBallot", Attr::NoUnwind, four, 116, &[bit]);
+-                self.s.flags |= flags::WAVE_OPS;
+-                let xy = (self.s.m.extract(at, r, 0), self.s.m.extract(at, r, 1));
++                // Emulated waves: the ballot is an exchange, so every thread
++                // must run the block the mask is written in.
++                let exchange = self.emulated.as_ref().map(|em| match def {
++                    None => true,
++                    Some(b) => em.uniform[b] && (b != self.cur_ir || self.guarded == 0),
++                });
++                let xy = match exchange {
++                    Some(false) => return Err(NOT_UNIFORM),
++                    Some(true) => self.emulated_ballot(at, bit)?,
++                    None => {
++                        let i32t = self.s.t.i32;
++                        let four = self.s.m.named_struct("dx.types.fouri32", vec![i32t; 4]);
++                        let r =
++                            self.s
++                                .op(at, "waveActiveBallot", Attr::NoUnwind, four, 116, &[bit]);
++                        self.s.flags |= flags::WAVE_OPS;
++                        (self.s.m.extract(at, r, 0), self.s.m.extract(at, r, 1))
++                    }
++                };
+                 self.ballots.insert(lo, xy);
+                 xy
+             }
+@@ -1646,14 +2018,18 @@ impl<'a> Lower<'a> {
+ 
+     /// This lane's bit of the mask `lo`, `hi` (wave64).
+     fn lane_bit(&mut self, at: usize, lo: V, hi: Option<V>) -> V {
+-        let lane = self.s.op(
+-            at,
+-            "waveGetLaneIndex",
+-            Attr::ReadOnly,
+-            self.s.t.i32,
+-            111,
+-            &[],
+-        );
++        let lane = if self.emulated.is_some() {
++            self.console_ids().1
++        } else {
++            self.s.op(
++                at,
++                "waveGetLaneIndex",
++                Attr::ReadOnly,
++                self.s.t.i32,
++                111,
++                &[],
++            )
++        };
+         let (k31, k32, one, z) = (
+             self.s.m.i32(31),
+             self.s.m.i32(32),
+@@ -1837,6 +2213,7 @@ impl<'a> Lower<'a> {
+         self.s.m.terminate(self.cur, Term::CondBr(g, then, join));
+         let head = self.cur;
+         self.cur = then;
++        self.guarded += 1;
+         Some((head, join))
+     }
+ 
+@@ -1848,6 +2225,7 @@ impl<'a> Lower<'a> {
+         let then = self.cur;
+         self.s.m.terminate(then, Term::Br(join));
+         self.cur = join;
++        self.guarded = self.guarded.saturating_sub(1);
+         values
+             .iter()
+             .map(|&(inside, outside)| {
+@@ -1873,7 +2251,10 @@ impl<'a> Lower<'a> {
+             return Err("a cross-lane operation outside compute");
+         }
+         debug_assert!(self.s.threads.is_none() || self.console_lanes);
+-        self.s.flags |= flags::WAVE_OPS;
++        // Emulated waves use no host wave operation.
++        if self.emulated.is_none() {
++            self.s.flags |= flags::WAVE_OPS;
++        }
+         Ok(())
+     }
+ 
+@@ -1883,7 +2264,8 @@ impl<'a> Lower<'a> {
+     /// plus the lane index. (A bijection while each host wave holds a
+     /// wave-aligned run of flat ids, as the console's waves do.)
+     fn thread_id(&mut self, c: u8) -> Val {
+-        if !self.console_lanes {
++        // Emulated waves: the console lane follows from the plain id.
++        if !self.console_lanes || self.emulated.is_some() {
+             return self.compute_id("threadIdInGroup.i32", 95, c);
+         }
+         let [x, y, _] = self.s.threads.expect("compute");
+@@ -1994,6 +2376,9 @@ impl<'a> Lower<'a> {
+             let m = self.s.m.i32(self.wave() - 1);
+             return self.s.m.bin(self.s.entry, Bin::And, f, m);
+         }
++        if self.emulated.is_some() {
++            return self.console_ids().1;
++        }
+         self.s.op(
+             self.cur,
+             "waveGetLaneIndex",
+@@ -2028,15 +2413,18 @@ impl<'a> Lower<'a> {
+         r
+     }
+ 
+-    fn read_lane(&mut self, x: V, lane: V) -> V {
+-        self.s.op(
++    fn read_lane(&mut self, x: V, lane: V) -> Result<V, Why> {
++        if self.emulated.is_some() {
++            return self.emulated_read_lane(x, lane);
++        }
++        Ok(self.s.op(
+             self.cur,
+             "waveReadLaneAt.i32",
+             Attr::NoUnwind,
+             self.s.t.i32,
+             117,
+             &[x, lane],
+-        )
++        ))
+     }
+ 
+     /// The float value of a register value.
+@@ -2121,7 +2509,7 @@ impl<'a> Lower<'a> {
+             let r = if mesh_quad {
+                 self.quad_pick(x, src)
+             } else {
+-                self.read_lane(x, src)
++                self.read_lane(x, src)?
+             };
+             let reg = dst_reg.ok_or("a swizzle result")?;
+             self.write(inst, Reg::V(reg), r, guard);
+@@ -2254,6 +2642,7 @@ impl<'a> Lower<'a> {
+         let inst: &'a Inst = &self.x.p.blocks[b].insts[i];
+         let offset = inst.machine.offset;
+         let name = inst.name();
++        self.cur_i = Some(i);
+         self.mask_ok = match self.mask_data {
+             MaskData::Console => true,
+             MaskData::Host => {
+@@ -3694,7 +4083,7 @@ impl<'a> Lower<'a> {
+         let mut r = if mesh_quad {
+             self.quad_pick(x, src)
+         } else {
+-            self.read_lane(x, src)
++            self.read_lane(x, src)?
+         };
+         let mut enable = None;
+         if let Some(inside) = inside {
+@@ -4211,7 +4600,7 @@ impl<'a> Lower<'a> {
+                 } else {
+                     self.cross_lane(false)?;
+                 }
+-                let r = self.read_lane(a, lane);
++                let r = self.read_lane(a, lane)?;
+                 int(self, r)
+             }
+             "v_writelane_b32" => {
+@@ -4240,6 +4629,11 @@ impl<'a> Lower<'a> {
+                 let a = s(self, 0)?;
+                 int(self, a)
+             }
++            "v_readfirstlane_b32" if self.emulated.is_some() => {
++                let a = s(self, 0)?;
++                let r = self.emulated_read_first(a)?;
++                int(self, r)
++            }
+             "v_readfirstlane_b32" => {
+                 let a = s(self, 0)?;
+                 self.s.flags |= flags::WAVE_OPS;
+@@ -6947,7 +7341,7 @@ impl<'a> Lower<'a> {
+ 
+ #[cfg(test)]
+ mod tests {
+-    use super::{Lowered, Numeric, Parts, buffer_format, half_shift, lower};
++    use super::{Exit, Lowered, Numeric, Parts, buffer_format, half_shift, lower, uniform_blocks};
+     use crate::native::{
+         ComputeIo, HwStage, NativeProgram, ResourceType, RootParam, RootType, StageIo, UsedResource,
+     };
+@@ -6984,6 +7378,7 @@ mod tests {
+             outputs: vec![],
+             prims: vec![],
+             mesh_stride: 0,
++            emulate_wave64: false,
+         })
+         .map(|_| ())
+     }
+@@ -7034,6 +7429,7 @@ mod tests {
+             outputs: vec![],
+             prims: vec![],
+             mesh_stride: 0,
++            emulate_wave64: false,
+         })
+     }
+ 
+@@ -7137,6 +7533,7 @@ mod tests {
+             outputs: vec![],
+             prims: vec![],
+             mesh_stride: 0,
++            emulate_wave64: false,
+         }).unwrap();
+ 
+         let container =
+@@ -7418,4 +7815,39 @@ mod tests {
+         // A 16-bit float is a half already, sign included.
+         assert_eq!(half(0xBC00 << half_shift(16)), -1.0);
+     }
++
++    /// Blocks with these exits and nothing else (predecessors follow).
++    fn cfg(exits: &[Exit]) -> Vec<crate::ir::Block> {
++        let mut blocks: Vec<crate::ir::Block> = exits
++            .iter()
++            .map(|&exit| crate::ir::Block {
++                offset: 0,
++                preds: Vec::new(),
++                phis: Vec::new(),
++                insts: Vec::new(),
++                exit,
++            })
++            .collect();
++        for b in 0..blocks.len() {
++            for s in blocks[b].exit.successors() {
++                blocks[s].preds.push(b);
++            }
++        }
++        blocks
++    }
++
++    #[test]
++    fn exchanges_only_where_every_lane_arrives_once() {
++        let branch = |taken, not_taken| Exit::Branch { taken, not_taken };
++        let line = cfg(&[Exit::Jump(1), Exit::End]);
++        assert_eq!(uniform_blocks(&line), [true, true]);
++        let diamond = cfg(&[branch(1, 2), Exit::Jump(3), Exit::Jump(3), Exit::End]);
++        assert_eq!(uniform_blocks(&diamond), [true, false, false, true]);
++        let early = cfg(&[branch(1, 2), Exit::End, Exit::Jump(3), Exit::End]);
++        assert_eq!(uniform_blocks(&early), [true, false, false, false]);
++        let looped = cfg(&[Exit::Jump(1), Exit::Jump(2), branch(1, 3), Exit::End]);
++        assert_eq!(uniform_blocks(&looped), [true, false, false, true]);
++        let endless = cfg(&[Exit::Jump(1), Exit::Jump(1)]);
++        assert_eq!(uniform_blocks(&endless), [false, false]);
++    }
+ }
+diff --git a/crates/victory-shader/src/emit/mod.rs b/crates/victory-shader/src/emit/mod.rs
+index 89652da..4ad3e0f 100644
+--- a/crates/victory-shader/src/emit/mod.rs
++++ b/crates/victory-shader/src/emit/mod.rs
+@@ -185,6 +185,17 @@ pub struct UserData {
+     pub dword: u32,
+ }
+ 
++/// Whether compute programs that need the console's 64-lane waves are
++/// translated to run on any host wave size, their cross-lane operations
++/// going through group-shared memory (`VICTORY_WAVE64_EMULATE` set and not
++/// `0`; read once). Off, such a program declares `WaveSize(64)`, which a
++/// host with 32-lane waves refuses. A cache of translations must key on
++/// this.
++pub fn wave64_emulation() -> bool {
++    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
++    *ON.get_or_init(|| std::env::var_os("VICTORY_WAVE64_EMULATE").is_some_and(|v| v != "0"))
++}
++
+ /// Translates the vertex, pixel, compute or mesh program of a console
+ /// shader container.
+ pub fn translate(container: &[u8]) -> Result<HostShader, ShaderError> {
+@@ -288,6 +299,7 @@ pub fn emit(
+         outputs,
+         prims,
+         mesh_stride,
++        emulate_wave64: wave64_emulation(),
+     })?;
+     Ok(HostShader {
+         stage: native.stage,
+diff --git a/crates/victory-shader/src/emit/shader.rs b/crates/victory-shader/src/emit/shader.rs
+index dd2eb75..e9d228d 100644
+--- a/crates/victory-shader/src/emit/shader.rs
++++ b/crates/victory-shader/src/emit/shader.rs
+@@ -143,6 +143,14 @@ impl Shader {
+         g
+     }
+ 
++    /// Group-shared memory beside the program's own: `[slots x i32]` in
++    /// address space 3, through which emulated console waves exchange lane
++    /// values (the caller keeps the one it makes).
++    pub fn wave_scratch(&mut self, slots: u32) -> V {
++        let arr = self.m.array(slots, self.t.i32);
++        self.m.global("wave", arr, 3)
++    }
++
+     /// Calls `dx.op.<name>` (class and overload) with `opcode` and `args`.
+     pub fn op(
+         &mut self,
+diff --git a/crates/victory-shader/src/emit/valu_tests.rs b/crates/victory-shader/src/emit/valu_tests.rs
+index b4ee77d..daa64b4 100644
+--- a/crates/victory-shader/src/emit/valu_tests.rs
++++ b/crates/victory-shader/src/emit/valu_tests.rs
+@@ -137,6 +137,7 @@ fn build_valu_cs(body: &[u32]) -> HostShader {
+         outputs: Vec::new(),
+         prims: Vec::new(),
+         mesh_stride: 0,
++        emulate_wave64: false,
+     })
+     .expect("lower");
+ 
+diff --git a/crates/victory-shader/src/emit/waterfall_tests.rs b/crates/victory-shader/src/emit/waterfall_tests.rs
+index 104fc6d..020bd9d 100644
+--- a/crates/victory-shader/src/emit/waterfall_tests.rs
++++ b/crates/victory-shader/src/emit/waterfall_tests.rs
+@@ -69,6 +69,7 @@ fn build(words: &[u32], buffers: bool) -> HostShader {
+         outputs: Vec::new(),
+         prims: Vec::new(),
+         mesh_stride: 0,
++        emulate_wave64: false,
+     })
+     .expect("lower");
+     // One access with each lane's own heap index, no wave operation.
+-- 
+2.56.1.windows.1
+

@@ -1,0 +1,55 @@
+# forge9-mods
+
+Mods for RPF9 archives, built and applied with [forge9](https://github.com/nineforge0/forge9).
+
+Every mod here is a small `mod.toml` of **patches**: an entry path, the SHA-256 of the original
+payload, and edit operations (XML value, exact text find/replace, bytes at an offset). The mods
+contain no game files. You apply them to your own copy, and forge9 refuses to apply one to a
+different version of the file or to a file that is already modded.
+
+> **Status: experimental.** forge9 builds the modded archive and checks it entry by entry, but
+> nobody has shown yet that the game loads a repacked archive. Back up the original files first.
+
+## Scope and provenance
+
+This repository holds **patches only**: an entry path, the SHA-256 of the original payload, and
+edit operations. It contains no game files, assets, or copyrighted content, and none may be
+contributed (CI rejects anything but manifests, READMEs and small text). A patch is applied by
+you, locally, to your own legally obtained copy of the software; nothing here reproduces or
+distributes that software. This project is independent and is not affiliated with, authorized
+by, or endorsed by any game publisher. Use it only with files you are lawfully permitted to use.
+
+## Use a mod
+
+```bash
+# forge9: https://github.com/nineforge0/forge9 (cargo build --release)
+forge9 mod verify mods/xml-tweak/mod.toml --archive /path/to/common.rpf
+forge9 mod apply  mods/xml-tweak/mod.toml --archive /path/to/common.rpf -o common.rpf.modded
+forge9 diff /path/to/common.rpf common.rpf.modded     # shows exactly which entries changed
+```
+
+`verify` writes nothing: it checks the base hash and every patch precondition. A `base_sha256
+mismatch` means your file is a different version, or already modded.
+
+## Mods
+
+| Mod | Archive | What it does |
+|---|---|---|
+| [xml-tweak](mods/xml-tweak) | `common.rpf` | Raises one navigation value in a vehicle points definition (example of the format) |
+
+## Make a mod
+
+1. Extract the entry: `forge9 extract common.rpf -o out --select 9` (the file is named by its
+   offset, e.g. `out/00124150.xml`), then edit a copy.
+2. Turn the edit into patch ops: `forge9 mod make --path 9 out/00124150.xml edited.xml >> mod.toml`.
+   On stderr it reports how many original bytes the ops carry; keep that small.
+3. Check it: `forge9 mod verify mod.toml --archive common.rpf`.
+4. Open a PR adding `mods/<name>/mod.toml` and a short `README.md`.
+
+The format is specified in [forge9's docs/mod_format.md](https://github.com/nineforge0/forge9/blob/main/docs/mod_format.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the rules.
+
+## License
+
+MIT. The mods are patches written by their authors; they do not include or grant rights to any
+game content.

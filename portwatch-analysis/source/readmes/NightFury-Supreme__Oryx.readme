@@ -1,0 +1,190 @@
+# Oryx (ScarlettNative)
+
+> **Research-driven native x86-64 execution environment & Microsoft GDK compatibility runtime for Xbox Series X|S software on Windows 11.**  
+> *It is not an emulator.*
+
+[![Language](https://img.shields.io/badge/Language-C%2B%2B23-blue.svg)](https://en.cppreference.com/w/cpp/23)
+[![Platform](https://img.shields.io/badge/Platform-Windows%2011%20x86--64-0078D6.svg)](https://www.microsoft.com/windows)
+[![Graphics](https://img.shields.io/badge/Graphics-Direct3D%2012%20Agility%20SDK-black.svg)](https://devblogs.microsoft.com/directx/)
+[![Tests](https://img.shields.io/badge/Tests-13%2F13%20Passing%20(100%25)-brightgreen.svg)]()
+[![Target](https://img.shields.io/badge/Target-Xbox%20Series%20X%20%7C%20Series%20S-107C10.svg)](https://www.xbox.com)
+
+---
+
+## 1. Project Philosophy & Core Architecture
+
+Xbox Series X|S consoles and modern Windows PCs share the **AMD64 (x86-64)** architecture and MSVC calling conventions. The Xbox operating system runs titles in an Exclusive Resource Allocation (ERA) Game OS partition on top of the Microsoft Gaming Device Kit (GDK).
+
+Because host PCs and consoles share the same physical instruction set, **Oryx does not emulate the CPU via an interpreter or JIT compiler**. Instead, Oryx operates as a native compatibility runtime:
+
+```mermaid
+flowchart TD
+    A["Xbox Series X|S Title (PE32+ Binary)"] --> B["Defensive PE32+ Parser & Bounds Validator"]
+    B --> C["Guest Virtual Memory Space (Anaconda 13.5 GB / Lockhart 8.0 GB)"]
+    C --> D["Dynamic IAT Relinker & Thunk Emitter"]
+    D --> E["Microsoft GDK HLE Runtime (xgameruntime, xgameplatform)"]
+    D --> F["Direct3D 12 Agility SDK Bridge (d3d12_x, d3d12_xs)"]
+    D --> G["DirectStorage 1.3+ Streaming Bridge"]
+    D --> H["VFS Drive Redirection (D:\, T:\, G:\)"]
+    E & F & G & H --> I["Native Host AMD64 Execution (Direct Host CPU & GPU)"]
+```
+
+### Architectural Principles
+1. **Direct CPU Execution:** Executes AMD64 instructions directly on host processor cores. Privileged instructions and hypervisor traps are handled via Vectored Exception Handling (VEH).
+2. **Defensive Ingestion:** Strictly validates PE headers, section boundaries, relocations, and data directories against untrusted or malformed inputs.
+3. **Flexible Virtual Memory:** Uses demand-paged virtual address reservation (`MEM_RESERVE`) rather than allocating 16 GB of physical RAM upfront.
+4. **Evidence-Based GDK Manifest:** System APIs adhere to Microsoft Public GDK specifications, categorized by evidence levels (`Verified`, `Experimental`, `Unsupported`).
+5. **Smart Stub Dispatcher:** Permissive runtime mode prevents fatal crashes on non-critical console telemetry while logging exact call signatures.
+
+---
+
+## 2. Hardware Profiles
+
+Oryx enforces console hardware constraints via dynamic profiles:
+
+| Specification | Xbox Series X (Anaconda) | Xbox Series S (Lockhart) |
+| :--- | :--- | :--- |
+| **Title Memory Budget** | **13.5 GB** (16 GB Total) | **8.0 GB** (10 GB Total) |
+| **Virtual Address Space** | 64-bit Address Range | 64-bit Address Range |
+| **GPU Architecture** | RDNA 2 (52 Compute Units) | RDNA 2 (20 Compute Units) |
+| **CPU Topography** | Zen 2 (8 Cores / 16 Threads: 14 Title, 2 OS) | Zen 2 (8 Cores / 16 Threads: 14 Title, 2 OS) |
+| **Default Profile** | Enabled (`--profile seriesx`) | Selectable (`--profile seriess`) |
+
+---
+
+## 3. Subsystem Overview
+
+### Loader & Binary Rewriting
+* **PE32+ Parser:** Defensive bounds-checked ingestion for 64-bit PE binaries, section tables, relocations, and `IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG` (Data Directory 10) for MSVC `/GS` security cookie initialization.
+* **TLS Engine:** Parses PE Thread Local Storage (`IMAGE_TLS_DIRECTORY64`) and executes registered initialization callbacks.
+* **IAT Patcher & Thunk Emitter:** Generates 12-byte direct jump trampolines (`mov rax, target; jmp rax`) and 41-byte ABI-compliant diagnostic thunks with shadow space allocation and stack alignment.
+* **Package Pipeline:** Parses `MicrosoftGame.config` and `AppxManifest.xml`, configuring AppContainer security ACLs and AppModel package identities.
+
+### High-Level Emulation (HLE) & GDK
+* **XGameRuntime & XGamePlatform:** `XGameRuntimeInitialize`, `XTaskQueue` async loops, lifecycle management, and dynamic device hardware queries.
+* **XUser & XGameSave:** Local authentication simulation (`ScarlettMaster` profile) with atomic transactional container persistence to `G:\`.
+* **XPackage, XStore & XNetworking:** Package mounting, title license verification (active perpetual license), and unconstrained network connectivity hints.
+* **KernelX:** Zen 2 thread affinity scheduler, synchronization primitives (Events, Mutexes, Semaphores), and memory management services.
+
+### Graphics, Storage & Audio
+* **Direct3D 12 Bridge:** Forwarding to the Windows 11 Direct3D 12 Agility SDK, console extensions (`d3d12_x.dll`, `d3d12_xs.dll`), and Versioned Root Signature 1.1/1.2 deserializers.
+* **DirectStorage Bridge:** Integration with DirectStorage 1.3+ runtime, asynchronous queue streaming, and fallback VFS streaming pipeline.
+* **Virtual File System (VFS):** Transparent Win32 file I/O interception (`CreateFileW/A`, `GetFileAttributesW`, `FindFirstFileW`) redirecting console drive letters (`D:\`, `T:\`, `G:\`) to host disk paths.
+* **Audio Bridge:** Real-time spatial audio processing via native Windows 11 `XAudio2_9.dll`.
+* **Input System:** Integration with Windows 11 GameInput API alongside keyboard and mouse gamepad emulation.
+
+---
+
+## 4. Development Milestones
+
+- [x] **Milestone 1 — Foundation:** C++23 build system, structured logging, assertions, CPU feature detection, and defensive PE32+ parser.
+- [x] **Milestone 2 — Controlled Execution:** Load and execute self-authored x86-64 test executables with dynamic 12-byte trampoline IAT relinking.
+- [x] **Milestone 3 — System Compatibility:** Zen 2 thread manager (14 Title + 2 OS cores), synchronization primitives, `XTaskQueue` dispatch loops, VFS drive mounts (`D:\`, `T:\`, `G:\`), and manifest parsing.
+- [x] **Milestone 4 — Graphics Bring-Up & GDK Subsystems:** Direct3D 12 Agility SDK integration, console device bridges (`D3D12XCreateDevice`), DXGI factory forwarding, `XUser` profiles, `XGameSave` containers, DirectStorage 1.3+ streaming, and GameInput integration.
+- [x] **Milestone 5 — Public GDK Samples & Live 3D Execution:** 
+  - Verified Microsoft GDK graphics samples: `SimpleLighting` (3D Lit cube), `SimpleTexture` (Spinning textured logo), `SimpleInstancing` (Animated cubes), and `SimpleCompute` (60 FPS GPU Julia fractal compute shader).
+  - Verified audio and lifecycle samples: `SimplePlaySound`, `SimplePlay3DSound`, and `SimplePLM`.
+  - Verified hardware diagnostics (`SystemInfo.exe`) across Series X (13.5 GB) and Series S (8.0 GB) hardware profiles.
+  - Executed native Xbox Series X|S AMD64 packages (`DOOM-powered-by-GZDOOM`) with real-time 3D rendering and GameInput controls.
+- [x] **Milestone 6 — Research & GDK Hardening:** 
+  - Implemented `XPackage`, `XStore`, and `XNetworking` boot subsystems.
+  - Added Direct3D 12 Versioned Root Signature (1.1 / 1.2) deserialization.
+  - Transparent VFS Win32 file I/O redirection for console drive letters.
+  - Advanced pre-flight binary scanner (`--scan`) with native readiness scoring.
+  - 13/13 automated test suites passing with 100% verification.
+
+---
+
+## 5. Building & Requirements
+
+### System Requirements
+* **Operating System:** Windows 11 (x86-64, Version 22H2 or newer recommended)
+* **Processor:** AMD or Intel x86-64 CPU with SSE4.2, AVX, AVX2, FMA3, and BMI2 support
+* **Compiler:** C++23 compliant compiler (MSVC 19.38+, GCC 13+, or Clang 17+)
+* **Build Tools:** CMake 3.25+ and Ninja / MSBuild
+
+### Compilation
+```powershell
+# Configure CMake
+cmake -B build -S .
+
+# Compile all libraries, runtime CLI, and unit test runner
+cmake --build build -j8
+```
+
+---
+
+## 6. CLI Usage & Commands
+
+```powershell
+# Inspect host CPU capabilities and Zen 2 instruction parity
+.\build\oryx.exe --cpu-info
+
+# Display verified GDK function declaration & implementation metrics
+.\build\oryx.exe --stats
+
+# Print community blocker map and compatibility table
+.\build\oryx.exe --report
+
+# Export compatibility blocker map to Markdown or JSON
+.\build\oryx.exe --export-md compatibility_report.md
+.\build\oryx.exe --export-json compatibility_report.json
+
+# Defensively parse and scan any binary or folder for GDK blockers & readiness score
+.\build\oryx.exe --scan <path_to_game.exe | path_to_directory>
+
+# Execute with Xbox Series X profile (Anaconda - 13.5 GB title budget)
+.\build\oryx.exe <path_to_game.exe>
+
+# Execute with Xbox Series S profile (Lockhart - 8.0 GB title budget)
+.\build\oryx.exe --run <path_to_game.exe> --profile seriess
+
+# Execute in strict mode (halts execution immediately on unhandled APIs)
+.\build\oryx.exe --run <path_to_game.exe> --strict
+
+# Force in-process guest virtual memory execution for packaged targets
+.\build\oryx.exe --run <path_to_game.exe> --inprocess
+```
+
+---
+
+## 7. Verification & Automated Tests
+
+Oryx includes an automated test suite verifying every layer from low-level memory allocation to Direct3D 12 presentation:
+
+```powershell
+.\build\oryx_tests.exe
+```
+
+```
+================== RUNNING Oryx UNIT TESTS ==================
+[TEST] Running CPU Feature Detection tests...                  -> PASSED
+[TEST] Running Flexible Guest Virtual Memory Manager tests... -> PASSED
+[TEST] Running GDK Function Registry & Blocker Map tests...   -> PASSED
+[TEST] Running PE32+ 64-bit Parser tests...                   -> PASSED
+[TEST] Running Milestone 2: Controlled Native Execution...   -> PASSED (Exit code: 142)
+[TEST] Running Zen 2 Thread Manager tests...                  -> PASSED
+[TEST] Running GDK XTaskQueue tests...                        -> PASSED
+[TEST] Running Virtual File System (VFS) tests...             -> PASSED
+[TEST] Running MicrosoftGame.config Manifest Parser tests...  -> PASSED
+[TEST] Running Milestone 4 (Graphics, User, GameSave, Input)  -> PASSED
+[TEST] Running DirectStorage 1.3+ HLE Streamer tests...       -> PASSED
+[TEST] Running Keyboard and Mouse Subsystem tests...          -> PASSED
+[TEST] Running GDK Hardening & Subsystem Verification tests:
+  -> VFS File Redirection verified: 'D:\data_level.bin' seamlessly opened!
+  -> XPackage verified: Package ID resolved, MountPath mapped
+  -> XStore Licensing verified: Active=true, Trial=false
+  -> XNetworking verified: ConnectivityHint=Internet
+  -> Direct3D 12 Versioned Root Signature bridge verified (Live Agility SDK)
+  -> Permissive Stub Engine verified: Executed unhandled API thunk and returned 0 (S_OK)
+  -> All GDK Hardening tests passed successfully!
+
+ALL Oryx TESTS PASSED SUCCESSFULLY! [100% OK]
+=================================================================
+```
+
+---
+
+## 8. Research Disclaimer & Compliance
+
+Oryx is an independent research and development project focused on operating system compatibility, binary translation, and Microsoft GDK interoperability. It is not affiliated with, endorsed by, or sponsored by Microsoft Corporation. All registered trademarks, product names, and brand logos belong to their respective owners.

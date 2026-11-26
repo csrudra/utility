@@ -1,0 +1,109 @@
+From e3d06a6b1830fc43c090656ca387830980484fe2 Mon Sep 17 00:00:00 2001
+From: HybridGt <hybridgt@localhost>
+Date: Tue, 24 Nov 2026 17:33:01 +0200
+Subject: [PATCH 04/14] Shaders: VICTORY_HEAP_INDEX_LIMIT clamps view heap
+ indices (HybridGt, diagnostics)
+
+An index at or past the limit reads the slot below it (kept null by a
+capped host heap) instead of past the host heap. Part of the shader cache
+key. With 1000000 on an RTX 4070 Ti the device was still removed (run8),
+in an indirect mesh dispatch. Kept as a guard; not the hang's cause.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crates/victory-gpu/src/shader_cache.rs  |  6 ++++
+ crates/victory-shader/src/emit/lower.rs | 12 +++++++-
+ crates/victory-shader/src/emit/mod.rs   | 37 +++++++++++++++++++++++++
+ 3 files changed, 54 insertions(+), 1 deletion(-)
+
+diff --git a/crates/victory-gpu/src/shader_cache.rs b/crates/victory-gpu/src/shader_cache.rs
+index 4479a6c..f43b0bf 100644
+--- a/crates/victory-gpu/src/shader_cache.rs
++++ b/crates/victory-gpu/src/shader_cache.rs
+@@ -53,6 +53,12 @@ fn build() -> &'static [u8; 32] {
+         match exe {
+             Ok(mut bytes) => {
+                 bytes.extend_from_slice(&limit.to_le_bytes());
++                // HybridGt: the heap index limit is part of the translation.
++                if let Some(h) = victory_shader::emit::heap_index_limit() {
++                    tracing::warn!(limit = h, "VICTORY_HEAP_INDEX_LIMIT: heap indices past it read a null slot");
++                    bytes.extend_from_slice(b"heap");
++                    bytes.extend_from_slice(&h.to_le_bytes());
++                }
+                 *blake3::hash(&bytes).as_bytes()
+             }
+             Err(e) => {
+diff --git a/crates/victory-shader/src/emit/lower.rs b/crates/victory-shader/src/emit/lower.rs
+index 8194d67..9974e5d 100644
+--- a/crates/victory-shader/src/emit/lower.rs
++++ b/crates/victory-shader/src/emit/lower.rs
+@@ -3948,7 +3948,17 @@ impl<'a> Lower<'a> {
+             addr = self.s.m.bin(c, Bin::Add, addr, so);
+         }
+         let shift = self.s.m.i32(if sampler { 4 } else { 5 });
+-        Ok(self.s.m.bin(c, Bin::LShr, addr, shift))
++        let index = self.s.m.bin(c, Bin::LShr, addr, shift);
++        // HybridGt: an index past the host heap reads its last slot, kept null.
++        match super::heap_index_limit() {
++            Some(limit) if !sampler => {
++                let k = self.s.m.i32(limit);
++                let over = self.s.m.cmp(c, pred::IUGE, index, k);
++                let null = self.s.m.i32(limit - 1);
++                Ok(self.s.m.select(c, over, null, index))
++            }
++            _ => Ok(index),
++        }
+     }
+ 
+     fn valu(&mut self, inst: &Inst, b: usize, i: usize) -> Result<(), Why> {
+diff --git a/crates/victory-shader/src/emit/mod.rs b/crates/victory-shader/src/emit/mod.rs
+index 4ad3e0f..36ef778 100644
+--- a/crates/victory-shader/src/emit/mod.rs
++++ b/crates/victory-shader/src/emit/mod.rs
+@@ -122,6 +122,43 @@ pub fn loop_limit() -> u32 {
+     })
+ }
+ 
++/// HybridGt: the first CBV/SRV/UAV heap index translated shaders do not
++/// read; an index at or past it reads the slot just below it instead
++/// (which a capped host heap keeps null). `None`: indices are not checked.
++///
++/// With the `diagnostics` feature, `VICTORY_HEAP_INDEX_LIMIT` sets it. NVIDIA
++/// caps shader-visible view heaps at 1,000,000 slots, Grand Theft Auto VI's
++/// heap has 1,245,184, and an index past a host heap is undefined. Part of
++/// the translation, so the shader cache keys on it.
++pub fn heap_index_limit() -> Option<u32> {
++    static LIMIT: std::sync::OnceLock<Option<u32>> = std::sync::OnceLock::new();
++    *LIMIT.get_or_init(|| {
++        if cfg!(feature = "diagnostics") {
++            parse_heap_index_limit(std::env::var("VICTORY_HEAP_INDEX_LIMIT").ok().as_deref())
++        } else {
++            None
++        }
++    })
++}
++
++/// `VICTORY_HEAP_INDEX_LIMIT`'s value: a decimal count of at least 2.
++fn parse_heap_index_limit(value: Option<&str>) -> Option<u32> {
++    value.and_then(|v| v.trim().parse::<u32>().ok()).filter(|&n| n >= 2)
++}
++
++#[cfg(test)]
++mod heap_limit_tests {
++    #[test]
++    fn heap_index_limit_parses() {
++        use super::parse_heap_index_limit as p;
++        assert_eq!(p(None), None);
++        assert_eq!(p(Some("1000000")), Some(1_000_000));
++        assert_eq!(p(Some(" 1000000 ")), Some(1_000_000));
++        assert_eq!(p(Some("1")), None);
++        assert_eq!(p(Some("x")), None);
++    }
++}
++
+ /// `VICTORY_SHADER_LOOP_LIMIT`'s value; the default when it is unset,
+ /// unreadable or 0. Pure, for testing.
+ fn parse_loop_limit(value: Option<&str>) -> u32 {
+-- 
+2.56.1.windows.1
+

@@ -1,0 +1,432 @@
+From ec3434bbc93fd54d69e39e43c0327fcf144d1821 Mon Sep 17 00:00:00 2001
+From: Z User <z@container>
+Date: Wed, 25 Nov 2026 05:25:41 +0000
+Subject: [PATCH 09/25] Shaders: ds_bpermute_b32 across two host waves through
+ a table past the LDS
+
+A console wave64 program run as two host waves of 32 stopped at the
+checkerboard shadow-mask generators' neighbour read ("a lane permute
+across two host waves"): the pair of exchange dwords cannot carry every
+lane's dword. Each console wave of the group now gets 64 table dwords
+past the exchange dwords; every lane stores its own (a lane its guard
+holds off stores 0, as the console reads for a source lane outside EXEC),
+the halves meet on a group barrier, and the read takes the named lane's
+dword from it. Where not every lane runs the block, the lowering refuses
+as before and names it for the wave-wide retry.
+
+The write-up's five shadow-mask trace programs are expected to translate
+now; verified through the tests (lowering on every host, values on a
+32-lane card when one runs the suite).
+
+(cherry picked from commit 2a40b4803fd5b558cf523166ae47a43981e859b8)
+(cherry picked from commit 186f3ac7769d332d16e4b7dd8c9cc4dee4725aec)
+---
+ crates/victory-shader/src/emit/lower.rs       |  89 ++++++++++-
+ crates/victory-shader/src/emit/mod.rs         | 109 +++++++++++++
+ .../victory-shader/src/emit/wave64_tests.rs   | 144 ++++++++++++++++++
+ 3 files changed, 335 insertions(+), 7 deletions(-)
+
+diff --git a/crates/victory-shader/src/emit/lower.rs b/crates/victory-shader/src/emit/lower.rs
+index 4b2a513..b40febb 100644
+--- a/crates/victory-shader/src/emit/lower.rs
++++ b/crates/victory-shader/src/emit/lower.rs
+@@ -273,6 +273,9 @@ struct Lower<'a> {
+     clane: Option<V>,
+     /// The first exchange dword of this thread's console wave ([`Self::exchange_pair`]).
+     pair: Option<V>,
++    /// With `exchange`: the first of 64 table dwords per console wave, past the exchange dwords,
++    /// where each console lane's dword goes for `ds_bpermute_b32` ([`Self::bpermute_halves`]).
++    permute_table: Option<u32>,
+     /// A console wave64 program in host waves of 32: the LDS dword counting the console threads
+     /// handed to host waves (`wave_base`), and the base made in the entry block.
+     halves: Option<u32>,
+@@ -1532,6 +1535,9 @@ impl<'a> Lower<'a> {
+         let mut lds_meet: Option<(Vec<bool>, Vec<(bool, bool)>)> = None;
+         // a console wave64 program in two host waves of 32 (`exchange`)
+         let mut exchange: Option<(u32, bool, Vec<bool>)> = None;
++        // with `exchange`, `ds_bpermute_b32` in the program and a group over 32 threads: the first
++        // of 64 table dwords per console wave ([`Lower::bpermute_halves`])
++        let mut permute_table: Option<u32> = None;
+         // a console wave64 program in host waves of 32: the LDS dword of `wave_base`'s counter
+         let mut halves: Option<u32> = None;
+         if let StageIo::Cs(cs) = x.native.io {
+@@ -1613,6 +1619,15 @@ impl<'a> Lower<'a> {
+                                 // numbers go through two exchange dwords past the program's LDS
+                                 exchange = Some((s.lds_dwords, group <= 32, all));
+                                 s.lds_dwords += 2 * group.div_ceil(64);
++                                // `ds_bpermute_b32`: any lane may read any console lane's dword,
++                                // both halves'. Each console wave of the group gets 64 table dwords
++                                // past the exchange dwords, one per console lane
++                                // ([`Lower::bpermute_halves`]). A group of 32 threads or fewer holds
++                                // its console wave whole and reads through the host's lane read.
++                                if group > 32 && insts().any(|i| i.name() == "ds_bpermute_b32") {
++                                    permute_table = Some(s.lds_dwords);
++                                    s.lds_dwords += 64 * group.div_ceil(64);
++                                }
+                             }
+                         }
+                     }
+@@ -1820,6 +1835,7 @@ impl<'a> Lower<'a> {
+             exchange,
+             clane: None,
+             pair: None,
++            permute_table,
+             halves,
+             wave_base: None,
+             flat: None,
+@@ -4693,14 +4709,73 @@ impl<'a> Lower<'a> {
+             // the title's checkerboard shadow-mask generators read their
+             // neighbours' samples with it; without them every shadowed light
+             // was multiplied by an empty mask.)
+-            // shortcut: a source lane that is not at this instruction on the
+-            // host (it left through a branch, not a guard) is read as the
+-            // host gives it; the console reads 0.
++            // shortcut, one host wave: a source lane that is not at this
++            // instruction on the host (it left through a branch, not a guard)
++            // is read as the host gives it; the console reads 0. Two host
++            // waves go through the table, where a guarded-off lane stores 0.
+             self.cross_lane(false)?;
+-            if self.exchange.as_ref().is_some_and(|e| !e.1) {
+-                // a console wave of 64 run as two host waves: the lane named
+-                // may be in the other one
+-                return Err("a lane permute across two host waves");
++            let halves = self.exchange.as_ref().is_some_and(|e| !e.1);
++            if halves {
++                if self.local {
++                    // a console wave of 64 run as two host waves that do not
++                    // exchange (each as a wave of its own): the lane named may
++                    // be in the other one
++                    return Err("a lane permute across two host waves");
++                }
++                if !self.all_lanes(self.cur_ir) {
++                    // the table below needs every lane's dword
++                    need(self.cur_ir);
++                    return Err("a lane permute across two host waves where not every lane runs");
++                }
++                // A console wave of 64 run as two host waves of 32: the lane
++                // named may be in the other one. Every console lane's dword
++                // goes through a table past the program's LDS, one dword per
++                // console lane of each console wave ([`Self::permute_table`]).
++                // The console reads 0 for a source lane outside EXEC, so a
++                // lane its guard holds off stores 0: the store is not taken
++                // under the guard.
++                let table = self
++                    .permute_table
++                    .ok_or("a lane permute across two host waves")?;
++                let at = self.vgprs(inst, addr.as_ref().ok_or("a permute address")?, 1)?[0];
++                let x = self.vgprs(inst, data.first().ok_or("a permute source")?, 1)?[0];
++                let x = match guard {
++                    Some(g) => {
++                        let z = self.s.m.i32(0);
++                        self.s.m.select(c, g, x, z)
++                    }
++                    None => x,
++                };
++                let cl = self.console_lane();
++                let six = self.s.m.i32(6);
++                let thread = self.console_thread();
++                let slot = self.s.m.i32(table);
++                // this console wave's 64 table dwords, as `exchange_pair` picks
++                // its pair of exchange dwords: the wave's threads are 64 apart
++                let wave = self.s.m.bin(c, Bin::LShr, thread, six);
++                let base = self.s.m.bin(c, Bin::Shl, wave, six);
++                let base = self.s.m.bin(c, Bin::Add, base, slot);
++                let index = self.s.m.bin(c, Bin::Add, base, cl);
++                let lds = self.s.lds();
++                let ptr = self.s.m.element(c, lds, index);
++                self.s.m.store(c, ptr, x);
++                let c2 = self.cur;
++                self.group_sync(c2);
++                let o = self.s.m.i32(offset);
++                let at = self.s.m.bin(c2, Bin::Add, at, o);
++                let two = self.s.m.i32(2);
++                let src = self.s.m.bin(c2, Bin::LShr, at, two);
++                let last = self.s.m.i32(63);
++                let src = self.s.m.bin(c2, Bin::And, src, last);
++                let index = self.s.m.bin(c2, Bin::Add, base, src);
++                let ptr = self.s.m.element(c2, lds, index);
++                let r = self.s.m.load(c2, ptr);
++                // the slots are written again only after every thread read them
++                let c3 = self.cur;
++                self.group_sync(c3);
++                let reg = dst_reg.ok_or("a permute result")?;
++                self.write(inst, Reg::V(reg), r, guard);
++                return Ok(());
+             }
+             let at = self.vgprs(inst, addr.as_ref().ok_or("a permute address")?, 1)?[0];
+             let x = self.vgprs(inst, data.first().ok_or("a permute source")?, 1)?[0];
+diff --git a/crates/victory-shader/src/emit/mod.rs b/crates/victory-shader/src/emit/mod.rs
+index cf15fa8..0dc349b 100644
+--- a/crates/victory-shader/src/emit/mod.rs
++++ b/crates/victory-shader/src/emit/mod.rs
+@@ -1031,6 +1031,115 @@ mod tests {
+         stores_v1(&[0x7E04_028B, 0xDACC_0000, 0x0100_0200]).unwrap();
+     }
+ 
++    /// The same permute on a host of 32-lane waves (the checkerboard shadow
++    /// masks), where the lane named may be in the other host wave: the two
++    /// exchange their 64 lanes' dwords through a table past the program's LDS
++    /// ([`lower::Lower::bpermute_halves`]). It stopped as "a lane permute
++    /// across two host waves".
++    #[test]
++    fn a_backward_permute_across_two_host_waves_lowers_through_the_table() {
++        // v1 = s0 + v0; v2 = v0 << 2; ds_bpermute_b32 v1, v2, v1 offset 128
++        // (32 lanes on, so both halves read across)
++        let was = lower::TEST_HOST_WAVE.replace(Some(32));
++        let r = stores_v1(&[0x4A02_0000, 0x3404_0082, 0xDACC_0080, 0x0100_0102]);
++        lower::TEST_HOST_WAVE.set(was);
++        r.unwrap();
++    }
++
++    /// The same permute where only the lanes below s0 run it: refused per lane
++    /// (the table needs every lane's dword), the branch it sits in named; with
++    /// that branch taken wave-wide, it lowers.
++    #[test]
++    fn a_backward_permute_across_two_host_waves_needs_its_branch_wave_wide() {
++        // v_cmp_gt_u32 vcc, s0, v0; s_and_saveexec_b64 s[12:13], vcc;
++        // s_cbranch_execz over the body, to the restore of EXEC;
++        // v1 = s0 + v0; v2 = v0 << 2; ds_bpermute_b32 v1, v2, v1 offset 128;
++        // s_mov_b64 exec, s[12:13]
++        let body: [u32; 8] = [
++            0x7D88_0000, 0xBE8C_246A, 0xBF88_0004, 0x4A02_0000, 0x3404_0082, 0xDACC_0080,
++            0x0100_0102, 0xBEFE_040C,
++        ];
++        // (the same program as `stores_v1`, kept whole for the two structures)
++        use crate::native::{HwStage, NativeProgram, RootParam, ResourceType, RootType, UsedResource};
++        let mut words = vec![0xBE81_0380, 0xF408_0200, 0xFA00_0000];
++        words.extend_from_slice(&body);
++        words.extend_from_slice(&[0x3406_0082, 0xE070_1000, 0x8002_0103, 0xBF81_0000]);
++        let native = NativeProgram {
++            stage: HwStage::Cs,
++            wave64: true,
++            vgprs: 4,
++            layout: vec![RootParam {
++                root: RootType::Table,
++                table_offset_dwords: 0,
++                sgprs: 1,
++                base_register: 0,
++                user_data: 0,
++                slot: 0,
++            }],
++            used: vec![UsedResource {
++                kind: ResourceType::Uav,
++                root: RootType::Table,
++                table_offset_dwords: 0,
++                lower_bound: 0,
++                stride: 0,
++                dwords: 4,
++                user_data: 0,
++                slot: 0,
++            }],
++            io: StageIo::Cs(ComputeIo {
++                rsrc2: 2,
++                threads: [64, 1, 1],
++            }),
++            code: words.iter().flat_map(|w| w.to_le_bytes()).collect(),
++        };
++        let p = ir::build(&native.patched_code(), native.wave64, native.vgprs).unwrap();
++        let branch = (0..p.blocks.len())
++            .find(|&b| p.blocks[b].insts.last().is_some_and(|i| i.name() == "s_cbranch_execz"))
++            .expect("the branch");
++        lower::take_needs();
++        let was = lower::TEST_HOST_WAVE.replace(Some(32));
++        let per_lane = {
++            let st = structure::structure(&p).unwrap();
++            let res = resource::track(&p, &native.layout, native.stage, Some(&st)).unwrap();
++            let io = io::raise(&p, &native).unwrap();
++            lower::lower(&lower::Parts {
++                native: &native,
++                p: &p,
++                st: &st,
++                io: &io,
++                res: &res,
++                inputs: Vec::new(),
++                outputs: Vec::new(),
++                prims: Vec::new(),
++                mesh_stride: 0,
++            })
++        };
++        assert!(matches!(
++            &per_lane,
++            Err(crate::ShaderError::Unsupported { what, .. })
++                if *what == "a lane permute across two host waves where not every lane runs"
++        ));
++        let st = structure::structure(&p).unwrap();
++        assert_eq!(lower::branches_around(&st, &lower::take_needs()), Some(vec![branch]));
++        // wave-wide: every lane runs the permute (EXEC stays a guard on it)
++        let st = structure::structure_wide(&p, &std::collections::HashSet::from([branch])).unwrap();
++        let res = resource::track(&p, &native.layout, native.stage, Some(&st)).unwrap();
++        let io = io::raise(&p, &native).unwrap();
++        let lowered = lower::lower(&lower::Parts {
++            native: &native,
++            p: &p,
++            st: &st,
++            io: &io,
++            res: &res,
++            inputs: Vec::new(),
++            outputs: Vec::new(),
++            prims: Vec::new(),
++            mesh_stride: 0,
++        });
++        lower::TEST_HOST_WAVE.set(was);
++        lowered.unwrap();
++    }
++
+     /// A carry-in reading a join of compares after a divergent branch. A
+     /// lane that skipped the inner compare has VCC clear there (VOPC clears
+     /// inactive lanes), not the first compare's bit, so the join is no
+diff --git a/crates/victory-shader/src/emit/wave64_tests.rs b/crates/victory-shader/src/emit/wave64_tests.rs
+index 208d7b9..bad3d0e 100644
+--- a/crates/victory-shader/src/emit/wave64_tests.rs
++++ b/crates/victory-shader/src/emit/wave64_tests.rs
+@@ -617,3 +617,147 @@ fn a_branch_that_writes_lds_two_different_values_keeps_64_lanes() {
+     // a second value after the read: what the flag ends up holding depends on what was read
+     assert_eq!(flag_wave(&flag_program(Some(2))), Some(64));
+ }
++
++/// The checkerboard shadow-mask generators' neighbour read (`ds_bpermute_b32`): a console
++/// wave of 64 run as two host waves of 32, where the lane named may be in the other one.
++/// Every lane of the wave reads 32 lanes on (offset 128), so both halves read across, and
++/// each lane stores its own dword: lane t gets s0 + ((t + 32) & 63), lane t's source's value.
++#[test]
++fn a_backward_permute_reads_across_the_two_host_waves() {
++    let words = [
++        0x4A02_0000, // v_add_nc_u32 v1, s0, v0        (lane t's dword: s0 + t)
++        0x3404_0082, // v_lshlrev_b32 v2, 2, v0        (the lane's byte address)
++        0xDACC_0080, // ds_bpermute_b32 v3, v2, v1 offset 128 (32 lanes on)
++        0x0300_0100,
++        0xE070_1000, // buffer_store_dword v3, v2, s[8:11], 0 offen  (dword t)
++        0x8002_0302,
++    ];
++    let native = native(&words);
++    let p = ir::build(&native.code, native.wave64, native.vgprs).expect("ir::build");
++    assert!(p
++        .blocks
++        .iter()
++        .flat_map(|b| &b.insts)
++        .any(|i| i.name() == "ds_bpermute_b32"));
++    let shader = lowered(&native, &p, &HashSet::new()).expect("lower");
++    if let Ok(mut v) = validator::Validator::load(validator::Validator::default_path().as_deref()) {
++        let mut copy = shader.dxil.clone();
++        v.validate(&mut copy).expect("DXIL validation failed");
++    }
++    let _one = super::valu_tests::ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
++    let Ok(host) = Host::new(false) else {
++        eprintln!("no SM 6.6 hardware device; not run");
++        return;
++    };
++    let (root, pso) = match host.compute_pipeline(&shader) {
++        Ok(x) => x,
++        Err(e) => {
++            eprintln!("the hardware device does not take this program (waves of 32?): {e}; not run");
++            return;
++        }
++    };
++    for (s0, s1) in [(7u32, 0u32), (0x100, 1)] {
++        let mut ud = vec![0u32; shader.user_data_dwords().max(1) as usize];
++        for u in &shader.user_data {
++            if let (RootType::Constants, 0, d @ 0..=1) = (u.root, u.slot, u.dword) {
++                ud[u.index as usize] = [s0, s1][d as usize];
++            }
++        }
++        let out = host
++            .dispatch(
++                &root,
++                &pso,
++                &Dispatch {
++                    roots: vec![(0, Root::Constants(ud))],
++                    views: &[View::RawUav(64)],
++                    samplers: &[],
++                    groups: [1, 1, 1],
++                },
++            )
++            .unwrap_or_else(|e| panic!("dispatch failed: {e}"));
++        for t in 0..64u32 {
++            assert_eq!(out[0][t as usize], s0 + ((t + 32) & 63), "lane {t}, s0 {s0:#x}");
++        }
++    }
++    eprintln!("ran on the hardware device: every lane's read 32 lanes on, across both host waves");
++}
++
++/// The same permute where only the lanes below s0 run it: refused per lane (the table needs
++/// every lane's dword, and the lowering names the block, around which that branch is the one
++/// to widen); wave-wide, the source lanes outside EXEC read 0, as the console reads.
++#[test]
++fn a_backward_permute_in_a_lane_branch_needs_the_branch_wave_wide() {
++    let words = [
++        0x7D88_0000, // v_cmp_gt_u32 vcc, s0, v0
++        0xBE8C_246A, // s_and_saveexec_b64 s[12:13], vcc
++        0xBF88_0006, // s_cbranch_execz over the body, to the restore of EXEC
++        0x4A02_0000, // v_add_nc_u32 v1, s0, v0        (lane t's dword: s0 + t)
++        0x3404_0082, // v_lshlrev_b32 v2, 2, v0        (the lane's byte address)
++        0xDACC_0080, // ds_bpermute_b32 v3, v2, v1 offset 128 (32 lanes on)
++        0x0300_0100,
++        0xE070_1000, // buffer_store_dword v3, v2, s[8:11], 0 offen  (dword t)
++        0x8002_0302,
++        0xBEFE_040C, // s_mov_b64 exec, s[12:13]
++    ];
++    let native = native(&words);
++    let p = ir::build(&native.code, native.wave64, native.vgprs).expect("ir::build");
++    let branch = (0..p.blocks.len())
++        .find(|&b| p.blocks[b].insts.last().is_some_and(|i| i.name() == "s_cbranch_execz"))
++        .expect("the branch");
++    lower::take_needs();
++    let per_lane = lowered(&native, &p, &HashSet::new());
++    assert!(
++        matches!(&per_lane, Err(ShaderError::Unsupported { what, .. })
++            if *what == "a lane permute across two host waves where not every lane runs"),
++        "{:?}",
++        per_lane.err()
++    );
++    let st = structure::structure(&p).expect("structure");
++    assert_eq!(lower::branches_around(&st, &lower::take_needs()), Some(vec![branch]));
++    let shader = lowered(&native, &p, &HashSet::from([branch])).expect("lower");
++    if let Ok(mut v) = validator::Validator::load(validator::Validator::default_path().as_deref()) {
++        let mut copy = shader.dxil.clone();
++        v.validate(&mut copy).expect("DXIL validation failed");
++    }
++    let _one = super::valu_tests::ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
++    let Ok(host) = Host::new(false) else {
++        eprintln!("no SM 6.6 hardware device; not run");
++        return;
++    };
++    let (root, pso) = match host.compute_pipeline(&shader) {
++        Ok(x) => x,
++        Err(e) => {
++            eprintln!("the hardware device does not take this program (waves of 32?): {e}; not run");
++            return;
++        }
++    };
++    // (lanes below s0 run the body) lane t stores only when it is inside; it reads lane
++    // (t + 32) & 63, which holds s0 + that lane when that lane is inside, and 0 otherwise
++    for below in [64u32, 40, 8] {
++        let mut ud = vec![0u32; shader.user_data_dwords().max(1) as usize];
++        for u in &shader.user_data {
++            if let (RootType::Constants, 0, 0) = (u.root, u.slot, u.dword) {
++                ud[u.index as usize] = below;
++            }
++        }
++        let out = host
++            .dispatch(
++                &root,
++                &pso,
++                &Dispatch {
++                    roots: vec![(0, Root::Constants(ud))],
++                    views: &[View::RawUav(64)],
++                    samplers: &[],
++                    groups: [1, 1, 1],
++                },
++            )
++            .unwrap_or_else(|e| panic!("dispatch failed: {e}"));
++        let inside = |lane: u32| lane < below;
++        for t in 0..64u32 {
++            let source = (t + 32) & 63;
++            let want = if inside(t) && inside(source) { below + source } else { 0 };
++            assert_eq!(out[0][t as usize], want, "lane {t}, {below} lanes inside");
++        }
++    }
++    eprintln!("ran on the hardware device: the permute wave-wide, source lanes outside EXEC at 0");
++}
+-- 
+2.56.1.windows.1
+

@@ -1,0 +1,78 @@
+From ec3e607f45f576b3898e088c04e7e878d6bbc90d Mon Sep 17 00:00:00 2001
+From: lab <lab@local>
+Date: Mon, 23 Nov 2026 15:57:01 +0000
+Subject: [PATCH] dstorage: log refused QueryInterfaces and factory call
+ arguments
+
+A refused interface is the most common reason the title's DirectStorage
+bring-up stalls, and query() returned E_NOINTERFACE without saying which
+IID was asked for. Log the refused IID in query(), the factory's
+requested IID and result in DStorageGetFactory, and CreateQueue's source,
+capacity, priority and IID.
+
+Logging only; no behaviour change.
+
+Base: 9add721
+---
+ crates/xcl/src/hle/dstorage.rs | 34 +++++++++++++++++++++++++++++++++-
+ 1 file changed, 33 insertions(+), 1 deletion(-)
+
+diff --git a/crates/xcl/src/hle/dstorage.rs b/crates/xcl/src/hle/dstorage.rs
+index 12c9035..3b1b200 100644
+--- a/crates/xcl/src/hle/dstorage.rs
++++ b/crates/xcl/src/hle/dstorage.rs
+@@ -170,6 +170,16 @@ unsafe fn query(p: *mut c_void, own: &GUID, riid: *const GUID, out: *mut *mut c_
+         return S_OK;
+     }
+     *out = std::ptr::null_mut();
++    if !riid.is_null() {
++        let g = &*riid;
++        crate::xlog_warn!(
++            "DirectStorage: QueryInterface refused {:08x}-{:04x}-{:04x}-{:02x?}",
++            g.data1,
++            g.data2,
++            g.data3,
++            g.data4
++        );
++    }
+     E_NOINTERFACE
+ }
+ 
+@@ -200,7 +210,19 @@ pub unsafe extern "system" fn DStorageGetFactory(riid: *const GUID, out: *mut *m
+         );
+         Box::into_raw(Box::new(v.as_ptr())) as usize
+     });
+-    factory_qi(f as *mut c_void, riid, out)
++    let hr = factory_qi(f as *mut c_void, riid, out);
++    if !riid.is_null() {
++        let g = &*riid;
++        crate::xlog_info!(
++            "DirectStorage: DStorageGetFactory {:08x}-{:04x}-{:04x}-{:02x?} -> {:#010x}",
++            g.data1,
++            g.data2,
++            g.data3,
++            g.data4,
++            hr
++        );
++    }
++    hr
+ }
+ 
+ unsafe extern "system" fn static_ref(_p: *mut c_void) -> u32 {
+@@ -899,6 +921,16 @@ unsafe extern "system" fn factory_create_queue(_p: *mut c_void, desc: *const u8,
+     let source = u32::from_le_bytes(raw[0..4].try_into().unwrap());
+     let capacity = u16::from_le_bytes(raw[8..10].try_into().unwrap()) as usize;
+     let priority = raw[10] as i8;
++    if !riid.is_null() {
++        let g = &*riid;
++        crate::xlog_info!(
++            "DirectStorage: CreateQueue source={source} capacity={capacity} priority={priority} riid {:08x}-{:04x}-{:04x}-{:02x?}",
++            g.data1,
++            g.data2,
++            g.data3,
++            g.data4
++        );
++    }
+     if source > 1 {
+         return E_QUEUE_TYPE;
+     }

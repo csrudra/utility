@@ -1,0 +1,149 @@
+# LoopyDOOM
+
+A sloppy unfinished port of **DOOM** to the **Casio Loopy** — a 1995 Japanese console built around a Hitachi
+SH-1 at 16 MHz, big-endian, with about 512 KB of RAM and a built-in thermal sticker printer.
+Requires the [Floopy Drive](https://github.com/partlyhuman/loopycart) flashcart if you want to run this on actual hardware.
+
+This is the real engine, not a reimplementation: id's DOOM by way of PrBoom and GBADoom, with
+a new hardware backend for the Loopy's VDP, timers, gamepad, and sound chip.
+
+Disclaimer: This is very unpolished. Really more of a tech demo than a finished product
+
+Featured in https://www.youtube.com/watch?v=nDe06uY5C40
+
+## Status
+
+| | |
+|---|---|
+| Maps | E1M1 – E1M6 (as much as I could fit in 4MB of ROM)  |
+| Video | 8bpp VDP bitmap layer, double-buffered |
+| Music | uPD937 synth over SCI1 MIDI, all six maps |
+| Sound effects | PCM, played by the cartridge's RP2040 — needs the companion firmware and a DAC |
+| Screenshot printing | Options menu → prints the current frame on the console's thermal printer (if it doesn't jam, of course!!) |
+| Performance | roughly 8-15 fps on hardware; runs way faster in [LoopyMSE](https://github.com/PSI-Rockin/LoopyMSE) |
+
+## Lineage
+
+id Software's **DOOM** → **PrBoom** → **[GBADoom](https://github.com/doomhack/GBADoom)**
+(doomhack) → **LoopyDOOM**.
+
+The portable engine and much of the tree come from GBADoom. The Loopy hardware backend lives
+under `platform/`, the boot and link glue under `boot/` and `casloopy.ld`, and the build-time
+WAD, music, and SFX bakers under `tools/`. HUD and menu graphics use Kippykip's
+GBADoom-custom lumps.
+
+## Requirements
+
+- An **SH-1 big-endian `sh-elf` GCC toolchain** (`--target=sh-elf --with-cpu=m1 --with-endian=big`).
+  A Dreamcast SH-4 toolchain will *not* work: it is little-endian and rejects `-m1`. The SH-1 has
+  no divide instruction, so GCC emits `__sdivsi3` / `__mulsi3` calls that must resolve from an
+  `-m1 -mb` libgcc.
+- **`doom1.wad`** — the DOOM shareware IWAD.
+- **`gbadoom.wad`** — Kippykip's GBADoom lumps, for `STGANUM0`–`9` (narrow HUD digits; the wide
+  `STTNUM` font overruns the small status bar) and for `M_ARUN` / `M_GAMMA` (options-menu items
+  GBADoom added). Without the latter two, the OPTIONS menu crashes in `W_GetNumForName`.
+- **Python 3**, for the bakers.
+
+Neither WAD is distributed here. See [NOTICE](NOTICE).
+
+## Build
+
+```sh
+LOOPY_TOOLCHAIN=/path/to/sh-elf/bin make
+```
+
+or put `sh-elf-gcc` on your `PATH` and just `make`. There is no default toolchain path — it is
+machine-specific.
+
+Point the build at your WADs if they are not at the default relative locations:
+
+```sh
+make WAD=/path/to/doom1.wad MERGE_WAD=/path/to/gbadoom.wad
+```
+
+This produces **`rom.bin`** (native big-endian — this is the one you want) and `rom.swap.bin`
+(byte-swapped, for tools that expect it). `make dump` prints the size and the first 16 bytes,
+which should begin `0E 00 00 80`.
+
+The first build is slow: it bakes the WAD into a multi-megabyte C array and compiles it.
+Objects are cached per file, so incremental builds skip that.
+
+### Build options
+
+| Variable | Effect |
+|---|---|
+| `SERIAL_LOG=1` | Frame timings and `lprintf` output over SCI0 at 38400 baud |
+| `DEV_WARP=N` | Boot straight into `E1M<N>`, skipping title and menu. Also binds **D** to warp to the next map |
+| `NO_MUSIC=1` | Compile out the uPD937 sequencer entirely |
+| `NO_SFX=1` | Compile out the SCI0 sound-effect command frames |
+| `PRINT_DEBUG_PREVIEW=1` | The printer isn't emulated; blit what the BIOS *would* print to VRAM and halt |
+| `ROMSIZE`, `SRAMSIZE` | Default `4M` / `8K`, matching the Floopy Drive. The linker errors on overflow |
+| `WADFLAGS` | Passed to `tools/bake_wad.py` — which maps to keep, what to cull |
+
+One caveat on `SERIAL_LOG`: it samples the SH-1's 16-bit ITU counter thousands of times per
+frame, which masks any bug involving that counter wrapping (it wraps every 32.768 ms). If you
+are chasing a timing problem, test a plain build.
+
+## Running
+
+**Emulator.** [LoopyMSE](https://github.com/PSI-Rockin/LoopyMSE) runs `rom.bin` directly. It
+needs a console BIOS dump, which you must produce from your own hardware. Note that its
+renderer does not model the VDP's per-scanline sprite limits, so a clean frame in the emulator
+does not prove the absence of a hardware rendering glitch.
+
+**Hardware.** Flash `rom.bin` — not `rom.swap.bin` — to a Floopy Drive with its own flashing
+tool. The cartridge must be **ejected from the console** while you flash: a seated console
+loads the shared cart data bus and every flash read returns zero, even with the console
+powered off.
+
+## Controls
+
+| Button | In game | In menus and the automap |
+|---|---|---|
+| D-pad | Move and turn | Navigate; pan the automap |
+| **A** | Use / open, and run while held | Confirm; toggle automap follow |
+| **B** | Fire | — |
+| **L** / **R** | Strafe left / right | Zoom the automap out / in |
+| **A** + **R** | Next weapon | — |
+| **A** + **L** | Previous weapon | — |
+| **C** | Toggle the automap | — |
+| **D** | Warp to next level (DEV_WARP only)
+| **START** | Menu | Back out |.
+
+## Sound
+
+**Music** is real MIDI. DOOM's music lumps are MUS-format, so `tools/bake_music.py` decodes
+them and emits note tables for the Loopy's **uPD937** synth. An ITU timer interrupt clocks
+those out over SCI1 at 31250 baud — the synth's MIDI input. Sequencing runs on that interrupt
+rather than in the render loop, since a frame takes far longer than a MIDI tick.
+
+The uPD937's presets are Casio's own set, *not* General MIDI, so MUS program *N* has nothing
+to do with GM instrument *N*; the mapping was chosen by ear, per song. The synth also ignores
+note-on velocity — a note is simply on or off — so the ROM already drives it as loud as it
+goes, and the Loopy's quiet output is a trait of its analog stage rather than something
+software can fix.
+
+**Sound effects** cannot come from the uPD937, which has no PCM path. Instead the SH-1 sends
+short command frames over SCI0 to the cartridge's RP2040, which mixes eight voices of DOOM's
+PCM lumps and plays them through an I2S DAC. This needs the firmware under `firmware/` and a
+PCM5102A wired to the RP2040 — see [`firmware/NOTICE`](firmware/NOTICE) and
+`firmware/pico/audio.h` for the wiring. Without that hardware the game is silent apart from
+music; build with `NO_SFX=1` to drop the transmit cost.
+
+## Layout
+
+```
+boot/         crt0, ROM header, interrupt vectors
+casloopy.ld   linker script (ROM at 0x0E000000, entry 0x0E000480)
+platform/     Loopy backend: VDP video, ITU timing, input, music, SFX, printer, serial
+source/       DOOM engine, from GBADoom
+include/      DOOM headers, from GBADoom
+tools/        build-time bakers: WAD, music, SFX
+firmware/     RP2040 companion firmware for PCM sound effects
+```
+
+## License
+
+GPL v2 or later, inherited from DOOM / PrBoom / GBADoom, with per-file copyright headers
+retained. See [LICENSE](LICENSE) for the full text, and [NOTICE](NOTICE) for provenance —
+including which id Software assets this repository does and does not distribute.

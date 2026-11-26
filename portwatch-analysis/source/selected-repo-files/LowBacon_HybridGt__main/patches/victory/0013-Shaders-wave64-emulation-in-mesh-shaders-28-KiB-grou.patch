@@ -1,0 +1,166 @@
+From 74ed7fdd6c196d1184f50bfe03feb1f35428cb49 Mon Sep 17 00:00:00 2001
+From: LowBacon <lenni.a.jokitalo@gmail.com>
+Date: Tue, 24 Nov 2026 21:50:36 +0200
+Subject: [PATCH 13/14] Shaders: wave64 emulation in mesh shaders (28 KiB
+ group-shared limit) (HybridGt)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ apps/victory/src/shader.rs              |  2 +-
+ crates/victory-shader/src/emit/lower.rs | 90 ++++++++++++++++---------
+ 2 files changed, 58 insertions(+), 34 deletions(-)
+
+diff --git a/apps/victory/src/shader.rs b/apps/victory/src/shader.rs
+index 80ed332..da9907d 100644
+--- a/apps/victory/src/shader.rs
++++ b/apps/victory/src/shader.rs
+@@ -121,7 +121,7 @@ pub fn run(paths: Vec<PathBuf>, verbose: bool, disasm: bool) -> Result<()> {
+                         let mut list = Vec::new();
+                         for n in &programs {
+                             *t.native_stages.entry(n.stage).or_default() += 1;
+-                            list.push(format!("{:?} {} B", n.stage, n.code.len()));
++                            list.push(format!("{:?} {} B wave{}", n.stage, n.code.len(), if n.wave64 { 64 } else { 32 }));
+                             match gfx10::decode(&n.code) {
+                                 Ok(insts) => {
+                                     t.decoded += 1;
+diff --git a/crates/victory-shader/src/emit/lower.rs b/crates/victory-shader/src/emit/lower.rs
+index 7655f32..9ce1c32 100644
+--- a/crates/victory-shader/src/emit/lower.rs
++++ b/crates/victory-shader/src/emit/lower.rs
+@@ -294,8 +294,14 @@ struct Emulated {
+     ids: Option<(V, V, V)>,
+     /// The exchange memory: a dword per thread.
+     scratch: Option<V>,
++    /// HybridGt: the host's group-shared memory limit for the stage, bytes
++    /// (compute 32 KiB, mesh 28 KiB).
++    limit: u32,
+ }
+ 
++/// HybridGt: D3D12's limit on a mesh shader's group-shared memory, in bytes.
++const MESH_GROUP_SHARED_LIMIT: u32 = 28672;
++
+ /// What a cross-lane operation of an emulated wave stops with where not
+ /// every thread of the group arrives.
+ const NOT_UNIFORM: Why = "an emulated wave operation outside uniform control flow";
+@@ -471,6 +477,38 @@ impl<'a> Lower<'a> {
+             matches!(i.fields, Fields::Image { .. } | Fields::Buffer { .. })
+                 && (i.name().contains("store") || i.name().contains("atomic"))
+         });
++        let lane_dependent = insts().any(|i| {
++            let n = i.name();
++            n.starts_with("ds_swizzle")
++                || n.contains("permute")
++                || n.starts_with("v_mbcnt")
++                || matches!(n, "v_readlane_b32" | "v_writelane_b32")
++                || matches!(&i.fields, Fields::Valu(v) if v.dpp.is_some())
++                || reads_mask_as_data(x.st, i)
++        }) || {
++            // Masks held as numbers or constant lane sets: the lane
++            // tests its own bit by its console lane.
++            let whens = x.st.exits.iter().filter_map(|e| match *e {
++                LaneExit::Branch { when, .. } => Some(when),
++                _ => None,
++            });
++            let mut all: Vec<Bool> =
++                x.st.guards
++                    .iter()
++                    .flatten()
++                    .flatten()
++                    .copied()
++                    .chain(whens)
++                    .collect();
++            all.sort_unstable();
++            all.dedup();
++            all.into_iter().any(|g| {
++                x.st.bools
++                    .support(g)
++                    .iter()
++                    .any(|a| matches!(a, Atom::Opaque(_) | Atom::Constant(_)))
++            })
++        };
+         let mut console_lanes = false;
+         let mut emulated = None;
+         if let StageIo::Cs(cs) = x.native.io {
+@@ -479,38 +517,7 @@ impl<'a> Lower<'a> {
+             // Code reading other lanes needs the console's wave size and
+             // lane order; so do lane masks read as numbers, and LDS shared
+             // within one wave, where the console compiler leaves out barriers.
+-            console_lanes = insts().any(|i| {
+-                let n = i.name();
+-                n.starts_with("ds_swizzle")
+-                    || n.contains("permute")
+-                    || n.starts_with("v_mbcnt")
+-                    || matches!(n, "v_readlane_b32" | "v_writelane_b32")
+-                    || matches!(&i.fields, Fields::Valu(v) if v.dpp.is_some())
+-                    || reads_mask_as_data(x.st, i)
+-            }) || {
+-                // Masks held as numbers or constant lane sets: the lane
+-                // tests its own bit by its console lane.
+-                let whens = x.st.exits.iter().filter_map(|e| match *e {
+-                    LaneExit::Branch { when, .. } => Some(when),
+-                    _ => None,
+-                });
+-                let mut all: Vec<Bool> =
+-                    x.st.guards
+-                        .iter()
+-                        .flatten()
+-                        .flatten()
+-                        .copied()
+-                        .chain(whens)
+-                        .collect();
+-                all.sort_unstable();
+-                all.dedup();
+-                all.into_iter().any(|g| {
+-                    x.st.bools
+-                        .support(g)
+-                        .iter()
+-                        .any(|a| matches!(a, Atom::Opaque(_) | Atom::Constant(_)))
+-                })
+-            };
++            console_lanes = lane_dependent;
+             let wave = if x.native.wave64 { 64 } else { 32 };
+             let total = cs.threads.iter().product::<u32>();
+             let one_wave = total <= wave;
+@@ -523,6 +530,7 @@ impl<'a> Lower<'a> {
+                     total,
+                     ids: None,
+                     scratch: None,
++                    limit: GROUP_SHARED_LIMIT,
+                 });
+             } else if console_lanes || unfenced_lds {
+                 s.wave_size = Some(wave);
+@@ -533,6 +541,21 @@ impl<'a> Lower<'a> {
+             s.prims = x.prims.clone();
+             s.threads = Some([ms.threads, 1, 1]);
+             s.lds_dwords = ms.lds_bytes.div_ceil(4);
++            // HybridGt: every mesh program of Grand Theft Auto VI is wave64.
++            // A host with 32-lane waves (NVIDIA) runs a 64-thread group as two
++            // waves, so cross-lane code reads lanes that are not there. With
++            // `VICTORY_WAVE64_EMULATE` the exchanges go through group-shared
++            // memory, as for compute programs.
++            if x.emulate_wave64 && x.native.wave64 && lane_dependent {
++                console_lanes = true;
++                emulated = Some(Emulated {
++                    uniform: uniform_blocks(&p.blocks),
++                    total: ms.threads,
++                    ids: None,
++                    scratch: None,
++                    limit: MESH_GROUP_SHARED_LIMIT,
++                });
++            }
+             s.mesh = Some(super::shader::Mesh {
+                 max_vertices: ms.max_vertices,
+                 max_primitives: ms.max_primitives,
+@@ -1002,7 +1025,8 @@ impl<'a> Lower<'a> {
+             return Ok(g);
+         }
+         let bytes = u64::from(self.s.lds_dwords) * 4 + u64::from(total) * 4;
+-        if bytes > u64::from(GROUP_SHARED_LIMIT) {
++        let limit = self.emulated.as_ref().expect("emulated").limit;
++        if bytes > u64::from(limit) {
+             return Err("emulated wave operations beyond the host's group-shared memory");
+         }
+         let g = self.s.wave_scratch(total);
+-- 
+2.56.1.windows.1
+

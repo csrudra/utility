@@ -1,0 +1,87 @@
+# VIctory — GTA VI Windows Compatibility Layer (RTX 5060 / 8 GB Edition)
+
+> Experimental Xbox Series S/X compatibility runtime for running GTA VI on Windows D3D12 hardware, tuned for **8 GB VRAM / 16 GB System RAM** laptops (tested on RTX 5060 Laptop + Windows 11 x64).
+
+---
+
+## Visual Captures (Direct Framebuffer — Wave 5)
+
+All captures below are direct 1920×1080 emulator framebuffer PNGs with natural skin-tone rendering and scanline stripes removed:
+
+| Character Skin & Lighting Fix | In-World Dusk Scene (Scanline-Free) | Title Splash |
+| :---: | :---: | :---: |
+| ![Character Skin Fixed](docs/media/character-skin-fixed.png) | ![In-World Scene Clean](docs/media/inworld-wave5-clean.png) | ![Loading Splash Clean](docs/media/loading-splash-clean.png) |
+
+---
+
+## Verified Benchmark & Stability Results
+
+Measured with the `diag` build profile on **RTX 5060 Laptop (8 GB VRAM)**, **16 GB RAM**, **Windows 11 x64**, **`series-s` default target (`1920×1080`)**:
+
+| Run / Wave | Mean FPS | Median FPS | P95 FPS | Max FPS | Peak Private RAM | Stability (`TDR` / `Device Removed`) |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| **Wave 5 Final (`fx_v2_w5_final`)** | **15.81** | **22.90** | **29.00** | **30.80** | 15,757 MB (15.39 GB) | **0 TDR / 0 Device Removed** |
+| Wave 4B Clean (`fx_v2_w4b_fast2`) | 13.43 | 14.00 | 30.00 | 30.00 | 14,843 MB (14.50 GB) | 0 TDR / 0 Device Removed |
+| Wave 4A Skin Fix (`fx_v2_w4a_skin5`) | 16.19 | 20.85 | 29.30 | 30.10 | 14,400 MB (14.06 GB) | 0 TDR / 0 Device Removed |
+
+### Key Wave 4–6 Fixes Included
+- **Smooth Async Intro & Busy Cursor Fix (`WM_SETCURSOR`):** Intercepts `WM_SETCURSOR` (`HTCLIENT`) in `victory-hle` so Windows sets `IDC_ARROW` instead of leaving a stuck busy spinner (and hides cleanly during captured 360° mouse-look). Restores `VICTORY_SHADER_LOOP_LIMIT=4096` (warm disk shader cache hits: `2,272/2,272`), `VICTORY_ASYNC_SUBMIT=1`, `VICTORY_ASYNC_PRESENT=1`, `VICTORY_QUEUE2=1`, `VICTORY_HEAP_TEXTURE_MB=8` / `_MS=2`, and `VICTORY_PIPELINE_WAIT_MS=16` (`122s` world entry in `fx_v2_w6_intro_fix` vs `176s`, `30.0 fps / 33.3 ms` warm intro, `0` TDR).
+- **Texture & Skin Realism (`Layout::reach` + tight `over_cap` tiers):** Correct subresource detiling reach and adaptive VRAM mip trimming eliminate dark/black character skin artifacts on 8 GB cards.
+- **Wave32 Scanline Elimination:** Reverted the `value_uniform` pass (`fe3aa3f0`) that caused horizontal striped artifacts across characters and lighting on NVIDIA wave32 GPUs.
+- **Locked Default Preset (`apply_runtime_defaults()`):** Automatically configured for both `gta6` (1-click launcher) and `victory run --execute` (`series-s` default):
+  - `VICTORY_CARD_BUFFERS_MB=1280`, `VICTORY_GPU_UPLOAD_MB=768`
+  - `VICTORY_ASYNC_SUBMIT=1`, `VICTORY_ASYNC_PRESENT=1`, `VICTORY_QUEUE2=1` (`VICTORY_INPLACE` and `QUEUE2=6` disabled)
+  - `VICTORY_COPY_PLAIN=1`, `VICTORY_PAGE_WRITES=slots`, `VICTORY_TEXTURE_NO_WAIT=1`
+  - `VICTORY_JOIN_PARTS=1`, `VICTORY_INDIRECT_GATHER=1`, `VICTORY_HEAP_SYNC=1`, `VICTORY_VIEW_OWN_COPY=1`
+  - `VICTORY_HEAP_TEXTURE_MB=8`, `VICTORY_HEAP_TEXTURE_MS=2`, `VICTORY_PIPELINE_WAIT_MS=16`, `VICTORY_SHADER_LOOP_LIMIT=4096`
+  - `VICTORY_AMBIENT=0.6`, `VICTORY_AMBIENT_REFLECT=0.5`, `VICTORY_AMBIENT_GI=1`
+
+---
+
+## Build & Run
+
+### 1. Prerequisites
+- Windows 11 x64 + D3D12-capable GPU (8 GB+ VRAM, 16 GB+ System RAM recommended)
+- Visual Studio 2022/2026 C++ Build Tools (MSVC linker & `rc.exe`)
+- Pinned Rust toolchain (configured via `rust-toolchain.toml`, MSRV `1.88.0`)
+
+### 2. Build Release Binaries
+```powershell
+cargo build --release -p victory --bin gta6 --bin victory
+```
+
+### 3. Launch
+Place `victory.toml` pointing to your local game dump next to `gta6.exe` (outside the repository), then run:
+```powershell
+# 1-click launcher (defaults to Xbox Series S + tuned preset)
+.\target\release\gta6.exe
+
+# Or explicit CLI launch
+.\target\release\victory.exe run --execute --console series-s <path-to-game-executable>
+```
+
+> **Release Smoke Test:** Verified 25s zero-argument startup of `gta6.exe` (`~6,606 MB` Private RAM, `0` missing imports, `0` panics).
+
+---
+
+## CI & Test Verification
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| `cargo clippy --workspace --all-targets --locked -- -D warnings` | **PASS (0 warnings)** | Default & `--all-features` |
+| `cargo test -p xtask --locked` | **4 / 4 passed** | Asset policy & `docs/media/` checks |
+| `cargo test -p victory-core --locked` | **11 / 11 passed** | |
+| `cargo test -p victory-formats --locked` | **28 / 28 passed** | 4 ignored (external ref data/bench) |
+| `cargo test -p victory-hle --locked` | **111 / 111 passed** | 110 lib + 1 integration |
+| `cargo test -p victory-loader --locked` | **31 / 31 passed** | 28 lib + 3 integration |
+| `cargo test -p victory-pe --locked` | **7 / 7 passed** | |
+| `cargo test -p victory-pipeline --locked` | **4 / 4 passed** | |
+| `cargo test -p victory-gpu --lib -- --test-threads=1` | **293 / 293 passed** | 4 ignored (`VICTORY_RAM_PRESSURE=0`) |
+| `cargo test -p victory-shader --lib -- --test-threads=1` | 239 passed, 7 failed, 3 ignored | 7 known RTX 5060 wave32 hardware tests (`4 intersect_tests`, `3 valu_tests`) |
+
+---
+
+## Asset Policy & License
+
+- **No game files or extracted proprietary assets** are stored in this repository (`cargo test -p xtask --locked` enforces this rule, with explicit bounded exceptions only for `crates/victory-formats/src/bcpack-tables.bin`, `apps/victory/gta6.ico`, and clean framebuffer captures in `docs/media/`).
+- Licensed under **GPL-3.0** (`LICENSE`). Upstream VIctory runtime work credited to its original contributors under GPL-3.0.

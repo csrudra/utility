@@ -1,0 +1,92 @@
+From 536d416a526834f42ae2964ed316f4e927820ea5 Mon Sep 17 00:00:00 2001
+From: HybridGt <hybridgt@localhost>
+Date: Tue, 24 Nov 2026 17:49:28 +0200
+Subject: [PATCH 07/14] Tools: VICTORY_SHADER_HASH filter for
+ shader-info/translate; finer smem-as-data reasons (HybridGt)
+
+Translates or disassembles only the shaders with the listed runtime
+hashes. 'a scalar memory read as data' now says which case: the top two
+dropped mesh shaders (MSNC_VS_LinearDepthSkin) hit 'its descriptor's user
+is no image or buffer op'.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ apps/victory/src/shader.rs              | 9 +++++++++
+ apps/victory/src/translate.rs           | 7 +++++++
+ crates/victory-shader/src/emit/lower.rs | 8 +++++---
+ 3 files changed, 21 insertions(+), 3 deletions(-)
+
+diff --git a/apps/victory/src/shader.rs b/apps/victory/src/shader.rs
+index 49180ea..80ed332 100644
+--- a/apps/victory/src/shader.rs
++++ b/apps/victory/src/shader.rs
+@@ -96,6 +96,15 @@ pub fn run(paths: Vec<PathBuf>, verbose: bool, disasm: bool) -> Result<()> {
+                     eprintln!("corrupt record {}{}", path.display(), source.label());
+                     continue;
+                 };
++                // HybridGt: VICTORY_SHADER_HASH=<16 hex,...> keeps only the
++                // containers whose runtime hash (BLAKE3, first 16 hex) is listed.
++                if let Ok(want) = std::env::var("VICTORY_SHADER_HASH") {
++                    let h = blake3::hash(&bytes).to_hex()[..16].to_owned();
++                    if !want.split(',').any(|w| w.trim() == h) {
++                        continue;
++                    }
++                    println!("== shader {h} at {}{}", path.display(), source.label());
++                }
+                 let Ok(container) = Container::parse(&bytes) else {
+                     continue;
+                 };
+diff --git a/apps/victory/src/translate.rs b/apps/victory/src/translate.rs
+index 4ea1f14..3007a9c 100644
+--- a/apps/victory/src/translate.rs
++++ b/apps/victory/src/translate.rs
+@@ -312,6 +312,13 @@ fn translate(
+     let Some(bytes) = source.bytes() else {
+         return t.fail("corrupt record".into(), example);
+     };
++    // HybridGt: VICTORY_SHADER_HASH=<16 hex,...> translates only those.
++    if let Ok(want) = std::env::var("VICTORY_SHADER_HASH") {
++        let h = blake3::hash(&bytes).to_hex()[..16].to_owned();
++        if !want.split(',').any(|w| w.trim() == h) {
++            return;
++        }
++    }
+     t.containers += 1;
+     let Ok(container) = Container::parse(&bytes) else {
+         return t.fail("no DXIL part (SM5 or older)".into(), example);
+diff --git a/crates/victory-shader/src/emit/lower.rs b/crates/victory-shader/src/emit/lower.rs
+index 9974e5d..c8a6539 100644
+--- a/crates/victory-shader/src/emit/lower.rs
++++ b/crates/victory-shader/src/emit/lower.rs
+@@ -3322,7 +3322,7 @@ impl<'a> Lower<'a> {
+             ..
+         } = inst.fields
+         else {
+-            return Err("a scalar memory read as data");
++            return Err("a scalar memory read as data (no SGPR destination)");
+         };
+         let count = match inst.name().strip_prefix("s_load_dword") {
+             Some("") => 1u32,
+@@ -3330,7 +3330,7 @@ impl<'a> Lower<'a> {
+             Some("x4") => 4,
+             Some("x8") => 8,
+             Some("x16") => 16,
+-            _ => return Err("a scalar memory read as data"),
++            _ => return Err("a scalar memory read as data (not s_load_dword*)"),
+         };
+         // How the program uses the descriptor tells the view's kind.
+         let use_at = self
+@@ -3384,7 +3384,9 @@ impl<'a> Lower<'a> {
+                 }
+                 (props, None)
+             }
+-            _ => return Err("a scalar memory read as data"),
++            Fields::Smem { .. } => return Err("a scalar memory read as data (its descriptor's user is a scalar load)"),
++            Fields::Flat { .. } => return Err("a scalar memory read as data (its descriptor's user is a flat/global op)"),
++            _ => return Err("a scalar memory read as data (its descriptor's user is no image or buffer op)"),
+         };
+         let h = self.handle(site, &src, false, props)?;
+         let c = self.cur;
+-- 
+2.56.1.windows.1
+

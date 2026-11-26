@@ -1,0 +1,115 @@
+# Inkling 2 Mini — Platform-Optimized Local Stack, Inner-Loop Steering & Research-Injection Loop
+
+**Deep systems optimization, context architecture analysis, pass-targeted inner-loop steering, outer research-injection proxy, and targeted post-training pipeline for Thinking Machines Lab's `Inkling-2-Mini` (26.4B total / ~3.4B–5.4B active Looped MoE, 1M context, multimodal).**
+
+---
+
+## Pure-C# .NET 10 Glacier Ecosystem & Technical Whitepaper
+
+> **100% Native C# / .NET 10 — Zero `llama-server`, Zero Python Inference or Training Runtime:** While the scripts below preserve our earlier Python/`llama.cpp` experiments, the production **Glacier** stack executes Inkling-2-Mini **end-to-end in pure C# on .NET 10** — custom D3D12 HLSL compute kernels (NVIDIA RTX 4060 / RTX 3060 & AMD Radeon 890M), Zen 5 `AVX-512BW` (`VNNI`) hybrid MoE fallback, official Inkling-2 control-token templating, SWA/ShortConv GPU prefix checkpointing, in-process multi-stage agentic coding, and local KL-regularized LoRA post-training.
+
+- **Full Engineering Whitepaper:** [**`docs/WHITEPAPER_PURE_CSHARP_INKLING2.md`**](docs/WHITEPAPER_PURE_CSHARP_INKLING2.md)
+- **Explore the Pure-C# Glacier Stack:**
+  - [**`Glacier.Inference`**](https://github.com/ian-cowley/Glacier.Inference) — Native C# GGUF/NVFP4 engine, D3D12 HLSL shaders, `AVX-512BW` kernels, SWA/ShortConv prefix checkpointing & `Inkling2HeadLoraAdapter`
+  - [**`Glacier.Tune`**](https://github.com/ian-cowley/Glacier.Tune) — Pure-C# `.NET 10` LoRA trainer (`Inkling2Dataset`, FP16 GPU hidden-state cache, exact KL-regularized `Inkling2HeadLoraTrainer`)
+  - [**`Glacier.Agent`**](https://github.com/ian-cowley/Glacier.Agent) — In-process `SequentialAgent`, `FunctionTool`, and `BeforeToolCall` LoopGuard (`132/132` unit tests passing)
+  - [**`Glacier.Cli`**](https://github.com/ian-cowley/Glacier.Cli) — Single-binary CLI host (`glacier run ...`) across CPU, NVIDIA D3D12, and AMD 890M
+  - [**`Glacier.Grep`**](https://github.com/ian-cowley/Glacier.Grep) — Zero-alloc `.NET 10` SIMD + `MemoryMappedFile` + MCP search engine *(held-out benchmark blueprint)*
+  - Supporting crates: [`Glacier.Quant`](https://github.com/ian-cowley/Glacier.Quant) | [`Glacier.Gpu`](https://github.com/ian-cowley/Glacier.Gpu) | [`Glacier.Tensor`](https://github.com/ian-cowley/Glacier.Tensor) | [`Glacier.Formats`](https://github.com/ian-cowley/Glacier.Formats) | [`Glacier.Serve`](https://github.com/ian-cowley/Glacier.Serve)
+- **Held-Out Pure-C# Benchmark Artifacts:** [`results/pure_glacier_oracle.json`](results/pure_glacier_oracle.json) | [`results/pure_glacier_grep.json`](results/pure_glacier_grep.json)
+
+### Verified Pure-C# Inference, Agent & Local Training Results
+
+| Benchmark / Capability | Local Hardware & Pure-C# Configuration | Measured Result | Artifact / Repo |
+| :--- | :--- | :--- | :--- |
+| **Single-Prompt Speedup** (`-n 40 --temp 0.0`) | Pure C# Scalar → AVX-512 → RTX 4060 8 GB D3D12 (`8/24` phys = `24/48` passes + `AVX-512BW` CPU) | `37,470 ms` (`1.7 tok/s`) → **`5,158.4 ms` (`10.3 tok/s`)**; **`4,387.1 ms` (`11.9 tok/s`)** post-stop-token fix (`4.73 s` 2-tok clean stop) | [`Glacier.Inference`](https://github.com/ian-cowley/Glacier.Inference) |
+| **AMD Unified Memory (UMA)** | Pure C# D3D12 on Radeon 890M (`20/24` phys = `12.05 GB` VRAM, `allowUploadOverflow = isUma`) | `5,646.1 ms` prefill / **`8.4 tok/s`** decode (`+16.7%` vs prior `7.2 tok/s`) | [`Glacier.Inference`](https://github.com/ian-cowley/Glacier.Inference) |
+| **Held-Out `GlacierAgentBench --task oracle`** | Pure C# `in-process` RTX 4060 (`--ctx 8192`, pre-checkpointing) | `18` calls, `5.19%` prefix hit, `9,323.27 s`, `3` `.cs` (`280` LOC), `all_builds_ok: false` | [`results/pure_glacier_oracle.json`](results/pure_glacier_oracle.json) |
+| **Held-Out `GlacierAgentBench --task grep`** | Pure C# `in-process` RTX 4060 + **D3D12 SWA/ShortConv Prefix Checkpointing** | `30` calls, **`84.98%` prefix hit (`106,331 / 125,118`)**, **`6,108.17 s` (`-34.5%`)**, `4` `.cs` (`231` LOC), `all_builds_ok: false` | [`results/pure_glacier_grep.json`](results/pure_glacier_grep.json) |
+| **Pure-C# KL-Regularized LoRA Training** | **BEAST** RTX 3060 12 GB (`16/24` phys = `40/48` passes, `9.91 GB` VRAM), `200` train / `15` val `.NET 10` rows (`Rank=64, Alpha=32, KlBeta=0.5`) | Held-out `val_loss` **`0.8094` (`ppl 2.25`) → `0.4741` (`ppl 1.61`, `-41.4%`)** in 2 epochs (`48.9 min`, `train_loss=0.5148`, zero overfitting; eliminated `KL=0` probe regressions) | [`Glacier.Tune`](https://github.com/ian-cowley/Glacier.Tune) |
+
+---
+
+## 1. Key Architectural & Systems Discoveries
+
+Inspection of `thinkingmachines/Inkling-2-Mini` (`config.json`) and `llama.cpp`'s `src/models/inkling2-loop.cpp` revealed four high-leverage optimization opportunities missed by default setups:
+
+1. **Looped-Core-First GPU MoE Offloading (3× VRAM Leverage on 8 GB GPUs)**:
+   - Inkling 2 Mini has **24 physical layers**, where physical layers `6..17` (12 core layers) execute **3 times per token** (`6 + 12×3 + 6 = 48` logical layers).
+   - Standard `-ncmoe N` / `--n-cpu-moe N` offloads the *first N* physical layers (`0..N-1`), wasting VRAM on Prelude/Epilogue layers that run only **1× per token**.
+   - By regex-pinning **only the looped core (`blk.6..13`)** to an 8 GB RTX 4060 Laptop GPU (`-ot "blk\.([0-5]|1[4-9]|2[0-3])\.ffn_.*_exps.=CPU"`) while keeping Prelude/Epilogue MoE experts on Ryzen AI 9 HX 370 AVX-512 CPU, every GiB of VRAM delivers **3× the compute leverage**:
+     - Naive `--cpu-moe`: `pp512 = 274.9 tok/s`, `tg64 = 17.02 tok/s`
+     - **Looped-Core-First (8 core layers = 24 logical passes on GPU)**: `pp512 = 372.46 tok/s (+35.5%)`, **`tg64 = 22.19 tok/s (+30.4%)`**!
+   - For sustained live `llama-server` serving on Windows WDDM (8 GB VRAM), **two default traps cut live speed in half**:
+     1. Default `-np 4` quadruples KV cache & compute buffers (`4 × 32K = 128K`), triggering silent Windows WDDM PCIe spill (`10.4 tok/s`). Setting **`-np 1 --load-mode none`** with **5 looped-core layers (`blk.6..10` = 15 logical passes)** stays strictly inside physical VRAM (`7,451 / 8,188 MiB`) for rock-solid **`18.8–20.6 tok/s`** sustained live decode (+97% over naive defaults).
+     2. Enabling DSpark (`--spec-type draft-dspark`) on a hybrid GPU+CPU setup forces host-copy target feature transfers (`DFlash target features via host copies`) and CPU draft verification, dropping live decode from `20.57 tok/s` to `10.49 tok/s` despite a `50.7%` draft acceptance rate.
+
+2. **Why 256K Context Fits Easily on 64 GB Strix Point (`8 Global + 40 SWA-1024`)**:
+   - Out of 24 physical layers, **20 use 1,024-token Sliding Window Attention (SWA)** and only **4 physical layers (`5, 11, 17, 23`) use Global Full Attention**.
+   - Across the 3 core passes, **only 8 out of 48 logical layers** (`5, 11, 17, 23, 29, 35, 41, 47`) retain full-context KV cache (`8 KV heads × 128 dim × 2 (K+V) = 16 KB/token` at `Q8_0`), while the other 40 logical layers are capped at a fixed `~160 MB` total!
+   - Result on **Fedora 45 (Ryzen AI 9 HX 370 + Radeon 890M `gfx1150`, 64 GB Unified Memory)**:
+     - **262,144 (256K) context** + `UD-Q4_K_XL` (16.41 GiB) + `mmproj-F16.gguf` (vision) + Pass-2/3 control vector loads in **`3.48 s`** with **`28 GiB RAM still free`**!
+     - **Vulkan RADV STRIX1 (`8.16–8.48 tok/s`) outperforms ROCm `gfx1150` (`5.10 tok/s`) by +60–66%** on decode, and outperforms **Qwen 3.8 27B Dense (`4.77 tok/s`) by +78%** on the exact same machine!
+
+3. **World-First Pass-Targeted Inner-Loop Steering (Layers `24..47` Only)**:
+   - Because `llama.cpp` expands Inkling 2 Mini's 24 physical layers into **48 distinct logical slots** (`0..5` Prelude, `6..17` Pass 1, `18..23` Epilogue, `24..35` Pass 2, `36..47` Pass 3), GGUF control vectors (`--control-vector`) can target **Pass 2 & Pass 3 exclusively (`--control-vector-layer-range 24 47`)**!
+   - This leaves Pass 1 comprehension and Epilogue syntax 100% untouched while steering the cross-pass iterative refinement loops toward Glacier C#/.NET 10 zero-alloc SIMD/GPU invariants and epistemic honesty.
+   - Extracted via contrastive SVD in Inkling 2 Mini's native 2,304-dim representation space (`contrastive_separation = 0.3736`), saved to `adapters/glacier_pass23_cvec.gguf`.
+
+4. **Outer Research-Injection + Context-Compaction Loop (`research_loop_proxy.py`)**:
+   - OpenAI-compatible proxy (`:8090`) that indexes the local repository (`2,711` files), retrieves keyword-windowed file/symbol evidence (and explicit *verified negative results* when an API does not exist!) in **`9.3 ms`**, optionally queries `Glacier.Oracle` for live web grounding, preserves a byte-identical static system prefix for ~100% KV prompt-cache reuse, compacts older middle turns to protect KV budget, and routes Inkling 2 Mini's native `reasoning_effort` (`0.2` / `0.7` / `0.9` / `0.99`).
+
+---
+
+## 2. Empirical Hardware & Quality Benchmarks
+
+### A. Hardware Throughput Matrix (`unslothai/llama.cpp b12588-mix-c0c3de8`)
+
+| Host & Hardware | Backend & Strategy | Model Quant | Context | Prefill (`pp512`) | Decode (`tg64` / Live) | Notes |
+| :--- | :--- | :--- | ---: | ---: | ---: | :--- |
+| **Windows 11 Laptop** (RTX 4060 8GB + Ryzen AI 9 HX 370 31GB) | CUDA 13 + Naive `--cpu-moe` (`-t 12`) | `UD-IQ4_XS` (14.65 GiB) | 32K Q8_0 | 274.9 tok/s | 17.02 tok/s | Baseline hybrid |
+| **Windows 11 Laptop** | CUDA 13 + **Looped-Core-First (4 core layers)** | `UD-IQ4_XS` | 32K Q8_0 | 318.0 tok/s | 17.55 tok/s | 12 logical passes on GPU |
+| **Windows 11 Laptop** | CUDA 13 + **Looped-Core-First (6 core layers)** | `UD-IQ4_XS` | 32K Q8_0 | 344.2 tok/s | 19.30 tok/s | 18 logical passes on GPU |
+| **Windows 11 Laptop** | CUDA 13 + **Looped-Core-First (8 core layers)** | `UD-IQ4_XS` | `llama-bench` | **372.5 tok/s** | **22.19 tok/s** | **24 logical passes on GPU (+30.4%)** |
+| **Windows 11 Laptop** | Live Server: **5 core layers + `-np 1 --load-mode none` + Pass-2/3 CVec** | `UD-IQ4_XS` | **32K Q8_0** | ~72–115 tok/s | **18.8–20.6 tok/s** | **Zero WDDM spill (7.45/8.19 GB VRAM)** |
+| **Fedora 45 Mini-PC** (`192.168.1.200`, Radeon 890M `gfx1150`, 64GB UMA) | **Vulkan RADV STRIX1** (`-ngl 99 -fa 1`) | `UD-Q4_K_XL` (16.41 GiB) | `llama-bench` | **113.0 tok/s** | **8.16 tok/s** | **+60% decode over ROCm `gfx1150`** |
+| **Fedora 45 Mini-PC** | ROCm `gfx1150` (`-ngl 99 -fa 1`) | `UD-Q4_K_XL` | `llama-bench` | 89.9 tok/s (`pp2048`: 69.4) | 5.10 tok/s | Faster `pp2048`, slower decode |
+| **Fedora 45 Mini-PC** | **Live Server: Vulkan + Vision (`mmproj`) + Pass-2/3 CVec** | `UD-Q4_K_XL` | **256K Q8_0** | **46.26 tok/s** | **8.48 tok/s** | **28 GiB RAM still free! +78% vs Qwen 3.8 27B** |
+| **Fedora 45 Mini-PC** | Vulkan + DSpark (`--spec-type draft-dspark`) | `UD-Q4_K_XL` + `dspark` | 128K Q8_0 | 30.60 tok/s | 7.91 tok/s | 50.0% accept (`209/418`), host-copy bound |
+| **Fedora 45 Mini-PC** | Vulkan RADV STRIX1 (**Baseline Comparison**) | `Qwen3.8-27B Q4_K_M` | `llama-bench` | 137.2 tok/s | 4.77 tok/s | Dense 27B baseline |
+
+### B. Glacier C#/.NET 10 & Epistemic Research Eval Suite (`eval_runner.py`)
+
+| Configuration | Pass Rate | Avg Live Decode | Key Difference |
+| :--- | :---: | :---: | :--- |
+| **Base Inkling 2 Mini Direct** (`effort=0.2`) | 4 / 6 (66.7%) | 10.3–20.3 tok/s | Missed explicit `Avx512F` & private repo doc lookup |
+| **Pass-2/3 Inner-Loop Steered** (`glacier_pass23_cvec.gguf`, layers `24..47`) | **5 / 6 (83.3%)** | **18.82 tok/s** | Passed `Avx512F` SIMD, Lock-free SPSC, Epistemic Honesty, KV Math |
+| **Combined: Pass-2/3 Inner-Loop + Outer Research Proxy** (`:8090`, `9.3 ms` overhead) | **5 / 6 (83.3%)** | **18.18 tok/s** | Passed `glacier_real_api_lookup` (`r * rank + k`), `epistemic_nonexistent_api` (`NOT_FOUND_IN_WORKSPACE`), `lockfree_spsc`, `inkling_kv_math`, `sanity_math` |
+
+---
+
+## 3. Targeted Post-Training Architecture (`post_train_inkling_lora.py`)
+
+Rather than blindly adapting all 128 NVFP4 MoE experts (which risks router collapse and NVFP4 dequant/requant degradation), Inkling 2 Mini ships with **28.3M built-in rank-64 cross-pass loop control gates** (`ctrl_down`, `ctrl_gain`, `ctrl_forget`, `msg_query`) on physical layers `6..17`.
+
+- **Curated Corpus**: `curate_glacier_inkling_dataset.py` converts our existing Qwen Glacier/Epistemic corpora into **8,283 deduplicated Inkling-2-Mini-native trajectories** (`7,983 train / 300 val`, `4,576` native `reasoning_content` turns, `4,924` structured `tool_calls` with **0 invalid dict args**).
+- **Optimal LoRA Targets**: `["q_proj", "k_proj", "v_proj", "o_proj", "ctrl_down", "ctrl_gain", "ctrl_forget"]` — freezes all 128 NVFP4 MoE experts while directly training how Pass 2 and Pass 3 refine Pass 1's draft!
+- **Exported Manifest**: Ready-to-run Thinking Machines Tinker Cookbook SFT manifest at `post_train_out/tinker_sft_manifest.json` + local PyTorch/PEFT runner.
+
+---
+
+## 4. Quick Start
+
+```bash
+# 1. Start Fedora 64GB primary server (256K context + Vision + Pass-2/3 steering on :8085)
+bash inkling2/launch_fedora_inkling2.sh
+
+# 2. Or start Windows 11 laptop server (Looped-Core-First RTX 4060 8GB + AVX-512 on :8086)
+powershell -File inkling2/launch_windows_inkling2.ps1
+
+# 3. Start Outer Research-Injection + Context-Compaction Loop Proxy (:8090)
+python inkling2/research_loop_proxy.py --upstream http://192.168.1.200:8085 --port 8090
+
+# 4. Run automated Glacier evaluation suite
+python inkling2/eval_runner.py --endpoint http://127.0.0.1:8090 --label my_run
+```

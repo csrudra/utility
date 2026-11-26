@@ -1,0 +1,63 @@
+From 396407e55850502f00e6b405dc43211b13142d1a Mon Sep 17 00:00:00 2001
+From: LowBacon <lenni.a.jokitalo@gmail.com>
+Date: Tue, 24 Nov 2026 23:05:32 +0200
+Subject: [PATCH 01/25] Shaders: wave-wide branch form as last resort for
+ programs otherwise refused on 32-lane hosts; translate VICTORY_SAVE_HASHES
+ (HybridGt)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+(cherry picked from commit 71e30febea66fa902f0fe6baa7910d80026856cd)
+---
+ apps/victory/src/translate.rs         |  9 +++++++++
+ crates/victory-shader/src/emit/mod.rs | 15 +++++++++++++++
+ 2 files changed, 24 insertions(+)
+
+diff --git a/apps/victory/src/translate.rs b/apps/victory/src/translate.rs
+index 640d210..697a6ea 100644
+--- a/apps/victory/src/translate.rs
++++ b/apps/victory/src/translate.rs
+@@ -416,6 +416,15 @@ fn translate(
+         return;
+     }
+     let example = || format!("{}{} #{hash}", path.display(), source.label());
++    // HybridGt: `VICTORY_SAVE_HASHES=<dir>;<hash>,<hash>,...` writes the
++    // containers a run's log names (by these hashes) to `<dir>/<hash>.cdxil`.
++    if let Ok(spec) = std::env::var("VICTORY_SAVE_HASHES")
++        && let Some((dir, hashes)) = spec.split_once(';')
++        && hashes.split(',').any(|h| h.trim() == hash)
++    {
++        let _ = std::fs::create_dir_all(dir);
++        let _ = std::fs::write(std::path::Path::new(dir).join(format!("{hash}.cdxil")), &bytes);
++    }
+     t.containers += 1;
+     let Ok(container) = Container::parse(&bytes) else {
+         return t.fail("no DXIL part (SM5 or older)".into(), example);
+diff --git a/crates/victory-shader/src/emit/mod.rs b/crates/victory-shader/src/emit/mod.rs
+index 5217df8..1dff7dc 100644
+--- a/crates/victory-shader/src/emit/mod.rs
++++ b/crates/victory-shader/src/emit/mod.rs
+@@ -504,6 +504,21 @@ pub fn emit(
+                 }
+             }
+         }
++        // HybridGt: the wave-wide branch form as a last resort, only for programs every other
++        // form leaves refused or needing 64-lane waves (which a 32-lane host refuses: their
++        // draws and dispatches were lost). Programs another form translates never get it, so
++        // the hang this form once caused in programs that had another form stays away.
++        // `VICTORY_WAVE_WIDE=0` turns this off too.
++        if !wide_on && std::env::var_os("VICTORY_WAVE_WIDE").is_none_or(|v| v != "0") {
++            let bases = [forms[1].1.as_ref().map(|f| &f.0), forms[0].1.as_ref().map(|f| &f.0), Some(p)];
++            for base in bases.into_iter().flatten() {
++                let again = widen(c, native, base, why);
++                report("wave-wide branches (last resort)", &again);
++                if done(&again) {
++                    return again.map(|(shader, _)| shader);
++                }
++            }
++        }
+     }
+     // SCC of a mask operation joined with a scalar test behind a per-lane skip (the 32-lane
+     // trace programs): right once the wave takes that skip together ([`widen`]; the
+-- 
+2.56.1.windows.1
+

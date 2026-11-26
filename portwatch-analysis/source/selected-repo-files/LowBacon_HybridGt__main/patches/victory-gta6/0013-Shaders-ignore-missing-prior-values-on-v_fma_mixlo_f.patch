@@ -1,0 +1,191 @@
+From f00ed8a4d994d477c703a85289ca7a674dabde9c Mon Sep 17 00:00:00 2001
+From: IAmTheSween <thesweenclips@gmail.com>
+Date: Wed, 25 Nov 2026 01:39:08 -0500
+Subject: [PATCH 13/25] Shaders: ignore missing prior values on v_fma_mixlo_f16
+ and v_fma_mixhi_f16
+
+Extracts Lower::place_half for partial 16-bit VGPR updates so v_fma_mixlo_f16 and v_fma_mixhi_f16 treat an unlowered prior value (such as the dead destination of an earlier v_interp_p1ll_f16) as 0 in the untouched half, matching write_half and low_half. Unblocks all 8 deferred pixel shaders failing with 'the first half of an interpolation'. Tested on NVIDIA RTX 5070 and Windows SDK dxil.dll 10.0.26100.0.
+
+(cherry picked from commit 9fe511eb77fa1220bacf05c20e1854fe1dc8861c)
+---
+ crates/victory-shader/src/emit/lower.rs | 63 +++++++++--------------
+ crates/victory-shader/src/emit/mod.rs   | 67 +++++++++++++++++++++++++
+ 2 files changed, 92 insertions(+), 38 deletions(-)
+
+diff --git a/crates/victory-shader/src/emit/lower.rs b/crates/victory-shader/src/emit/lower.rs
+index 6389968..ff7433e 100644
+--- a/crates/victory-shader/src/emit/lower.rs
++++ b/crates/victory-shader/src/emit/lower.rs
+@@ -7776,22 +7776,10 @@ impl<'a> Lower<'a> {
+                 let Some(Operand::Vector { reg, .. }) = v.dst else {
+                     return Err("a mixed-precision result");
+                 };
+-                let old = match inst.read(Reg::V(reg)) {
+-                    Some(o) => self.i32_of(o)?,
+-                    None => self.s.m.i32(0),
+-                };
+                 let h = self
+                     .s
+                     .op(c, "legacyF32ToF16", Attr::ReadNone, self.s.t.i32, 130, &[r]);
+-                let (keep, h) = if name == "v_fma_mixhi_f16" {
+-                    let k16 = self.s.m.i32(16);
+-                    (0xFFFF, self.s.m.bin(c, Bin::Shl, h, k16))
+-                } else {
+-                    (0xFFFF_0000, h)
+-                };
+-                let keep = self.s.m.i32(keep);
+-                let old = self.s.m.bin(c, Bin::And, old, keep);
+-                let x = self.s.m.bin(c, Bin::Or, old, h);
++                let x = self.place_half(inst, reg, name == "v_fma_mixhi_f16", true, h);
+                 self.write(inst, Reg::V(reg), x, guard);
+                 Ok(())
+             }
+@@ -8393,6 +8381,28 @@ impl<'a> Lower<'a> {
+         Ok(f)
+     }
+ 
++    /// Places the low 16 bits of `x` into `reg`'s low or `high` half; when
++    /// `keep` is set, preserves the other half (treating an unlowered prior
++    /// register value as 0).
++    fn place_half(&mut self, inst: &Inst, reg: u8, high: bool, keep: bool, x: V) -> V {
++        let c = self.cur;
++        let old = match inst.read(Reg::V(reg)).map(|o| self.i32_of(o)) {
++            Some(Ok(o)) if keep => o,
++            _ => self.s.m.i32(0),
++        };
++        let (k16, low) = (self.s.m.i32(16), self.s.m.i32(0xFFFF));
++        let x = self.s.m.bin(c, Bin::And, x, low);
++        if high {
++            let o = self.s.m.bin(c, Bin::And, old, low);
++            let x = self.s.m.bin(c, Bin::Shl, x, k16);
++            self.s.m.bin(c, Bin::Or, o, x)
++        } else {
++            let other = self.s.m.i32(0xFFFF_0000);
++            let o = self.s.m.bin(c, Bin::And, old, other);
++            self.s.m.bin(c, Bin::Or, o, x)
++        }
++    }
++
+     /// Writes a 16-bit result (low bits of `x`) into the destination's low
+     /// half, or its high half with op_sel bit 3 (or an SDWA WORD_1 select);
+     /// the other half is kept (GFX10).
+@@ -8416,22 +8426,7 @@ impl<'a> Lower<'a> {
+                 _ => return Err("an SDWA destination of a 16-bit operation"),
+             }
+         }
+-        let c = self.cur;
+-        let old = match inst.read(Reg::V(reg)).map(|o| self.i32_of(o)) {
+-            Some(Ok(o)) if keep => o,
+-            _ => self.s.m.i32(0),
+-        };
+-        let (k16, low) = (self.s.m.i32(16), self.s.m.i32(0xFFFF));
+-        let x = self.s.m.bin(c, Bin::And, x, low);
+-        let r = if high {
+-            let o = self.s.m.bin(c, Bin::And, old, low);
+-            let x = self.s.m.bin(c, Bin::Shl, x, k16);
+-            self.s.m.bin(c, Bin::Or, o, x)
+-        } else {
+-            let keep = self.s.m.i32(0xFFFF_0000);
+-            let o = self.s.m.bin(c, Bin::And, old, keep);
+-            self.s.m.bin(c, Bin::Or, o, x)
+-        };
++        let r = self.place_half(inst, reg, high, keep, x);
+         self.write_placed(inst, Reg::V(reg), r, guard);
+         Ok(())
+     }
+@@ -9800,15 +9795,7 @@ impl<'a> Lower<'a> {
+     /// `x` (an f16 in the low bits) as the low half of VGPR `reg`: 16-bit
+     /// results keep the register's high half (GFX10).
+     fn low_half(&mut self, inst: &Inst, reg: u8, x: V) -> V {
+-        let c = self.cur;
+-        let old = match inst.read(Reg::V(reg)).map(|o| self.i32_of(o)) {
+-            Some(Ok(o)) => o,
+-            _ => self.s.m.i32(0),
+-        };
+-        let (high, low) = (self.s.m.i32(0xFFFF_0000), self.s.m.i32(0xFFFF));
+-        let old = self.s.m.bin(c, Bin::And, old, high);
+-        let x = self.s.m.bin(c, Bin::And, x, low);
+-        self.s.m.bin(c, Bin::Or, old, x)
++        self.place_half(inst, reg, false, true, x)
+     }
+ 
+     fn image(&mut self, inst: &Inst, b: usize, i: usize) -> Result<(), Why> {
+diff --git a/crates/victory-shader/src/emit/mod.rs b/crates/victory-shader/src/emit/mod.rs
+index 49d710f..fe28d53 100644
+--- a/crates/victory-shader/src/emit/mod.rs
++++ b/crates/victory-shader/src/emit/mod.rs
+@@ -2042,4 +2042,71 @@ mod barycentric_tests {
+         let words = [0xC812_0000, e0, e1, S_ENDPGM];
+         assert!(pixel(&words, PERSP_CENTER).is_err());
+     }
++
++    /// Reusing a `v_interp_p1ll_f16` destination register for `v_fma_mixlo_f16`
++    /// or `v_fma_mixhi_f16` keeps its other half as 0 rather than carrying the
++    /// placeholder `"the first half of an interpolation"` value forward.
++    #[test]
++    fn mixed_f16_write_over_interp_first_half_lowers_and_validates() {
++        let [e0, e1] = exp_mrt0(2);
++        let words = [
++            0xD742_0002,
++            0x0002_0000, // v_interp_p1ll_f16 v2, v0, attr0.x
++            0xD75A_0004,
++            0x040A_0200, // v_interp_p2_f16 v4, v1, attr0.x, v2
++            0xD742_0003,
++            0x0002_0000, // v_interp_p1ll_f16 v3, v0, attr0.x
++            0xD75A_0005,
++            0x040E_0200, // v_interp_p2_f16 v5, v1, attr0.x, v3
++            0xCC21_0002,
++            0x0201_E4F2, // v_fma_mixlo_f16 v2, 1.0, 1.0, 0
++            0xCC22_0003,
++            0x0201_E4F2, // v_fma_mixhi_f16 v3, 1.0, 1.0, 0
++            0x7E04_1702, // v_cvt_f32_f16 v2, v2
++            0x7E06_1703, // v_cvt_f32_f16 v3, v3
++            v_add_f32(2, 2, 3),
++            v_add_f32(2, 2, 4),
++            v_add_f32(2, 2, 5),
++            e0,
++            e1,
++            S_ENDPGM,
++        ];
++        let native = NativeProgram {
++            stage: HwStage::Ps,
++            wave64: false,
++            vgprs: 8,
++            layout: vec![],
++            used: vec![],
++            io: StageIo::Ps {
++                inputs: vec![PsInput {
++                    usage: Usage::Generic,
++                    row: 0,
++                    mask: 0b1111,
++                    attr: 0,
++                    flat: false,
++                    fp16: true,
++                    pack2: false,
++                    row2: 0,
++                }],
++                input_addr: PERSP_CENTER,
++                db_shader_control: 0,
++                patches: vec![],
++            },
++            code: words.iter().flat_map(|w| w.to_le_bytes()).collect(),
++        };
++        let mut inp = element("TEXCOORD", 0, 0);
++        inp.half = true;
++        let mut target = element("SV_Target", 16, 0);
++        target.usage = 15;
++        let isg1 = container::signature(&[inp], true);
++        let osg1 = container::signature(&[target], false);
++        let bytes = crate::dxbc::build(&[(FourCC::ISG1, &isg1), (FourCC::OSG1, &osg1)]);
++        let c = Container::parse(&bytes).unwrap();
++        let p = ir::build(&native.patched_code(), native.wave64, native.vgprs).unwrap();
++        let res = resource::track(&p, &native.layout, native.stage, None).unwrap();
++        let io = io::raise(&p, &native).unwrap();
++        let st = structure::structure(&p).unwrap();
++        let shader = emit(&c, &native, &p, &st, &io, &res).unwrap();
++        validate(&shader);
++    }
+ }
+-- 
+2.56.1.windows.1
+

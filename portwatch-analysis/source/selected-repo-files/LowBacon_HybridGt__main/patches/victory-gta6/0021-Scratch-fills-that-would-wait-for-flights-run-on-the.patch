@@ -1,0 +1,196 @@
+From 7e6cceb86b51a7ebb62cd9d0783266836be54f78 Mon Sep 17 00:00:00 2001
+From: LowBacon <lenni.a.jokitalo@gmail.com>
+Date: Wed, 25 Nov 2026 11:53:09 +0200
+Subject: [PATCH 21/25] Scratch fills that would wait for flights run on the
+ card from host copies (VICTORY_GPU_FILLS=1; scratch chunks then in shared
+ memory) (HybridGt)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crates/victory-gpu/src/host.rs | 88 ++++++++++++++++++++++++++++++----
+ 1 file changed, 79 insertions(+), 9 deletions(-)
+
+diff --git a/crates/victory-gpu/src/host.rs b/crates/victory-gpu/src/host.rs
+index 8859188..3a699a0 100644
+--- a/crates/victory-gpu/src/host.rs
++++ b/crates/victory-gpu/src/host.rs
+@@ -1421,7 +1421,9 @@ fn take_chunk(host: &Host, size: u64) -> Option<Chunk> {
+         ALIVE[5].fetch_add(1, Ordering::Relaxed);
+         return Some(chunk);
+     }
+-    let (buffer, data) = host.upload_buffer(size)?;
++    // HybridGt: with `VICTORY_GPU_FILLS=1` scratch is memory the card can
++    // write too ([`gpu_fills_on`]): a fill may then be done on the card.
++    let (buffer, data) = if gpu_fills_on() { host.shared_buffer(size)? } else { host.upload_buffer(size)? };
+     name(&buffer, || "list scratch".into());
+     // SAFETY: a live buffer.
+     let gpu = unsafe { buffer.GetGPUVirtualAddress() };
+@@ -1810,6 +1812,10 @@ enum Step {
+     /// (destination copy, offset in it, source copy, offset in it, bytes),
+     /// recorded in the list's prelude ([`gpu_buffer_copies`]).
+     GpuCopy(std::sync::Arc<crate::shadow::Shadow>, u64, std::sync::Arc<crate::shadow::Shadow>, u64, u64),
++    /// HybridGt: a fill of the list's scratch memory done on the card from a
++    /// host copy (scratch chunk, offset in it, source copy, offset in it,
++    /// bytes), recorded in the list's prelude ([`gpu_buffer_copies`]).
++    GpuFill(ID3D12Resource, u64, std::sync::Arc<crate::shadow::Shadow>, u64, u64),
+ }
+ 
+ /// What a list does on the CPU when it is submitted: copies between host
+@@ -2323,6 +2329,19 @@ static LATE_WAITED: [std::sync::atomic::AtomicU64; 11] = [const { std::sync::ato
+ /// HybridGt: title buffer copies done on the card since the last frame line.
+ pub(crate) static GPU_COPIES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+ 
++/// HybridGt: scratch fills done on the card since the last frame line.
++pub(crate) static GPU_FILLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
++
++/// HybridGt: whether fills of scratch memory that would wait for flights are
++/// done on the card (`VICTORY_GPU_FILLS=1`, with [`gpu_buffer_copies_on`]):
++/// a constant buffer the title's shaders wrote and a draw then reads at an
++/// address the host cannot bind as it is (copied to scratch). Scratch chunks
++/// are then shared memory, which the card can write.
++fn gpu_fills_on() -> bool {
++    static ON: OnceLock<bool> = OnceLock::new();
++    *ON.get_or_init(|| gpu_buffer_copies_on() && std::env::var_os("VICTORY_GPU_FILLS").is_some_and(|v| v == "1"))
++}
++
+ /// HybridGt: whether title buffer copies that would wait for flights are done
+ /// on the card instead (`VICTORY_GPU_BUFFER_COPIES=1`; off by default).
+ fn gpu_buffer_copies_on() -> bool {
+@@ -2353,8 +2372,9 @@ fn gpu_buffer_copies(runs: &[&HostList]) {
+         line.written.clone()
+     };
+     for list in runs {
++        let fills = gpu_fills_on();
+         let mut deferred = list.deferred();
+-        if !deferred.copies.iter().any(|s| matches!(s, Step::Copy(..))) {
++        if !deferred.copies.iter().any(|s| matches!(s, Step::Copy(..)) || (fills && matches!(s, Step::Fill(..)))) {
+             continue;
+         }
+         let steps = std::mem::take(&mut deferred.copies);
+@@ -2373,6 +2393,17 @@ fn gpu_buffer_copies(runs: &[&HostList]) {
+                 out.push(Step::GpuCopy(to, at, from, off, len as u64));
+                 continue;
+             }
++            if fills
++                && let Step::Fill(dst, src, len) = step
++                && touches(&written, src, src + len)
++                && let Some((chunk, at)) = list.chunk_at(dst, len)
++                && let Some(from) = crate::shadow::find(src as u64, len as u64)
++                && let Some(off) = from.offset_of(src as u64, len as u64)
++            {
++                out.push(Step::Refresh(from.clone(), src, len));
++                out.push(Step::GpuFill(chunk, at, from, off, len as u64));
++                continue;
++            }
+             out.push(step);
+         }
+         deferred.copies = out;
+@@ -2463,7 +2494,7 @@ fn blocked_by(written: &[(usize, usize)], runs: &[&HostList], count: bool) -> Op
+                     }
+                 }
+                 Step::Run(_) => return Some(WHY_RUN),
+-                Step::Refresh(..) | Step::GpuWrite(..) | Step::Host(_) | Step::GpuCopy(..) => {}
++                Step::Refresh(..) | Step::GpuWrite(..) | Step::Host(_) | Step::GpuCopy(..) | Step::GpuFill(..) => {}
+             }
+         }
+     }
+@@ -5505,7 +5536,16 @@ impl HostList {
+                 _ => None,
+             })
+             .collect();
+-        if barriers.is_empty() && syncs.is_empty() && gpu_copies.is_empty() {
++        let gpu_fills: Vec<(ID3D12Resource, u64, ID3D12Resource, u64, u64)> = self
++            .deferred()
++            .copies
++            .iter()
++            .filter_map(|step| match step {
++                Step::GpuFill(chunk, at, src, from, len) => Some((chunk.clone(), *at, src.buffer.clone(), *from, *len)),
++                _ => None,
++            })
++            .collect();
++        if barriers.is_empty() && syncs.is_empty() && gpu_copies.is_empty() && gpu_fills.is_empty() {
+             return None;
+         }
+         let Some((allocator, list)) = self
+@@ -5532,7 +5572,7 @@ impl HostList {
+                 // HybridGt: title buffer copies on the card, where the CPU copy
+                 // would have waited for flights: what earlier work wrote, then
+                 // the copies, then their bytes for what follows.
+-                if !gpu_copies.is_empty() {
++                if !gpu_copies.is_empty() || !gpu_fills.is_empty() {
+                     let all = D3D12_RESOURCE_BARRIER {
+                         Type: D3D12_RESOURCE_BARRIER_TYPE_UAV,
+                         Flags: D3D12_RESOURCE_BARRIER_FLAG_NONE,
+@@ -5543,11 +5583,28 @@ impl HostList {
+                         },
+                     };
+                     list.ResourceBarrier(std::slice::from_ref(&all));
+-                    for (dst, at, src, from, len) in &gpu_copies {
++                    for (dst, at, src, from, len) in gpu_copies.iter().chain(&gpu_fills) {
+                         list.CopyBufferRegion(dst, *at, src, *from, *len);
+                     }
+                     list.ResourceBarrier(std::slice::from_ref(&all));
++                    // The scratch chunks the fills wrote go back to the common
++                    // state: the list reads them as constants (promoted from
++                    // there), in the same ExecuteCommandLists as this prelude.
++                    let mut chunks: Vec<&ID3D12Resource> = Vec::new();
++                    for (chunk, ..) in &gpu_fills {
++                        if !chunks.iter().any(|c| c.as_raw() == chunk.as_raw()) {
++                            chunks.push(chunk);
++                        }
++                    }
++                    let back: Vec<D3D12_RESOURCE_BARRIER> = chunks
++                        .iter()
++                        .map(|c| transition(c, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_COMMON))
++                        .collect();
++                    if !back.is_empty() {
++                        list.ResourceBarrier(&back);
++                    }
+                     GPU_COPIES.fetch_add(gpu_copies.len() as u64, Ordering::Relaxed);
++                    GPU_FILLS.fetch_add(gpu_fills.len() as u64, Ordering::Relaxed);
+                 }
+                 list.Close()
+             })
+@@ -5758,6 +5815,15 @@ impl HostList {
+ 
+     /// The bytes of scratch chunks the list holds now (after a reset:
+     /// none while lists share their chunks).
++    /// HybridGt: the scratch chunk holding `[at, at + len)` and the offset there.
++    fn chunk_at(&self, at: usize, len: usize) -> Option<(ID3D12Resource, u64)> {
++        let s = self.scratch.lock().unwrap_or_else(|e| e.into_inner());
++        s.chunks
++            .iter()
++            .find(|(c, size)| at >= c.data && at + len <= c.data + *size as usize)
++            .map(|(c, _)| (c._buffer.clone(), (at - c.data) as u64))
++    }
++
+     pub(crate) fn scratch_kept(&self) -> u64 {
+         let scratch = self.scratch.lock().unwrap_or_else(|e| e.into_inner());
+         scratch.chunks.iter().map(|c| c.1).sum()
+@@ -5933,7 +5999,7 @@ impl HostList {
+                 }
+                 // Recorded in the prelude; its refresh and the written range
+                 // are steps of their own beside it.
+-                Step::GpuCopy(..) => continue,
++                Step::GpuCopy(..) | Step::GpuFill(..) => continue,
+                 Step::Texture(staging) => {
+                     if batch.texture_due(staging) {
+                         staging.refresh();
+@@ -6527,8 +6593,12 @@ impl Meter {
+                 );
+             }
+             let gpu_copies = GPU_COPIES.swap(0, Ordering::Relaxed) as f64 / frames;
+-            if gpu_copies > 0.0 {
+-                tracing::info!("title buffer copies done on the card per frame (VICTORY_GPU_BUFFER_COPIES=1): {gpu_copies:.1}");
++            let gpu_fills = GPU_FILLS.swap(0, Ordering::Relaxed) as f64 / frames;
++            if gpu_copies + gpu_fills > 0.0 {
++                tracing::info!(
++                    "done on the card per frame instead of waiting for flights: {gpu_copies:.1} title buffer copies \
++                     (VICTORY_GPU_BUFFER_COPIES=1), {gpu_fills:.1} scratch fills (VICTORY_GPU_FILLS=1)"
++                );
+             }
+             let [through, left] = [0, 1].map(|i| crate::texture::UNLOCKED[i].swap(0, Ordering::Relaxed) as f64 / frames);
+             if through + left > 0.0 {
+-- 
+2.56.1.windows.1
+

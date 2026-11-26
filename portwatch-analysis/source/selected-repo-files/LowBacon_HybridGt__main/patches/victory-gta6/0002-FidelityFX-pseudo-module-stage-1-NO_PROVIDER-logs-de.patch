@@ -1,0 +1,170 @@
+From 5bb68f7787cf2dddb59d63b22181553c338c8d8e Mon Sep 17 00:00:00 2001
+From: LowBacon <lenni.a.jokitalo@gmail.com>
+Date: Tue, 24 Nov 2026 23:48:20 +0200
+Subject: [PATCH 02/25] FidelityFX pseudo-module (stage 1: NO_PROVIDER, logs
+ descriptor types); constant null descriptors at a join read the null slot;
+ finer refusal reasons (HybridGt)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+(cherry picked from commit 78076afeb1c895cab143bae1a0d9cec5b4f9197b)
+---
+ crates/victory-hle/src/modules/ffx.rs   | 91 +++++++++++++++++++++++++
+ crates/victory-hle/src/modules/mod.rs   |  2 +
+ crates/victory-shader/src/emit/lower.rs | 16 ++++-
+ 3 files changed, 107 insertions(+), 2 deletions(-)
+ create mode 100644 crates/victory-hle/src/modules/ffx.rs
+
+diff --git a/crates/victory-hle/src/modules/ffx.rs b/crates/victory-hle/src/modules/ffx.rs
+new file mode 100644
+index 0000000..3c911b4
+--- /dev/null
++++ b/crates/victory-hle/src/modules/ffx.rs
+@@ -0,0 +1,91 @@
++//! HybridGt: AMD FidelityFX (`amd_fidelityfx_upscaler_xbox.dll`), the
++//! upscaler the title loads in its Series S configuration.
++//!
++//! The console DLL exports the FidelityFX API (`ffx_api.h`, MIT, the same
++//! five entry points as AMD's PC SDK): `ffxCreateContext`, `ffxConfigure`,
++//! `ffxQuery`, `ffxDispatch`, `ffxDestroyContext`. Each takes a chain of
++//! descriptors that start with `{ u64 type; header* next; }`. Its shaders
++//! are not in a form our translator reads, so the DLL itself cannot run.
++//!
++//! Stage 1 (this file): the module exists, so the title's `LoadLibrary`
++//! succeeds instead of failing, and every call answers
++//! `FFX_API_RETURN_ERROR_NO_PROVIDER` (no upscaler available), which the
++//! API defines for this case. The descriptor types the title asks for are
++//! logged, to write stage 2 against: the PC SDK's upscaler run on the
++//! host's own command list.
++//! shortcut: no upscaling yet; the title is told so, never told it worked.
++
++#![allow(non_snake_case)]
++
++use std::ffi::c_void;
++use std::sync::Mutex;
++
++use crate::{HleModule, hle_export};
++
++/// `FFX_API_RETURN_ERROR_NO_PROVIDER` (ffx_api.h).
++const NO_PROVIDER: u32 = 4;
++/// `FFX_API_RETURN_ERROR_PARAMETER`.
++const PARAMETER: u32 = 6;
++
++/// Logs each descriptor type in a chain once per entry point.
++fn note(entry: &'static str, desc: *const c_void) {
++    static SEEN: Mutex<Vec<(&'static str, u64)>> = Mutex::new(Vec::new());
++    let mut at = desc as *const u64;
++    for _ in 0..16 {
++        if at.is_null() {
++            break;
++        }
++        // SAFETY: the title's descriptor chain: each link starts with its
++        // type and the next link.
++        let (ty, next) = unsafe { (at.read_unaligned(), at.add(1).read_unaligned() as *const u64) };
++        let mut seen = SEEN.lock().unwrap_or_else(|e| e.into_inner());
++        if !seen.contains(&(entry, ty)) {
++            seen.push((entry, ty));
++            tracing::warn!(entry, desc_type = format_args!("{ty:#x}"), "FidelityFX call: no upscaler provided yet (answered NO_PROVIDER)");
++        }
++        at = next;
++    }
++}
++
++pub extern "system" fn ffxCreateContext(context: *mut *mut c_void, desc: *const c_void, _mem: *const c_void) -> u32 {
++    if context.is_null() || desc.is_null() {
++        return PARAMETER;
++    }
++    note("ffxCreateContext", desc);
++    // SAFETY: the title's out pointer.
++    unsafe { context.write(std::ptr::null_mut()) };
++    NO_PROVIDER
++}
++
++pub extern "system" fn ffxDestroyContext(_context: *mut *mut c_void, _mem: *const c_void) -> u32 {
++    NO_PROVIDER
++}
++
++pub extern "system" fn ffxConfigure(_context: *mut *mut c_void, desc: *const c_void) -> u32 {
++    note("ffxConfigure", desc);
++    NO_PROVIDER
++}
++
++pub extern "system" fn ffxQuery(_context: *mut *mut c_void, desc: *mut c_void) -> u32 {
++    note("ffxQuery", desc);
++    NO_PROVIDER
++}
++
++pub extern "system" fn ffxDispatch(_context: *mut *mut c_void, desc: *const c_void) -> u32 {
++    note("ffxDispatch", desc);
++    NO_PROVIDER
++}
++
++pub(crate) fn module() -> HleModule {
++    HleModule {
++        name: "ffx",
++        dlls: &["amd_fidelityfx_upscaler_xbox.dll"],
++        exports: vec![
++            hle_export!(ffxCreateContext),
++            hle_export!(ffxDestroyContext),
++            hle_export!(ffxConfigure),
++            hle_export!(ffxQuery),
++            hle_export!(ffxDispatch),
++        ],
++    }
++}
+diff --git a/crates/victory-hle/src/modules/mod.rs b/crates/victory-hle/src/modules/mod.rs
+index 51e3590..4b4cc96 100644
+--- a/crates/victory-hle/src/modules/mod.rs
++++ b/crates/victory-hle/src/modules/mod.rs
+@@ -16,6 +16,7 @@ pub mod display;
+ pub mod dsp;
+ #[cfg(windows)]
+ pub mod dstorage;
++pub mod ffx;
+ #[cfg(windows)]
+ pub mod files;
+ pub mod gameinput;
+@@ -53,6 +54,7 @@ pub(crate) fn all() -> Vec<HleModule> {
+         audio::module(),
+         dsp::module(),
+         xg::module(),
++        ffx::module(),
+     ];
+     #[cfg(windows)]
+     all.push(apu::module());
+diff --git a/crates/victory-shader/src/emit/lower.rs b/crates/victory-shader/src/emit/lower.rs
+index 63c4de7..1fc5b73 100644
+--- a/crates/victory-shader/src/emit/lower.rs
++++ b/crates/victory-shader/src/emit/lower.rs
+@@ -6381,7 +6381,7 @@ impl<'a> Lower<'a> {
+             if self.block[q].is_none() {
+                 continue;
+             }
+-            let tail = self.tail[q].ok_or(WHY)?;
++            let tail = self.tail[q].ok_or("a descriptor chosen by control flow (a predecessor not yet lowered: a loop)")?;
+             let at = self.edges.get(&(q, block)).copied().unwrap_or(tail);
+             let index = match arg {
+                 Source::Loaded { load, first } => {
+@@ -6393,7 +6393,19 @@ impl<'a> Lower<'a> {
+                 Source::Phi { block: inner, args: inner_args } if depth > 0 => {
+                     self.descriptor_phi(*inner, inner_args, sampler, depth - 1)?
+                 }
+-                _ => return Err(WHY),
++                // HybridGt: a descriptor the code builds whose fourth dword is 0 (no channels,
++                // no format): every read through it gives 0, which is what the host heap's
++                // null slot gives (the console's way of binding nothing on some paths).
++                Source::Constant(w) if !sampler && w[3] == 0 && super::shader::view_heap_limit() != 0 => {
++                    self.s.m.i32(super::shader::view_heap_limit())
++                }
++                Source::Phi { .. } => return Err("a descriptor chosen by control flow (joins nested too deep)"),
++                _ => {
++                    if std::env::var_os("VICTORY_WAVE_WHY").is_some() {
++                        eprintln!("DESCRIPTOR-PHI incoming {arg:?} sampler={sampler}");
++                    }
++                    return Err("a descriptor chosen by control flow (an incoming descriptor of another kind)");
++                }
+             };
+             incoming.push((index, at));
+         }
+-- 
+2.56.1.windows.1
+

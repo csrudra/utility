@@ -1,0 +1,114 @@
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/bayusantosz3995/port-meridian/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/bayusantosz3995/port-meridian/reward.svg)](https://make.fun/bounty/gta6-01)
+
+# Port Meridian
+
+An original open-world crime game that plays offline in a desktop browser.
+You are **Rex Marlowe**, a courier who owes **$4,000** to **Marisol Vega**,
+the fixer who runs Vega Motors. Do her five missions to clear the debt —
+or keep the money and walk away.
+
+Everything in the game is original: the city, the characters, the vehicles,
+the names, the story, the art and the sound. No real city, person, brand or
+franchise appears in it.
+
+## Play it
+
+```sh
+node serve.ts
+# then open http://localhost:8080
+```
+
+Or open `game/index.html` straight from a static file server. No build
+step, no library, no network request — plain HTML, CSS and ES modules.
+
+## The city
+
+**Port Meridian** is a dense 1.5 km city on a 9×9 road grid with four
+districts, each with its own look:
+
+- **Old Town** (north-west) — terracotta rooftops and narrow streets
+- **Downtown** (north-east) — glass towers, the bank, the Meridian Hotel
+- **The Shores** (south-west) — pastel houses and the park
+- **Portside** (south-east) — warehouses, docks and the harbor
+
+Eight landmarks anchor it: Vega Motors, Rex's Apartment (the safehouse),
+the Port Warehouse, Meridian City Bank, PMPD Headquarters, General
+Hospital, the Meridian Hotel and Meridian Park. A day/night cycle runs
+over the whole city — dusk falls around 18:30, headlights come on at
+night.
+
+## Systems
+
+- **On foot and by car** — walk, sprint, aim with the mouse, or drive any
+  car you can reach. Seven car models with different speed, grip and
+  toughness, from the Comet Sedan to the Falcon GT.
+- **Traffic and pedestrians** — traffic cars follow the road graph, stop
+  at red lights and keep their distance; pedestrians walk the sidewalks,
+  cross at intersections and flee gunfire.
+- **Stealing cars** — take a parked car freely, or pull the driver out of
+  a moving one and earn a wanted star for it.
+- **Wanted system and police** — 0–5 stars. The PMPD chases in cars,
+  hunts on foot, shoots back at 3+ stars and sets roadblocks at 5 stars.
+  Break line of sight and the heat cools, one star at a time.
+- **Missions and story** — five missions with story cards: a timed
+  delivery, a repo job from a guarded lot, tailing a courier van without
+  being spotted, a three-star getaway, and a shootout at the warehouse
+  that ends in a choice about the money.
+- **Combat** — fists, pistol and SMG, with reloads, spread, muzzle flash
+  and bullets that buildings and cars stop.
+- **Side work** — drive a taxi for fares, and find the 10 hidden cash
+  packages scattered around the city.
+- **HUD with a live minimap** — wanted stars, cash, respect, health,
+  ammo, speed, district, clock, objective marker and an off-screen arrow.
+- **Title screen and save** — New Game / Continue, a save slot, and
+  autosave after every mission (localStorage).
+
+## Controls
+
+| Key | Action |
+| --- | --- |
+| W A S D / arrows | Move on foot, drive |
+| Mouse | Aim (on foot) |
+| Click | Shoot |
+| E | Enter / exit car, start mission |
+| Q / 1–3 | Switch weapon |
+| R | Reload |
+| Space | Handbrake |
+| Shift | Sprint |
+| P / Esc | Pause |
+| M | Mute |
+
+## How it is built
+
+- `game/index.html` — the page, one canvas
+- `game/src/config.js` — tuning, palettes, districts, car models, weapons
+- `game/src/random.js` — seeded RNG (mulberry32) and math helpers
+- `game/src/city.js` — road graph, blocks, buildings, traffic lights
+- `game/src/vehicles.js` — car physics and traffic AI
+- `game/src/pedestrians.js` — pedestrian AI
+- `game/src/police.js` — wanted system, pursuit, roadblocks
+- `game/src/player.js` — the player, on foot and driving, weapons
+- `game/src/combat.js` — bullets, enemies, particles, skid marks
+- `game/src/missions.js` — the five-mission story arc
+- `game/src/world.js` — all systems in one DOM-free world
+- `game/src/render.js` — canvas drawing, HUD, minimap, screens
+- `game/src/input.js` — keyboard and mouse
+- `game/src/audio.js` — procedural WebAudio music and effects
+- `game/src/save.js` — localStorage save
+- `game/src/shots.js` — the four staged screenshots
+- `game/src/main.js` — boot, fixed-timestep loop, screens
+- `main.ts` — the make.fun hand-in (copies `game/` + `screenshots/` to
+  `/output` and writes `dossier.json`)
+
+The four screenshots in `screenshots/` are staged through the game's own
+systems (`?shot=chase|steal|mission|title`): a dusk chase at 3 stars, a
+car theft in progress, mission 3 with its story card, and the title
+screen with a save slot.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+<sub>Entered on [make.fun](https://make.fun/?utm_source=github&utm_medium=readme&utm_campaign=gta6-01) · AI agents build software for cash rewards</sub>

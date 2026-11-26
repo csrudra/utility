@@ -1,0 +1,223 @@
+From 6254da771915d55f5b064663b0779a3d6d02dab8 Mon Sep 17 00:00:00 2001
+From: HybridGt <hybridgt@localhost>
+Date: Tue, 24 Nov 2026 18:22:47 +0200
+Subject: [PATCH 10/14] Queues: honour queue fence waits
+ (VICTORY_QUEUE_WAITS=1) (HybridGt)
+
+Queue::Wait did nothing and every ExecuteCommandLists ran at once, so
+work the title ordered behind another queue's signal ran before it and
+read data never written. A queue with an unmet wait now holds its later
+executions, signals and waits in order; each fence signal runs what it
+unblocks; a wait unmet after 4 s runs anyway (logged).
+
+RTX 4070 Ti, run17: world from frame 1790 to 2449+ with no device removal
+(runs 3-16: removed 0-300 frames into the world), no wait hit the limit.
+Picture still black.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crates/victory-gpu/src/fence.rs |   8 ++
+ crates/victory-gpu/src/queue.rs | 146 ++++++++++++++++++++++++++++++--
+ 2 files changed, 149 insertions(+), 5 deletions(-)
+
+diff --git a/crates/victory-gpu/src/fence.rs b/crates/victory-gpu/src/fence.rs
+index 285e7bd..6abd552 100644
+--- a/crates/victory-gpu/src/fence.rs
++++ b/crates/victory-gpu/src/fence.rs
+@@ -107,9 +107,17 @@ pub(crate) extern "system" fn signal(this: This, value: u64) -> HRESULT {
+         }
+         !reached
+     });
++    drop(waiters);
++    // HybridGt: queues held behind a wait for this fence may run now.
++    crate::queue::drain();
+     S_OK
+ }
+ 
++/// HybridGt: the fence's value (for queue waits).
++pub(crate) fn value(this: This) -> u64 {
++    fence(this).value.load(Ordering::Acquire)
++}
++
+ extern "system" fn creation_flags(this: This) -> u32 {
+     fence(this).flags
+ }
+diff --git a/crates/victory-gpu/src/queue.rs b/crates/victory-gpu/src/queue.rs
+index 5992fad..e0fe4d3 100644
+--- a/crates/victory-gpu/src/queue.rs
++++ b/crates/victory-gpu/src/queue.rs
+@@ -111,10 +111,23 @@ extern "system" fn release(this: This) -> u32 {
+ }
+ 
+ /// Runs the lists' host lists and waits for them (decision 0007).
+-extern "system" fn execute(_: This, count: u32, lists: *const This) {
++extern "system" fn execute(q: This, count: u32, lists: *const This) {
+     if lists.is_null() {
+         return;
+     }
++    if queue_waits() {
++        // SAFETY: the title passes `count` lists.
++        let titled: Vec<usize> = unsafe { std::slice::from_raw_parts(lists, count as usize) }
++            .iter()
++            .map(|&l| l as usize)
++            .collect();
++        drain();
++        if hold(q as usize, Held::Execute(titled.clone()), false).is_ok() {
++            return;
++        }
++        run_lists(&titled);
++        return;
++    }
+     #[cfg(windows)]
+     if let Some(host) = crate::host::host() {
+         // SAFETY: the title passes `count` lists.
+@@ -157,15 +170,27 @@ extern "system" fn signal2_x(
+ }
+ /// Markers and events only matter to profilers.
+ extern "system" fn marker(_: This) {}
+-extern "system" fn signal(_: This, fence: This, value: u64) -> HRESULT {
++extern "system" fn signal(q: This, fence: This, value: u64) -> HRESULT {
+     if fence.is_null() {
+         return E_INVALIDARG;
+     }
++    if queue_waits() && hold(q as usize, Held::Signal(fence as usize, value), false).is_ok() {
++        return S_OK;
++    }
+     crate::fence::signal(fence, value)
+ }
+-/// Nothing runs on the queue, so waiting for a fence never blocks it.
+-extern "system" fn wait(_: This, fence: This, _value: u64) -> HRESULT {
+-    if fence.is_null() { E_INVALIDARG } else { S_OK }
++/// Without `VICTORY_QUEUE_WAITS` nothing runs on the queue, so waiting for a
++/// fence never blocks it; with it, an unmet wait holds the queue.
++extern "system" fn wait(q: This, fence: This, value: u64) -> HRESULT {
++    if fence.is_null() {
++        return E_INVALIDARG;
++    }
++    if queue_waits() {
++        let met = fence_value(fence as usize) >= value;
++        // Behind earlier held work it waits its turn; on an idle queue only if unmet.
++        let _ = hold(q as usize, Held::Wait(fence as usize, value), !met);
++    }
++    S_OK
+ }
+ /// Ticks per second of GPU timestamps (see [`Written::GpuTimestamp`]).
+ extern "system" fn timestamp_frequency(_: This, out: *mut u64) -> HRESULT {
+@@ -545,3 +570,114 @@ mod tests {
+         assert!(at[1] > first);
+     }
+ }
++
++// ---- HybridGt: queue waits (VICTORY_QUEUE_WAITS=1) ----
++//
++// The console's queues run their submissions in order, and a queue told to
++// wait for a fence value holds everything submitted after the wait until
++// another queue (or the CPU) signals it. Here submissions run on the host
++// when the title makes them, and `wait` did nothing, so a consumer queued
++// behind a wait ran before its producer: it read data never written.
++// With the switch, a queue whose wait is not met holds its later
++// executions, signals and waits, in order, and every fence signal runs
++// what it unblocks. A wait still unmet after WAIT_LIMIT runs its queue
++// anyway (logged), so a fence we never see signalled cannot stop the title.
++
++enum Held {
++    Execute(Vec<usize>),
++    Signal(usize, u64),
++    Wait(usize, u64),
++}
++
++/// Held work per queue (by queue address), oldest first, with when it was held.
++static HELD: std::sync::Mutex<Vec<(usize, std::collections::VecDeque<(Held, std::time::Instant)>)>> =
++    std::sync::Mutex::new(Vec::new());
++static DRAINING: AtomicBool = AtomicBool::new(false);
++const WAIT_LIMIT: std::time::Duration = std::time::Duration::from_secs(4);
++
++pub(crate) fn queue_waits() -> bool {
++    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
++    *ON.get_or_init(|| {
++        let on = std::env::var("VICTORY_QUEUE_WAITS").as_deref() == Ok("1");
++        if on {
++            tracing::warn!("VICTORY_QUEUE_WAITS=1: queue waits hold later submissions until their fence is signalled");
++        }
++        on
++    })
++}
++
++fn fence_value(fence: usize) -> u64 {
++    crate::fence::value(fence as This)
++}
++
++/// Holds `item` behind what queue `q` already holds; with `always`, even
++/// when it holds nothing (a wait that is not met). False: nothing held, run it now.
++fn hold(q: usize, item: Held, always: bool) -> Result<(), Held> {
++    let mut held = HELD.lock().unwrap_or_else(|e| e.into_inner());
++    let at = held.iter().position(|(k, _)| *k == q);
++    match at {
++        Some(i) if !held[i].1.is_empty() => {
++            held[i].1.push_back((item, std::time::Instant::now()));
++            Ok(())
++        }
++        _ if always => {
++            let now = std::time::Instant::now();
++            match at {
++                Some(i) => held[i].1.push_back((item, now)),
++                None => held.push((q, std::collections::VecDeque::from([(item, now)]))),
++            }
++            Ok(())
++        }
++        _ => Err(item),
++    }
++}
++
++/// The next held item some queue can run now, taken off its queue.
++fn next_runnable() -> Option<Held> {
++    let mut held = HELD.lock().unwrap_or_else(|e| e.into_inner());
++    for (q, items) in held.iter_mut() {
++        let Some((front, since)) = items.front() else { continue };
++        if let Held::Wait(fence, value) = *front {
++            let met = fence_value(fence) >= value;
++            if !met && since.elapsed() < WAIT_LIMIT {
++                continue;
++            }
++            if !met {
++                static N: AtomicU64 = AtomicU64::new(0);
++                let n = N.fetch_add(1, Ordering::Relaxed) + 1;
++                if n.is_power_of_two() {
++                    tracing::warn!(queue = format_args!("{q:#x}"), value, now = fence_value(fence), times = n, "queue wait unmet after the limit: its queue runs anyway");
++                }
++            }
++        }
++        return items.pop_front().map(|(h, _)| h);
++    }
++    None
++}
++
++/// Runs held work until nothing more is runnable (re-entrant calls return).
++pub(crate) fn drain() {
++    if !queue_waits() || DRAINING.swap(true, Ordering::AcqRel) {
++        return;
++    }
++    while let Some(item) = next_runnable() {
++        match item {
++            Held::Execute(lists) => run_lists(&lists),
++            Held::Signal(fence, value) => {
++                crate::fence::signal(fence as This, value);
++            }
++            Held::Wait(..) => {}
++        }
++    }
++    DRAINING.store(false, Ordering::Release);
++}
++
++fn run_lists(lists: &[usize]) {
++    #[cfg(windows)]
++    if let Some(host) = crate::host::host() {
++        let host_lists: Vec<_> = lists.iter().filter_map(|&l| crate::list::host_list(l as This)).collect();
++        host.execute(&host_lists);
++    }
++    #[cfg(not(windows))]
++    let _ = lists;
++}
+-- 
+2.56.1.windows.1
+

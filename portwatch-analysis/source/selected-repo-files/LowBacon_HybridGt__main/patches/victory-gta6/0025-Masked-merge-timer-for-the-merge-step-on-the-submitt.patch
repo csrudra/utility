@@ -1,0 +1,57 @@
+From 6e7d1e0185ca840a2fbd119ee761ae5a7d0c6009 Mon Sep 17 00:00:00 2001
+From: LowBacon <lenni.a.jokitalo@gmail.com>
+Date: Wed, 25 Nov 2026 12:29:28 +0200
+Subject: [PATCH 25/25] Masked merge: timer for the merge step on the
+ submitting thread (HybridGt)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crates/victory-gpu/src/host.rs | 17 +++++++++++------
+ 1 file changed, 11 insertions(+), 6 deletions(-)
+
+diff --git a/crates/victory-gpu/src/host.rs b/crates/victory-gpu/src/host.rs
+index 6654d90..cd8d18e 100644
+--- a/crates/victory-gpu/src/host.rs
++++ b/crates/victory-gpu/src/host.rs
+@@ -1574,7 +1574,7 @@ pub(crate) fn card_merge_ready() -> bool {
+ 
+ /// HybridGt: entries merged on the card and their dispatches since the last
+ /// frame line.
+-pub(crate) static MERGE_STATS: [std::sync::atomic::AtomicU64; 2] = [const { std::sync::atomic::AtomicU64::new(0) }; 2];
++pub(crate) static MERGE_STATS: [std::sync::atomic::AtomicU64; 3] = [const { std::sync::atomic::AtomicU64::new(0) }; 3];
+ 
+ pub(crate) const CARD_COMPARE: &str = r#"
+ #define RS "RootConstants(num32BitConstants=6, b0), SRV(t0), UAV(u0), UAV(u1)"
+@@ -4908,7 +4908,10 @@ impl Host {
+             // may write too, and this submission refreshes it. The flights
+             // are settled, and the asking made again: the copy-back wrote
+             // title memory, which other copies of it must see.
+-            if behind && stale_under_flights(runs) {
++            let merging = std::time::Instant::now();
++            let stale = behind && stale_under_flights(runs);
++            MERGE_STATS[2].fetch_add(merging.elapsed().as_micros() as u64, Ordering::Relaxed);
++            if stale {
+                 let settling = std::time::Instant::now();
+                 self.settle(&mut submitted, WHY_STALE);
+                 settled += settling.elapsed();
+@@ -6780,11 +6783,13 @@ impl Meter {
+                     told / 1000.0
+                 );
+             }
+-            let [merged, merge_dispatches] = [0, 1].map(|i| MERGE_STATS[i].swap(0, Ordering::Relaxed) as f64 / frames);
+-            if merged > 0.0 {
++            let [merged, merge_dispatches, merge_us] =
++                [0, 1, 2].map(|i| MERGE_STATS[i].swap(0, Ordering::Relaxed) as f64 / frames);
++            if merged > 0.0 || merge_us > 1000.0 {
+                 tracing::info!(
+-                    "the title's runs under shader writes merged on the card per frame (VICTORY_GPU_MERGE=1): \
+-                     {merged:.0} dwords in {merge_dispatches:.1} dispatches"
++                    "the title's runs under shader writes per frame: {merged:.0} dwords merged on the card in \
++                     {merge_dispatches:.1} dispatches (VICTORY_GPU_MERGE=1); {:.1} ms on the submitting thread finding and putting them in",
++                    merge_us / 1000.0
+                 );
+             }
+             let gpu_copies = GPU_COPIES.swap(0, Ordering::Relaxed) as f64 / frames;
+-- 
+2.56.1.windows.1
+

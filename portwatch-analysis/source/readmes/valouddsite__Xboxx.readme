@@ -1,0 +1,290 @@
+<div align="center">
+
+# Xboxx
+### XBOX COMPILER TOOLCHAIN
+
+<img alt="Xboxx neon logo" src="assets/branding/xboxx-logo.svg" width="520" />
+
+**Research prototype · Windows x64 · C++20**
+
+A research compiler/toolchain project targeting modern Xbox platforms, with a Windows x64 host for development, validation and diagnostics.
+
+<img alt="Windows" src="https://img.shields.io/badge/PLATFORM-WINDOWS%2010%2F11-00C8FF?style=for-the-badge&logo=windows&logoColor=white" />
+<img alt="C++20" src="https://img.shields.io/badge/C%2B%2B-20-FF3CAC?style=for-the-badge&logo=cplusplus&logoColor=white" />
+<img alt="Direct3D 12" src="https://img.shields.io/badge/GRAPHICS-DIRECT3D%2012-9B5DE5?style=for-the-badge" />
+<img alt="Research status" src="https://img.shields.io/badge/STATUS-EXPERIMENTAL-FFB347?style=for-the-badge" />
+
+
+
+</div>
+
+---
+
+> [!IMPORTANT]
+> **Xboxx does not currently boot or run Xbox games.** The project now maps a restricted synthetic AMD64 PE32+ fixture into bounded guest memory and executes its tiny HLT entry point with a limited x86-64 interpreter. That is a controlled loader experiment, not Xbox game execution. Xbox executable/container loading, kernel and runtime APIs, Xbox GPU command translation, RDNA2 shader translation, audio and input compatibility are still unsupported. Xboxx does not bypass DRM, signature checks or licence checks.
+
+## ✦ Project snapshot
+
+Xboxx is being developed as a compiler for modern Xbox platforms (Xbox One and Xbox Series X|S). The current repository establishes target profiles, project manifests, validation and build-plan infrastructure. Windows diagnostics, Direct3D 12 experiments and a tiny guest interpreter are supporting research components—not the compiler output path.
+
+| Subsystem | Current state |
+|---|---|
+| Windows host | CPU, RAM and DXGI adapter discovery |
+| D3D12 backend | Device, queue, allocator, command list, fence and WARP fallback |
+| GPU validation | Buffer/texture transfer and readback checks |
+| Descriptor management | Native heaps, contiguous range allocation, CPU/GPU handles and generation-safe lifetimes |
+| Graphics IR | Resource/state validation, copy commands and draw intents |
+| IR execution | Narrow buffer-copy + transition path translated to D3D12 |
+| Native resources | Registry-owned D3D12 buffers and RGBA8 textures |
+| Windowed demo | Win32/DXGI swap chain and original runtime-compiled HLSL triangle |
+| Compiler targets | Windows x64, Xbox One and Xbox Series profiles; metadata only, no binary emission yet |
+| PE inspection | Bounds-checked PE32/PE32+ headers, sections and imports; read-only |
+| Guest memory | Bounded guest address space with read/write permissions |
+| Guest CPU | Experimental x86-64 subset: NOP, MOV immediate/register, ADD RAX, HLT |
+| Guest PE mapper | Restricted AMD64 PE32+ mapping; rejects imports and relocations |
+| Xbox title execution | **Not implemented** |
+
+## ◈ Compiler direction
+
+Xboxx now defines explicit `windows-x64`, `xbox-one` and `xbox-series` target profiles. These are target descriptors only: binary generation is not implemented, and Xbox builds require the authorized Microsoft GDK toolchain. Xboxx will never label a Windows binary as an Xbox build. See [docs/COMPILER.md](docs/COMPILER.md) for the planned frontend, IR, lowering and code-generation pipeline.\n\nList the currently declared profiles with `Xboxx.exe --list-targets`.\n\nValidate a project manifest and confirm its source files with `Xboxx.exe --check-project examples/sample.xclproj`. Preview the ordered inputs and explicit target/toolchain blocker with `Xboxx.exe --plan-project examples/sample.xclproj`. This is a plan preview only: no compiler is invoked and no binary is produced.
+
+## ◈ Architecture
+
+The host backend and guest-runtime experiments are deliberately separated. The current guest CPU interpreter does not call the host CPU or operating system to execute guest bytes.
+
+```mermaid
+flowchart TB
+    CLI["Xboxx command-line app"]
+    HOST["Windows host services"]
+    PE["Read-only PE inspector"]
+    MEM["Bounded guest memory"]
+    CPU["Tiny guest x86-64 interpreter"]
+    IR["Backend-neutral Graphics IR"]
+    D3D["Native Direct3D 12 backend"]
+    GPU["Windows D3D12 runtime / WARP"]
+
+    CLI --> HOST
+    CLI --> PE
+    CLI --> MEM
+    MEM --> CPU
+    CLI --> IR
+    IR --> D3D
+    D3D --> GPU
+```
+
+### Guest instruction experiment
+
+The current interpreter supports a deliberately tiny subset:
+
+| Bytes | Instruction | Effect |
+|---|---|---|
+| `90` | NOP | Advance instruction pointer |
+| `48 B8`–`48 BF imm64` | MOV r64, imm64 | Load one of eight legacy registers |
+| `48 89 /r` (register mode) | MOV r/m64, r64 | Copy between registers |
+| `48 05 imm32` | ADD RAX, imm32 | Add a sign-extended immediate |
+| `50`–`57` / `58`–`5F` | PUSH / POP r64 | Use the bounded guest stack |
+| `F4` | HLT | Stop execution |
+
+Every run has an instruction budget. The interpreter reports a halt, step limit, memory fault or unsupported instruction. It reads bytes through `GuestMemory`; it never jumps to a guest address as a native function pointer.
+
+The automated fixtures load immediates into registers, copy RBX to RAX, add 1 and halt (42), and exercise a bounded PUSH/POP round trip. A separate synthetic PE32+ fixture is mapped at its preferred base; the loader checks section bounds and permissions, then the guest interpreter executes its HLT entry point. Imports and base relocations are rejected. This does not load Xbox containers or commercial Xbox games.
+
+### Graphics command path
+
+The native graphics integration currently validates a narrow buffer-copy path:
+
+```mermaid
+sequenceDiagram
+    participant Test
+    participant IR as Graphics IR
+    participant D3D as D3D12 backend
+    participant GPU as D3D12 queue
+
+    Test->>IR: Submit validated copy + transition
+    IR->>D3D: Supported command subset
+    D3D->>GPU: CopyBufferRegion + barrier
+    GPU-->>D3D: Fence completion
+    D3D->>D3D: Read back and compare bytes
+    D3D-->>Test: Pass / failure
+```
+
+This is not yet a general Graphics IR interpreter and does not translate Xbox GPU command streams.
+
+## ✧ Implemented foundations
+
+### Windows and graphics
+- C++20, CMake and MSVC build.
+- CPU capability, core count, RAM and DXGI adapter discovery.
+- D3D12 hardware device with Microsoft WARP fallback.
+- Direct command queue, allocator, command list and fence.
+- Buffer upload/default/readback and byte comparison.
+- RGBA8 texture upload/copy/readback with row-pitch-aware comparison.
+- Native descriptor pools for CBV/SRV/UAV, sampler, RTV and DSV heaps.
+- Contiguous descriptor range allocation, release, coalescing and stale-generation rejection.
+- CPU/GPU descriptor handle calculation; live allocations prevent heap destruction.
+- Registry-owned native buffers and RGBA8 textures with fence-synchronized transitions and teardown.
+- Original Win32/DXGI triangle demo with runtime-compiled HLSL.
+
+### Guest runtime and file inspection
+- Bounded guest-memory regions with checked address arithmetic, overlap rejection, capacity limits and read/write permissions.
+- A small, budget-limited x86-64 interpreter for synthetic test programs, with eight legacy registers and a subset of arithmetic flags.
+- A restricted AMD64 PE32+ mapper for import-free, non-relocated fixtures, with read-only headers and section permissions.
+- PE32/PE32+ header, section and import inspection with bounds checks.
+- Text and JSON inspection output.
+- Inspected files are treated as data and are never executed by the PE inspector.
+
+## ◉ Native user interface
+
+Launch the Xboxx desktop dashboard:
+
+```powershell
+.\\build\\Release\\Xboxx.exe --ui
+```
+
+The Win32 dashboard provides buttons for the synthetic guest CPU test, the D3D12 validation suite and the native triangle demo. **Choose a game/file** opens a Windows file picker and runs a read-only signature probe. It currently recognizes DOS/PE candidates, the Xbox 360 XEX2 signature, and Xbox 360 STFS package markers (CON, LIVE, PIRS). This is identification only: it does not parse package contents, decrypt data, compile, modify or execute the selected file. Xbox One package formats remain unrecognized. This is a host-side control interface; it does not imply Xbox game compatibility.
+
+Probe a selected file's known signature without modifying or executing it:\n\n```powershell\n.\\build\\Release\\Xboxx.exe --probe-file C:\\path\\to\\game-file\n```\n\nThis reports only a recognized header marker; it is not a compatibility or launch test.\n\n## ▶ Build and test
+
+### Requirements
+- Windows 10/11 x64
+- Visual Studio 2022 with Desktop development with C++
+- Windows SDK
+- CMake 3.24+
+- D3D12-capable graphics driver for native GPU validation (WARP fallback is available where supported)
+
+### Commands
+
+```powershell
+git clone https://github.com/valouddsite/Xboxx.git
+cd Xboxx
+
+cmake -S . -B build -A x64
+cmake --build build --config Release
+ctest --test-dir build -C Release --output-on-failure
+```
+
+Run the synthetic guest CPU test (this does not launch an Xbox game):
+
+```powershell
+.\build\Release\Xboxx.exe --guest-cpu-self-test
+```
+
+Run a restricted, import-free, non-relocated AMD64 PE32+ image in the guest sandbox (only the documented instruction subset can execute):
+
+```powershell
+.\\build\\Release\\Xboxx.exe --run-guest-pe C:\\path\\to\\synthetic.exe
+```
+
+Run the graphics validation suite:
+
+```powershell
+.\build\Release\Xboxx.exe --gpu-self-test
+```
+
+Show commands:
+
+```powershell
+.\build\Release\Xboxx.exe --help
+```
+
+Inspect a PE file without executing it:
+
+```powershell
+.\build\Release\Xboxx.exe inspect C:\path\to\application.exe
+.\build\Release\Xboxx.exe inspect --json C:\path\to\application.exe
+```
+
+Launch the native Windows triangle demo:
+
+```powershell
+.\build\Release\Xboxx.exe --render-demo
+```
+
+The demo is a host-side D3D12 test, not an Xbox game renderer.
+
+## ◎ Roadmap
+
+1. **Guest CPU correctness:** expand instruction decoding, stack, branches and exception tests.
+2. **Safe image loading:** add base relocations, import resolution and more PE validation.
+3. **Guest ABI:** define explicit import/syscall dispatch and clear unsupported-call reporting.
+4. **Graphics execution:** command-list heap binding, shared resource views and additional tested IR-to-D3D12 commands.
+5. **Xbox research:** study publicly documented container formats and runtime contracts; build homebrew-style synthetic fixtures before considering any title compatibility.
+
+A milestone is marked complete only when code and tests exist. Host-side success does not establish Xbox compatibility.
+
+
+
+## ✦ Xboxx desktop identity
+
+The native Windows dashboard uses an original neon wordmark and a midnight
+interface with fuchsia, violet, electric cyan and sunset-orange accents. The
+source viewer also includes a local session manager for listing, refreshing and
+deleting saved navigation sessions. Deleting a session requires confirmation
+and never deletes or edits its source file.
+
+The dashboard has a persistent neon navigation bar for **Accueil**, **Projet**,
+**Sources**, **Outils** and **Paramètres**. The action buttons are now scoped to
+Accueil/Outils, while Projet and Sources use a compact workspace layout. Opening
+a source recalculates the reader layout so the read-only editor and history panel
+fit the active section. Paramètres exposes persistent display-density, log-text-size
+and profile preferences, stored separately from project and source files.
+
+## ◇ Compatibility status
+
+| Capability | Status |
+|---|---|
+| Windows host diagnostics | Implemented |
+| Native D3D12 validation | Implemented / partial |
+| Synthetic guest x86-64 instructions | Early experimental subset |
+| Generic PE inspection | Implemented / partial |
+| Xbox executable loading | Unsupported |
+| Xbox kernel / XGameRuntime | Unsupported |
+| Xbox GPU command decoding | Unsupported |
+| RDNA2 shader translation | Unsupported |
+| Xbox audio and controller runtime | Unsupported |
+| Xbox game boot / execution | **Unsupported** |
+
+See [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md), [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/GUEST_RUNTIME.md](docs/GUEST_RUNTIME.md) for details.
+
+## ⚑ Project boundaries
+
+- Independent research project; not affiliated with or endorsed by Microsoft.
+- No proprietary Xbox SDK implementation or game assets are included.
+- No DRM, signature or licence circumvention.
+- Use legally obtained development materials and synthetic test fixtures.
+- Do not interpret the current prototype as a promise that a specific Xbox title will run.
+
+---
+
+<div align="center">
+
+**Xboxx — building the foundations, one verified subsystem at a time.**
+
+<sub>Neon nights. Clean code. Measured progress.</sub>
+
+</div>
+
+
+## Préférences d’affichage
+
+L’onglet **Paramètres** permet de basculer entre densité confortable et compacte, et de faire varier la taille du texte du journal entre 13 et 19 px. Ces réglages sont temporaires et s’appliquent à la session courante ; ils ne modifient ni les projets ni les fichiers sources.
+
+
+### Persistance des préférences d’affichage
+
+Les réglages de densité et de taille du texte sont restaurés au démarrage et sauvegardés lors de chaque changement, ainsi qu’à la fermeture. Le fichier de préférences est stocké séparément des projets et des sources dans `%LOCALAPPDATA%\\Xboxx\\preferences.ini`. L’écriture utilise un fichier temporaire puis un remplacement atomique ; les valeurs lues sont validées avant application.
+
+
+### Réinitialisation des préférences
+
+L’onglet Paramètres propose une réinitialisation avec confirmation des préférences d’affichage : densité confortable et texte du journal à 15 px. La nouvelle configuration est immédiatement sauvegardée dans le fichier de préférences local, sans modifier les projets ni les fichiers sources.
+
+
+### Profils d’affichage Xboxx
+
+Le bouton de profil dans Paramètres fait défiler trois préréglages : **Confortable** (densité confortable, texte 15 px), **Compact** (densité compacte, texte 13 px) et **Grand texte** (densité confortable, texte 19 px). Chaque sélection applique le profil et sauvegarde immédiatement les préférences locales. Les commandes individuelles de densité et de taille de texte restent disponibles ; le libellé du profil reflète le préréglage correspondant lorsqu’il est reconnu.
+
+
+### Aperçu visuel des profils
+
+Dans l’onglet Paramètres, trois cartes présentent un aperçu typographique des profils Compact (13 px), Confortable (15 px) et Grand texte (19 px). Le profil reconnu comme actif est encadré avec son accent néon. Cet aperçu est informatif : il ne change aucun réglage et n’applique pas de profil au clic ; le bouton de profil reste la commande de sélection.

@@ -1,0 +1,78 @@
+From 68aa5e353bd5afb6636104d15e5fa9245711bfd1 Mon Sep 17 00:00:00 2001
+From: lab <lab@local>
+Date: Mon, 23 Nov 2026 15:10:37 +0000
+Subject: [PATCH 1/2] d3d12x: implement D3D12ConfigureVirtualMemoryX (console
+ VM config)
+
+Base: 217ac85
+---
+ crates/xcl/src/hle/d3d12x/mod.rs | 42 +++++++++++++++++++++++++++++++-
+ 1 file changed, 41 insertions(+), 1 deletion(-)
+
+diff --git a/crates/xcl/src/hle/d3d12x/mod.rs b/crates/xcl/src/hle/d3d12x/mod.rs
+index 01cc48b..d686431 100644
+--- a/crates/xcl/src/hle/d3d12x/mod.rs
++++ b/crates/xcl/src/hle/d3d12x/mod.rs
+@@ -22,7 +22,7 @@ pub mod real;
+ use std::ffi::c_void;
+ use std::sync::OnceLock;
+ 
+-use crate::util::{HRESULT, S_OK};
++use crate::util::{HRESULT, E_INVALIDARG, S_OK};
+ 
+ pub fn exports() -> Vec<(&'static str, usize)> {
+     crate::hle_exports![
+@@ -37,6 +37,7 @@ pub fn exports() -> Vec<(&'static str, usize)> {
+         D3D12GetInterface,
+         D3D10CreateBlob,
+         D3D12XboxSetProcessDebugFlags,
++        D3D12ConfigureVirtualMemoryX,
+     ]
+ }
+ 
+@@ -210,3 +211,42 @@ pub unsafe extern "system" fn D3D10CreateBlob(size: usize, out: *mut *mut c_void
+ pub unsafe extern "system" fn D3D12XboxSetProcessDebugFlags(_flags: u32) -> HRESULT {
+     S_OK
+ }
++
++/// Console GPU virtual-memory configuration, called during title startup. The console returns an
++/// NT success code (0x10000000), not S_OK; both output fields are zeroed on success.
++#[repr(C)]
++pub struct VirtualMemoryConfiguration {
++    pub flags: u32,
++    pub page_table_pages: u32,
++    pub frame_buffer_preserve_bytes: u32,
++    pub reserved: u32,
++    pub output0: u64,
++    pub output1: u64,
++}
++
++pub unsafe extern "system" fn D3D12ConfigureVirtualMemoryX(desc: *mut VirtualMemoryConfiguration) -> HRESULT {
++    if desc.is_null() {
++        return E_INVALIDARG;
++    }
++    let d = &mut *desc;
++    if d.flags & !1 != 0 {
++        crate::xlog_warn!("D3D12ConfigureVirtualMemoryX: unsupported flags {:#x}", d.flags);
++        return E_INVALIDARG;
++    }
++    if d.page_table_pages > 33 {
++        crate::xlog_warn!(
++            "D3D12ConfigureVirtualMemoryX: {} page-table pages exceeds the 33-page (132 MB) limit",
++            d.page_table_pages
++        );
++        return E_INVALIDARG;
++    }
++    d.output0 = 0;
++    d.output1 = 0;
++    crate::xlog_info!(
++        "D3D12ConfigureVirtualMemoryX: flags={} page_table_pages={} frame_buffer_preserve={:#x} -> 0x10000000",
++        d.flags,
++        d.page_table_pages,
++        d.frame_buffer_preserve_bytes
++    );
++    0x1000_0000
++}
+-- 
+2.55.0.windows.5
+

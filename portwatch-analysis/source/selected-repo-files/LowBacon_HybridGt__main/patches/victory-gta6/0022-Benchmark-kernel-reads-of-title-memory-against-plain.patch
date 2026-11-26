@@ -1,0 +1,50 @@
+From 151f32dcca6e4e9fe5ed7d67f980219369920dca Mon Sep 17 00:00:00 2001
+From: LowBacon <lenni.a.jokitalo@gmail.com>
+Date: Wed, 25 Nov 2026 12:06:30 +0200
+Subject: [PATCH 22/25] Benchmark: kernel reads of title memory against plain
+ copies (ignored test read_cost) (HybridGt)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crates/victory-gpu/src/host.rs | 28 ++++++++++++++++++++++++++++
+ 1 file changed, 28 insertions(+)
+
+diff --git a/crates/victory-gpu/src/host.rs b/crates/victory-gpu/src/host.rs
+index 3a699a0..6b7aba4 100644
+--- a/crates/victory-gpu/src/host.rs
++++ b/crates/victory-gpu/src/host.rs
+@@ -7503,3 +7503,31 @@ mod batch {   // Batch::texture_due lives here; `mod tests` is already taken at
+         assert_eq!(ram_idle_ms(None), 10_000);
+     }
+ }
++
++#[cfg(all(test, windows))]
++mod read_cost_tests {
++    /// HybridGt: what reading title memory through the kernel costs against a
++    /// plain copy, for one frame's refreshes (155 MB in 64 KiB reads, run
++    /// next12). Ignored by default:
++    /// `cargo test -p victory-gpu --release -- --ignored read_cost --nocapture`
++    #[test]
++    #[ignore]
++    fn read_cost() {
++        const TOTAL: usize = 155 << 20;
++        let src = vec![7u8; TOTAL];
++        let mut dst = vec![0u8; TOTAL];
++        for piece in [4 << 10, 64 << 10, 1 << 20] {
++            let t = std::time::Instant::now();
++            for at in (0..TOTAL).step_by(piece) {
++                assert!(super::read(src[at..].as_ptr(), dst[at..].as_mut_ptr(), piece));
++            }
++            let kernel = t.elapsed();
++            let t = std::time::Instant::now();
++            for at in (0..TOTAL).step_by(piece) {
++                dst[at..at + piece].copy_from_slice(&src[at..at + piece]);
++            }
++            let plain = t.elapsed();
++            eprintln!("155 MB in {} KiB pieces: kernel read {kernel:?}, plain copy {plain:?}", piece >> 10);
++        }
++    }
++}
+-- 
+2.56.1.windows.1
+

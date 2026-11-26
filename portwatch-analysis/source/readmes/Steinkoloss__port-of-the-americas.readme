@@ -1,0 +1,120 @@
+# Port of the Americas
+
+An Xbox Series X|S compatibility layer that runs **GTA VI**'s Xbox Series executable
+(`game_scarlett_master.exe`) on Linux under Proton. The game's own x86-64 code runs natively. We replace the
+console-only system DLLs (`xmem`, `xgameruntime`, `d3d12_xs`, `xg_xs`, `XCRDAPI`, `GameInput`, ...) with our own
+and translate D3D12.X to PC D3D12 on top of vkd3d-proton. This is a compatibility layer, not a recompile and
+not an emulator.
+
+**No game files are included.** You need your own copy of the game package.
+
+## Status
+
+Tested on one machine: AMD Radeon RX 9070 XT, Mesa 26.3 (RADV), CachyOS, Proton-CachyOS 11.0.
+
+| Milestone | Status | Evidence |
+|---|---|---|
+| Exe runs | ✅ | The unmodified exe runs natively, all imports resolve to our DLLs, and the boot state machine runs through to `boot_flow` ([`scarlett-compat/docs/abi_matrix.md`](scarlett-compat/docs/abi_matrix.md) 8.6–8.16) |
+| First frame | ✅ | Full-colour 4K Rockstar stinger on the real presented backbuffer (`int_run59`, `abi_matrix.md` 8.21) |
+| Main menu | ✅ | The press-start screen renders, pixel-matching the reference (`int_run83`, 8.23), and A on it starts the boot flow. The first-time setup pages advance on A and the legal page renders completely (`int_run144`, 8.27) |
+| Loading screen | ✅ | Loading-screen artwork renders from detiled game textures (`int_run147`, 8.28) |
+| In-game | ❌ | The world load runs (no crash, presents to #2340 at 153 s in `int_runxc6`, 8.29) but the world draws black. This is what we're working on now |
+| 30 FPS / Stable | ❌ | Not measured in-world yet |
+
+Latest check, 2026-11-24 (`int_runpoa2`: commit `c3d941f`, patched vkd3d-proton, controller A at 19 s, 70 s
+run, no crash): press-start screen at ~5–8 s, then the loading screens from ~10 s on. Captured from the real
+presented backbuffer:
+
+| Press-start screen | Loading screen | Loading screen |
+|---|---|---|
+| ![press-start](docs/media/press-start.png) | ![loading 1](docs/media/loading-screen-1.png) | ![loading 2](docs/media/loading-screen-2.png) |
+
+The same run on stock vkd3d-proton (`int_runpoa1`) stays black and stops on an unhandled title assert.
+Use the patched build (`VKD3D_DIR=build-vkd3d/x64`) together with `SCARLETT_INT3_SKIP=1`.
+
+### Groundwork
+
+| Part | State |
+|---|---|
+| Loader & system libraries | Native execution under Wine with our replacement DLLs: `xmem` (title memory arena, tiled pages), `xgameruntime` (XUser, XStore, XGameSave, ...), `XCRDAPI` (DirectStorage with zlib + BCPack decode), `GameInput` (controllers), `AcpHal`/`chad` (audio) |
+| Graphics layer | `d3d12_xs`: D3D12.X → PC D3D12 on (patched) vkd3d-proton. Console command-list and device slots, placement and tiled resources, GFX10 texture detiling, RECTLIST expansion, ExecuteIndirect, mesh shaders, console descriptor heaps mirrored onto vkd3d's |
+| Shader translation | 5,797 of the game's precompiled RDNA2 shaders translated so far and loaded through `VKD3D_SHADER_OVERRIDE`, with per-shader root-signature → user-SGPR maps read from each blob's XDAT metadata (`tools/make_shader_override.py`, `tools/xdat_rootmap.py`). The RDNA2 → SPIR-V step itself uses Leonida, which isn't included (see below) |
+| Other games | Not tested on another title |
+
+> **Leonida's shaders are not in this repo, and you need them to run the game.**
+> The game's shaders are translated to SPIR-V by Leonida (`tools/translate_new_shaders.sh`). Neither Leonida
+> nor any translated shaders are included. Without them, everything builds and the game boots, but it won't
+> render correctly. Our translation pipeline also uses a few local changes to Leonida (a `--vkd3d-heap` output mode
+> for `rdna2spirv.py`), which aren't published here.
+
+## Layout
+
+| Path | What it is |
+|---|---|
+| `scarlett-compat/` | The compat layer: replacement DLLs (`d3d12_xs`, `xmem`, `xgameruntime`, ...), launcher, tools, tests. See its [README](scarlett-compat/README.md). |
+| `GTA6-Indev-0.1.5.22.14/port/` | Pinned Wine + vkd3d-proton + DXVK harness. See its [README](GTA6-Indev-0.1.5.22.14/port/README.md). |
+| `GTA6-Indev-0.1.5.22.14/` | Put the game package here. Everything in it except `port/` and `CLAUDE.md` is gitignored. |
+| `third_party/vkd3d-proton` | Submodule, pinned to the base our patch applies to. |
+
+## Requirements
+
+- Linux with an AMD GPU on RADV/Mesa 26.x (we use `VK_EXT_descriptor_heap`; other drivers are untested)
+- `mingw-w64` toolchain, CMake, Ninja, Meson (for vkd3d-proton), `wine` headers (`/usr/include/wine`)
+- Proton-CachyOS 11.0, release 20261015
+- Python 3
+
+## Setup
+
+```bash
+git clone --recurse-submodules <this repo> port-of-the-americas
+cd port-of-the-americas
+```
+
+1. **Patch vkd3d-proton:**
+   ```bash
+   git -C third_party/vkd3d-proton apply ../../scarlett-compat/patches/vkd3d-proton.patch
+   cd third_party/vkd3d-proton
+   meson setup --cross-file=build-win64.txt -Dbuildtype=release -Dstrip=true -Dbindir=x64 -Dlibdir=x64 \
+     --prefix="$PWD/../../scarlett-compat/build-vkd3d" ../../scarlett-compat/build-vkd3d/build.x64
+   ninja -C ../../scarlett-compat/build-vkd3d/build.x64 install
+   cd ../..
+   ```
+   After that, the run scripts rebuild it whenever it's out of date (`VKD3D_DIR=build-vkd3d/x64`).
+2. **Game files:** copy your game package into `GTA6-Indev-0.1.5.22.14/`, so that
+   `GTA6-Indev-0.1.5.22.14/game_scarlett_master.exe` exists.
+3. **Runtime:** extract Proton-CachyOS 11.0-20261015 and put the contents of its `files/` directory at
+   `GTA6-Indev-0.1.5.22.14/port/runtime/proton-cachyos-11.0-20261015/` (so `bin/wine` lives directly in that
+   directory). `setup_prefix.sh` checks it against the committed `.SHA256SUMS` and refuses to run on a mismatch.
+4. **Prefix:**
+   ```bash
+   GTA6-Indev-0.1.5.22.14/port/setup_prefix.sh
+   GTA6-Indev-0.1.5.22.14/port/verify.sh
+   ```
+5. **Build the compat layer:**
+   ```bash
+   cd scarlett-compat
+   cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-x86_64-toolchain.cmake
+   cmake --build build
+   ```
+
+## Running
+
+The trace scripts rebuild what's stale, stage the DLLs into `scarlett-compat/build/stage`, and launch the game
+with logs. They expect the prefix's `g:` drive to point at that stage directory:
+
+```bash
+ln -sfn "$PWD/build/stage" "$WINEPREFIX/dosdevices/g:"
+VKD3D_DIR=build-vkd3d/x64 SCARLETT_INT3_SKIP=1 tools/trace.sh 1   # what the status runs use
+tools/trace.sh 1                                                  # stock vkd3d-proton: stays black
+```
+
+`tools/stage.sh` takes stock vkd3d-proton from the Arch `proton-cachyos-native` package path by default. On
+other distros, set `PROTON_WINE_LIB` to your Proton's `files/lib/wine` directory.
+
+Game runs use a lot of RAM and GTT. `tools/capped` and `tools/watchdog.sh` limit them and kill the game before
+the machine runs out of memory. Don't bypass them.
+
+## License
+
+`scarlett-compat/` is AGPL-3.0 (see `scarlett-compat/LICENSE` and `NOTICE` for vendored zlib).
+vkd3d-proton keeps its own license.

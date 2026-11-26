@@ -1,0 +1,70 @@
+# PORT SOLANA
+
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/shion8120/makefun-gta6/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/shion8120/makefun-gta6/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+
+An original top-down open-world crime game for the make.fun bounty [Make GTA 6 (gta6-01)](https://make.fun/bounty/gta6-01).
+Rico comes home to the sun-soaked city of Port Solana after five years away. Big Sal has work for him,
+Victor Kane is buying up the Sunset Strip, and the Solana PD is watching.
+
+Everything is drawn and synthesized in code: canvas 2D graphics, WebAudio sound effects and three
+procedural radio stations. There are no external assets, no libraries and no network requests.
+
+![cover](screenshots/1-cover.png)
+
+## Features
+
+- **City**: five districts (Downtown Solana, Saltgrass Docks, Old Town, Palmetto Heights, the Sunset Strip) plus Sunset Beach, a harbour with piers, palms, streetlights, and fake-3D buildings with rooftop pools.
+- **On foot and driving**: walk, sprint, steal parked cars or jack drivers. Eight vehicle models with arcade drift physics, handbrake, skid marks, damage, fire and explosions.
+- **Traffic and pedestrians**: lane-following traffic that turns at intersections, brakes, honks and swerves. Pedestrians walk the sidewalks, chat in speech bubbles and flee from gunfire, explosions and your horn.
+- **Wanted level (1–5 stars)**: crimes raise heat. Police cruisers dispatch, chase across the road grid, ram and box you in, and officers get out and shoot. Stay out of sight to cool down, or use the Sun Spray shop. BUSTED and WASTED screens send you to the police station or hospital, with a fee.
+- **Story**: six missions from Big Sal: delivery, car theft, checkpoint race, a hit, a robbery and an armored-truck chase. Each has an intro, map marker, on-screen objective, timer where needed, cash reward and an ending card.
+- **Activities**: repeatable side jobs, taxi shifts with tips, 12 hidden briefcases, and the Iron Palm gun shop (pistol, SMG, shotgun, armor).
+- **HUD**: money, stars, weapon and ammo, health and armor, clock, objective panel, round minimap with police and mission blips, off-screen objective arrows, and a full city map (M).
+- **Menus and saves**: start screen, pause menu, save to localStorage at Rico's Place or from the pause menu, and Continue.
+- **Atmosphere**: day/night cycle with golden-hour grading, streetlights, headlights, neon on the Strip, and flashing police lights.
+
+## Controls
+
+| Action | Keys |
+| --- | --- |
+| Walk / drive | WASD or arrows |
+| Aim / attack | Mouse, then Click, F or Space |
+| Enter or exit a car | E |
+| Sprint / handbrake | Shift / Space |
+| Weapons | Q, 1–4, mouse wheel |
+| Horn / radio / taxi | H / R / T |
+| Map / pause | M / P or Esc |
+
+## Run
+
+```sh
+node serve.ts                          # play at http://localhost:8080
+MAKEFUN_OUTPUT_DIR=out node main.ts    # hand-in: copies game/ and screenshots/, writes out/dossier.json
+node tools/capture-screenshots.ts      # re-capture screenshots/ with headless Chrome (scenes: ?shot=cover|title|mission|beach)
+```
+
+## Source layout (`game/src`)
+
+| File | Job |
+| --- | --- |
+| `city.js` | map data, districts, landmarks and the road/lane network |
+| `cars.js` | vehicle models, physics, collisions and traffic AI |
+| `peds.js` | pedestrians, chat bubbles, panic, gangs |
+| `police.js` | wanted level, crimes, dispatch, pursuit and busting |
+| `combat.js` | weapons, damage, explosions and pickups |
+| `effects.js` | particles, decals and tracers |
+| `missions.js` | Big Sal's story, side jobs and taxi shifts |
+| `render.js` | world drawing, lighting, HUD, minimap and menus |
+| `audio.js` | WebAudio sound effects, engine, siren and radio |
+| `save.js` | localStorage save and load |
+| `input.js` | keyboard and mouse |
+| `shots.js` | reproducible screenshot scenes |
+| `main.js` | game state, player, camera, spawning and main loop |
+
+All names, characters, places, vehicles and art are original. MIT licensed (see `LICENSE`).
+
+---
+
+<sub>Entered on [make.fun](https://make.fun/?ref=7et7vcozmzcwf&utm_source=github&utm_medium=readme&utm_campaign=gta6-01) · AI agents build software for cash rewards</sub>

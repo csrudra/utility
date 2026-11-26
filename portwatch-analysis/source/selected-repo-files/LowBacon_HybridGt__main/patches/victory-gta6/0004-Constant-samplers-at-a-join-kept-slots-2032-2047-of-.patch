@@ -1,0 +1,384 @@
+From e53a84d786876d8f66b8a673a8c3a5a35969af68 Mon Sep 17 00:00:00 2001
+From: LowBacon <lenni.a.jokitalo@gmail.com>
+Date: Wed, 25 Nov 2026 00:31:52 +0200
+Subject: [PATCH 04/25] Constant samplers at a join: kept slots 2032-2047 of
+ every host sampler heap, written from the translation (cache carries them)
+ (HybridGt)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+(cherry picked from commit f273780a9ae451c71d142e08a958d9754262a846)
+---
+ crates/victory-gpu/src/descriptor/host.rs     | 76 ++++++++++++++++++-
+ crates/victory-gpu/src/shader_cache.rs        | 20 ++++-
+ crates/victory-shader/src/emit/host.rs        |  1 +
+ .../src/emit/intersect_tests.rs               |  1 +
+ crates/victory-shader/src/emit/lower.rs       | 26 +++++++
+ crates/victory-shader/src/emit/mod.rs         |  9 +++
+ crates/victory-shader/src/emit/rect.rs        |  1 +
+ crates/victory-shader/src/emit/valu_tests.rs  |  1 +
+ .../src/emit/waterfall_tests.rs               |  1 +
+ .../victory-shader/src/emit/wave64_tests.rs   |  1 +
+ 10 files changed, 133 insertions(+), 4 deletions(-)
+
+diff --git a/crates/victory-gpu/src/descriptor/host.rs b/crates/victory-gpu/src/descriptor/host.rs
+index 21cc194..1717c0b 100644
+--- a/crates/victory-gpu/src/descriptor/host.rs
++++ b/crates/victory-gpu/src/descriptor/host.rs
+@@ -888,9 +888,13 @@ impl HostHeap {
+         } else {
+             victory_shader::emit::view_heap_limit()
+         };
++        // HybridGt: a sampler heap is made whole (2,048 slots) when the title's fits below the
++        // slots kept for samplers shaders build as constants (`CONST_SAMPLER_BASE`).
++        let kept_end = sampler && count <= victory_shader::emit::CONST_SAMPLER_BASE;
++        let wanted = if kept_end { 2048 } else { count + extra };
+         let (heap, count, size) = if null == 0 {
+-            match make(count + extra) {
+-                Ok(heap) => (heap, count, count + extra),
++            match make(wanted) {
++                Ok(heap) => (heap, count, wanted),
+                 Err(e) => {
+                     tracing::warn!(error = %e, count, sampler, "no host descriptor heap");
+                     return None;
+@@ -922,6 +926,9 @@ impl HostHeap {
+             )
+         };
+         tracing::debug!(count, sampler, "host descriptor heap");
++        if kept_end {
++            const_samplers_heap(cpu, step);
++        }
+         // SAFETY: a live shader-visible heap.
+         let gpu = unsafe { heap.GetGPUDescriptorHandleForHeapStart().ptr };
+         GPU_RANGES.lock().unwrap_or_else(|e| e.into_inner()).push((
+@@ -3574,3 +3581,68 @@ mod own_copy_tests {
+         assert_eq!(own_bytes_if(false, 8, base, 2, 4, 32, 32, true), None);
+     }
+ }
++
++/// HybridGt: samplers shaders build as constants (`HostShader::heap_samplers`),
++/// by slot, and the sampler heaps (CPU start, slot size) that hold the kept
++/// slots: every such heap gets every such sampler.
++#[cfg(windows)]
++static CONST_SAMPLERS: Mutex<(Vec<(u32, [u32; 4])>, Vec<(usize, u32)>)> = Mutex::new((Vec::new(), Vec::new()));
++
++#[cfg(windows)]
++fn write_const_sampler(cpu: usize, step: u32, slot: u32, w: [u32; 4]) {
++    let Some(host) = host() else { return };
++    let s = victory_shader::emit::StaticSampler::from_words(w);
++    let border = match s.border {
++        1 => [0.0, 0.0, 0.0, 1.0],
++        2 => [1.0, 1.0, 1.0, 1.0],
++        _ => [0.0; 4],
++    };
++    let desc = D3D12_SAMPLER_DESC {
++        Filter: D3D12_FILTER(s.filter as i32),
++        AddressU: D3D12_TEXTURE_ADDRESS_MODE(s.address[0] as i32),
++        AddressV: D3D12_TEXTURE_ADDRESS_MODE(s.address[1] as i32),
++        AddressW: D3D12_TEXTURE_ADDRESS_MODE(s.address[2] as i32),
++        MipLODBias: s.mip_lod_bias,
++        MaxAnisotropy: s.max_anisotropy.max(1),
++        ComparisonFunc: D3D12_COMPARISON_FUNC(s.comparison.max(1) as i32),
++        BorderColor: border,
++        MinLOD: s.min_lod,
++        MaxLOD: s.max_lod,
++    };
++    let at = D3D12_CPU_DESCRIPTOR_HANDLE { ptr: cpu + slot as usize * step as usize };
++    // SAFETY: a slot inside one of our 2,048-slot sampler heaps.
++    unsafe { host.device.CreateSampler(&desc, at) };
++}
++
++/// A sampler heap with the kept slots was made: it gets the samplers known so far.
++#[cfg(windows)]
++fn const_samplers_heap(cpu: usize, step: u32) {
++    let mut c = CONST_SAMPLERS.lock().unwrap_or_else(|e| e.into_inner());
++    for &(slot, w) in &c.0 {
++        write_const_sampler(cpu, step, slot, w);
++    }
++    c.1.push((cpu, step));
++}
++
++/// A translated shader's constant samplers (`HostShader::heap_samplers`):
++/// new ones are written into every sampler heap's kept slots. Two different
++/// samplers for one slot are logged (the later is not written).
++#[cfg(windows)]
++pub(crate) fn heap_samplers(list: &[(u32, [u32; 4])]) {
++    if list.is_empty() {
++        return;
++    }
++    let mut c = CONST_SAMPLERS.lock().unwrap_or_else(|e| e.into_inner());
++    for &(slot, w) in list {
++        match c.0.iter().find(|e| e.0 == slot) {
++            Some(e) if e.1 == w => {}
++            Some(e) => tracing::warn!(slot, have = ?e.1, wanted = ?w, "two constant samplers for one kept sampler slot: the first stays"),
++            None => {
++                for &(cpu, step) in &c.1 {
++                    write_const_sampler(cpu, step, slot, w);
++                }
++                c.0.push((slot, w));
++            }
++        }
++    }
++}
+diff --git a/crates/victory-gpu/src/shader_cache.rs b/crates/victory-gpu/src/shader_cache.rs
+index c5365c4..a9c36ee 100644
+--- a/crates/victory-gpu/src/shader_cache.rs
++++ b/crates/victory-gpu/src/shader_cache.rs
+@@ -95,10 +95,13 @@ pub fn warm(container: &[u8]) -> Result<bool, String> {
+ /// there is one.
+ pub(crate) fn host_shader(container: &[u8]) -> Result<HostShader, String> {
+     let translate = |c: &[u8]| victory_shader::emit::translate(c).map_err(|e| e.to_string());
+-    match CACHE.get() {
++    let shader = match CACHE.get() {
+         Some(cache) => cached(cache, &build(), container, translate),
+         None => translate(container),
+-    }
++    }?;
++    #[cfg(windows)]
++    crate::descriptor::host::heap_samplers(&shader.heap_samplers);
++    Ok(shader)
+ }
+ 
+ /// The cache entry's converter: the build and the container in, the
+@@ -246,6 +249,12 @@ fn encode(s: &HostShader) -> Vec<u8> {
+             word(&mut out, value);
+         }
+     }
++    word(&mut out, s.heap_samplers.len() as u32);
++    for (slot, w) in &s.heap_samplers {
++        for v in [*slot, w[0], w[1], w[2], w[3]] {
++            word(&mut out, v);
++        }
++    }
+     out
+ }
+ 
+@@ -314,6 +323,11 @@ fn decode(bytes: &[u8]) -> Option<HostShader> {
+             shift: u8::try_from(r.word()?).ok().filter(|&s| s < 32)?,
+         });
+     }
++    let n = r.word()? as usize;
++    let mut heap_samplers = Vec::with_capacity(n.min(16));
++    for _ in 0..n {
++        heap_samplers.push((r.word()?, [r.word()?, r.word()?, r.word()?, r.word()?]));
++    }
+     r.0.is_empty().then_some(HostShader {
+         stage,
+         dxil,
+@@ -324,6 +338,7 @@ fn decode(bytes: &[u8]) -> Option<HostShader> {
+         root_srvs,
+         root_uavs,
+         root_indexed_views,
++        heap_samplers,
+     })
+ }
+ 
+@@ -351,6 +366,7 @@ mod tests {
+             root_cbvs: vec![2],
+             root_srvs: vec![0, 3],
+             root_uavs: vec![1],
++            heap_samplers: vec![(2035, [146, 0xc0_0000, 0x1850_0000, 0])],
+             root_indexed_views: vec![RootIndexedView {
+                 table_slot: 1,
+                 constant_slot: 2,
+diff --git a/crates/victory-shader/src/emit/host.rs b/crates/victory-shader/src/emit/host.rs
+index 8f5407a..cc035db 100644
+--- a/crates/victory-shader/src/emit/host.rs
++++ b/crates/victory-shader/src/emit/host.rs
+@@ -600,6 +600,7 @@ fn stub(pixel: bool, outputs: Vec<SigElement>) -> HostShader {
+         root_srvs: Vec::new(),
+         root_uavs: Vec::new(),
+         root_indexed_views: Vec::new(),
++        heap_samplers: Vec::new(),
+     }
+ }
+ 
+diff --git a/crates/victory-shader/src/emit/intersect_tests.rs b/crates/victory-shader/src/emit/intersect_tests.rs
+index 0266579..9ba54c5 100644
+--- a/crates/victory-shader/src/emit/intersect_tests.rs
++++ b/crates/victory-shader/src/emit/intersect_tests.rs
+@@ -188,6 +188,7 @@ fn build(
+         root_srvs: lowered.root_srvs,
+         root_uavs: lowered.root_uavs,
+         root_indexed_views: res.root_indexed_views.clone(),
++        heap_samplers: Vec::new(),
+     };
+     if let Ok(mut v) = validator::Validator::load(validator::Validator::default_path().as_deref()) {
+         let mut copy = shader.dxil.clone();
+diff --git a/crates/victory-shader/src/emit/lower.rs b/crates/victory-shader/src/emit/lower.rs
+index 1fc5b73..03a9c57 100644
+--- a/crates/victory-shader/src/emit/lower.rs
++++ b/crates/victory-shader/src/emit/lower.rs
+@@ -57,6 +57,9 @@ pub(crate) struct Lowered {
+     pub root_uavs: Vec<u8>,
+     pub user_data: Vec<UserData>,
+     pub samplers: Vec<[u32; 4]>,
++    /// HybridGt: samplers the code builds as constants, by their slot in the
++    /// host sampler heap's reserved end (`CONST_SAMPLER_BASE`).
++    pub heap_samplers: Vec<(u32, [u32; 4])>,
+     /// The wave size the shader requires of the host, if any.
+     pub wave_size: Option<u32>,
+     /// Heap handles made with a non-uniform index.
+@@ -67,6 +70,12 @@ pub(crate) struct Lowered {
+     pub wave_ops: bool,
+ }
+ 
++/// HybridGt: the first of the sampler heap slots kept for samplers shaders
++/// build as constants (the last `CONST_SAMPLERS` of a 2,048-slot heap).
++pub const CONST_SAMPLER_BASE: u32 = 2032;
++/// How many such slots.
++pub const CONST_SAMPLERS: u32 = 16;
++
+ pub(crate) struct Parts<'a> {
+     pub native: &'a NativeProgram,
+     pub p: &'a Program,
+@@ -202,6 +211,8 @@ struct Lower<'a> {
+     user_data: Option<V>,
+     user_reads: BTreeMap<u32, UserData>,
+     samplers: Vec<[u32; 4]>,
++    /// HybridGt: see `Lowered::heap_samplers`.
++    heap_samplers: Vec<(u32, [u32; 4])>,
+     descriptors: HashMap<(Site, bool), &'a Source>,
+     scalar: HashMap<Site, Address>,
+     exports: HashMap<Site, &'a Export>,
+@@ -1503,6 +1514,7 @@ impl<'a> Lower<'a> {
+             user_data: None,
+             user_reads: BTreeMap::new(),
+             samplers: Vec::new(),
++            heap_samplers: Vec::new(),
+             descriptors: x
+                 .res
+                 .descriptors
+@@ -2292,6 +2304,7 @@ impl<'a> Lower<'a> {
+             dxil: self.s.finish(),
+             user_data,
+             samplers: self.samplers,
++            heap_samplers: self.heap_samplers,
+         })
+     }
+ 
+@@ -6396,6 +6409,19 @@ impl<'a> Lower<'a> {
+                 // HybridGt: a descriptor the code builds whose fourth dword is 0 (no channels,
+                 // no format): every read through it gives 0, which is what the host heap's
+                 // null slot gives (the console's way of binding nothing on some paths).
++                // HybridGt: a sampler the code builds as a constant: one of the slots kept
++                // at the end of every host sampler heap, the runtime writes it there.
++                Source::Constant(w) if sampler && w.len() == 4 => {
++                    let words = [w[0], w[1], w[2], w[3]];
++                    let k = words.iter().fold(0x811c_9dc5u32, |h, &x| (h ^ x).wrapping_mul(0x0100_0193)) % CONST_SAMPLERS;
++                    let slot = CONST_SAMPLER_BASE + k;
++                    match self.heap_samplers.iter().find(|s| s.0 == slot) {
++                        Some(s) if s.1 != words => return Err("two constant samplers in one reserved slot"),
++                        Some(_) => {}
++                        None => self.heap_samplers.push((slot, words)),
++                    }
++                    self.s.m.i32(slot)
++                }
+                 Source::Constant(w) if !sampler && w[3] == 0 && super::shader::view_heap_limit() != 0 => {
+                     self.s.m.i32(super::shader::view_heap_limit())
+                 }
+diff --git a/crates/victory-shader/src/emit/mod.rs b/crates/victory-shader/src/emit/mod.rs
+index 1dff7dc..cf15fa8 100644
+--- a/crates/victory-shader/src/emit/mod.rs
++++ b/crates/victory-shader/src/emit/mod.rs
+@@ -111,6 +111,7 @@ use crate::{ShaderError, io, ir, resource, structure};
+ pub use bitcode::census;
+ pub use sampler::StaticSampler;
+ pub use lower::set_host_max_wave;
++pub use lower::{CONST_SAMPLERS, CONST_SAMPLER_BASE};
+ pub use rect::rect_list_gs;
+ pub use shader::{
+     MEMORY_FAULTS, MEMORY_PAGES, ROOT_CBV_SPACE, SAMPLER_SPACE, SLOT_FAULTS, SLOT_MEMORY, SLOT_STRIDES,
+@@ -266,6 +267,10 @@ pub struct HostShader {
+     pub root_uavs: Vec<u8>,
+     /// Heap descriptors that can be selected from root state at bind time.
+     pub root_indexed_views: Vec<crate::resource::RootIndexedView>,
++    /// HybridGt: samplers the code builds as constants, with the slot of
++    /// the host sampler heap each must be in (`CONST_SAMPLER_BASE` up): the
++    /// runtime writes them into every sampler heap.
++    pub heap_samplers: Vec<(u32, [u32; 4])>,
+ }
+ 
+ impl HostShader {
+@@ -716,6 +721,7 @@ fn emit_program(
+         root_srvs: l.root_srvs,
+         root_uavs: l.root_uavs,
+         root_indexed_views: res.root_indexed_views.clone(),
++        heap_samplers: l.heap_samplers.clone(),
+     };
+     Ok((shader, wave_size))
+ }
+@@ -1091,6 +1097,7 @@ mod tests {
+             root_srvs: Vec::new(),
+             root_uavs: Vec::new(),
+             root_indexed_views: Vec::new(),
++            heap_samplers: Vec::new(),
+         };
+         let file = |var: &str, stage| {
+             std::env::var(var).ok().map(|p| super::HostShader {
+@@ -1103,6 +1110,7 @@ mod tests {
+                 root_srvs: Vec::new(),
+                 root_uavs: Vec::new(),
+                 root_indexed_views: Vec::new(),
++                heap_samplers: Vec::new(),
+             })
+         };
+         let ps = file("VICTORY_REF_PS", crate::HwStage::Ps).unwrap_or(ps);
+@@ -1392,6 +1400,7 @@ mod tests {
+                 root_srvs: l.root_srvs,
+                 root_uavs: l.root_uavs,
+                 root_indexed_views: Vec::new(),
++                heap_samplers: Vec::new(),
+             };
+             let (root, pso) = host.compute_pipeline(&cs).unwrap();
+             let inputs: Vec<u32> = [
+diff --git a/crates/victory-shader/src/emit/rect.rs b/crates/victory-shader/src/emit/rect.rs
+index 9ec80fd..cbebd2d 100644
+--- a/crates/victory-shader/src/emit/rect.rs
++++ b/crates/victory-shader/src/emit/rect.rs
+@@ -415,6 +415,7 @@ mod tests {
+             root_srvs: Vec::new(),
+             root_uavs: Vec::new(),
+             root_indexed_views: Vec::new(),
++            heap_samplers: Vec::new(),
+         };
+         (
+             host(crate::native::HwStage::Vs, vs),
+diff --git a/crates/victory-shader/src/emit/valu_tests.rs b/crates/victory-shader/src/emit/valu_tests.rs
+index f5c2014..c8c96e9 100644
+--- a/crates/victory-shader/src/emit/valu_tests.rs
++++ b/crates/victory-shader/src/emit/valu_tests.rs
+@@ -181,6 +181,7 @@ fn build_cs(body: &[u32], threads: u32, lds_bytes: u32) -> HostShader {
+         root_srvs: lowered.root_srvs,
+         root_uavs: lowered.root_uavs,
+         root_indexed_views: res.root_indexed_views,
++        heap_samplers: Vec::new(),
+     };
+ 
+     if let Ok(mut v) = validator::Validator::load(validator::Validator::default_path().as_deref()) {
+diff --git a/crates/victory-shader/src/emit/waterfall_tests.rs b/crates/victory-shader/src/emit/waterfall_tests.rs
+index 18425e0..099b046 100644
+--- a/crates/victory-shader/src/emit/waterfall_tests.rs
++++ b/crates/victory-shader/src/emit/waterfall_tests.rs
+@@ -84,6 +84,7 @@ fn build(words: &[u32], buffers: bool) -> HostShader {
+         root_srvs: lowered.root_srvs,
+         root_uavs: lowered.root_uavs,
+         root_indexed_views: Vec::new(),
++        heap_samplers: Vec::new(),
+     };
+     if let Ok(mut v) = validator::Validator::load(validator::Validator::default_path().as_deref()) {
+         v.validate(&mut shader.dxil.clone())
+diff --git a/crates/victory-shader/src/emit/wave64_tests.rs b/crates/victory-shader/src/emit/wave64_tests.rs
+index 55cc55d..2018c0c 100644
+--- a/crates/victory-shader/src/emit/wave64_tests.rs
++++ b/crates/victory-shader/src/emit/wave64_tests.rs
+@@ -132,6 +132,7 @@ fn lowered_on(
+         root_srvs: lowered.root_srvs,
+         root_uavs: lowered.root_uavs,
+         root_indexed_views: res.root_indexed_views,
++        heap_samplers: Vec::new(),
+     })
+ }
+ 
+-- 
+2.56.1.windows.1
+

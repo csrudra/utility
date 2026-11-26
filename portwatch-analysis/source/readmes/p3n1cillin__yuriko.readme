@@ -1,0 +1,279 @@
+<p align="center">
+  <a href="https://github.com/p3n1cillin/yuriko/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/p3n1cillin/yuriko/ci.yml?branch=main&style=for-the-badge&label=CI"></a>
+  <a href="LICENSE"><img alt="License: GPL-3.0-or-later" src="https://img.shields.io/badge/license-GPL--3.0--or--later-7c5cff?style=for-the-badge"></a>
+  <img alt="Windows 10 / 11 x64" src="https://img.shields.io/badge/Windows-10%20%2F%2011%20x64-2f80ed?style=for-the-badge">
+  <img alt="Direct3D 12, Shader Model 6.6, mesh shaders" src="https://img.shields.io/badge/D3D12-SM%206.6%20%2B%20mesh-1fb9d8?style=for-the-badge">
+  <img alt="Tuned for NVIDIA" src="https://img.shields.io/badge/tuned%20for-NVIDIA%20(32--lane%20waves)-76b900?style=for-the-badge">
+  <img alt="Rust" src="https://img.shields.io/badge/Rust-pinned%20toolchain-1fb9d8?style=for-the-badge">
+</p>
+
+<p align="center">
+  <b><a href="#status">Status</a></b> ·
+  <b><a href="#highlights">Highlights</a></b> ·
+  <b><a href="#how-it-works">How it works</a></b> ·
+  <b><a href="#quick-start">Quick start</a></b> ·
+  <b><a href="#what-works">What works</a></b> ·
+  <b><a href="#where-a-frame-goes">Where a frame goes</a></b> ·
+  <b><a href="#diagnostics">Diagnostics</a></b> ·
+  <b><a href="#roadmap">Roadmap</a></b> ·
+  <b><a href="#help-wanted">Help wanted</a></b> ·
+  <b><a href="#credits">Credits</a></b>
+</p>
+
+# Yuriko
+
+**Yuriko** runs an Xbox Series title natively on Windows, from a copy of the game you supply. There
+is no CPU emulation: the title's own x86-64 code runs on the PC, its console system libraries are
+reimplemented, and its RDNA2 GPU programs are translated to DXIL for Direct3D 12 when the title
+creates them. Yuriko is a fork of [VIctory](https://github.com/Marvisak/VIctory) that brings
+together the best work of every project on the same title (see [Credits](#credits)), tuned for
+**NVIDIA** cards (32-lane waves, the 1,000,000-view descriptor heap cap), and measured run by run.
+
+> [!IMPORTANT]
+> **This repository contains no game files, code or assets, and never will.** You need your own
+> copy of the game. Yuriko does not download, decrypt or unpack game packages and contains nothing
+> for circumventing DRM. It is not affiliated with or endorsed by the game's developer or publisher.
+> The title is not named anywhere in this repository on purpose.
+
+## Status
+
+<p align="center"><img src="assets/progress.svg" width="100%" alt="Progress map: every area of the port and how far along it is"></p>
+
+**Not playable yet: about 7 frames a second in the first 3D scene, native renderer, no upscaling.**
+Measured on one machine (Windows 11, NVIDIA RTX 5070 12 GB, Ryzen 5 7600X, 32 GB RAM), in
+14-minute unattended runs. The live page, regenerated from the measurements at every publish, is
+**[docs/STATUS.md](docs/STATUS.md)**: the latest run's frame breakdown, where the card's time goes,
+every area with its evidence, and the history of every world run with the switches it set.
+
+| | |
+|---|---|
+| Boot, first-run setup, menus | ✅ 30 fps |
+| Intro video, loading screens | ✅ smooth, 30 fps |
+| Shader translation | ✅ 25,735 of the shader pack's 25,985 containers translate offline (250 refused, down from 291); in the first scene every vertex, pixel and mesh program, all but 3 compute programs |
+| The 3D world | ✅ drawn and lit: the opening cutscene, the first room, characters, the yard; gameplay starts and control is handed over |
+| Frame rate (world) | 🚧 **~7 fps** (142.6-148.8 ms a frame); 5.5 fps before 2026-11-25's switch set; 7.8 fps with `--console series-s` (720p + upscale, opt-in) |
+| Indirect light | 🚧 a constant stand-in; the title's ray-traced light needs the structure builder |
+| Ray-traced light | 🚧 the structure builder runs without corrupting memory (`VICTORY_BVH_BUILDER=1`), but needs more than 32 GB in the current memory model: off |
+| Stability | ✅ 14-minute world runs without a crash or device removal |
+| Audio | ✅ menus, video, cutscenes |
+| Beyond the prologue | ❌ not reached yet |
+
+**The goal:** the whole game, playable, at **30 frames a second from the native renderer**.
+Upscaling and frame generation are welcome as extras on top, never as the way to get there.
+
+## Highlights
+
+<table>
+  <tr>
+    <td width="33%" valign="top"><b>No CPU emulation.</b> The title's x86-64 code runs as it is; each call into a console library lands in Yuriko's own implementation of it (loader, kernel, memory, files, DirectStorage with zlib and BCPack, audio, input).</td>
+    <td width="33%" valign="top"><b>RDNA2 → DXIL, directly.</b> GPU programs are decoded from the console's machine code and written as DXIL bitcode, with no HLSL step; console 64-lane waves run as two 32-lane waves on NVIDIA where a program needs its whole wave (<a href="docs/wave64-on-wave32.md">how</a>).</td>
+    <td width="33%" valign="top"><b>Pre-built pipelines.</b> <code>victory translate --cache --pipelines</code> translates the shader pack and makes ~27,100 host pipelines ahead of time, so the world never stalls on a compile.</td>
+  </tr>
+  <tr>
+    <td valign="top"><b>Shared memory without shared memory.</b> On the console the CPU and GPU share memory; here every write one side makes and the other reads is noticed and moved (write watch, guards, copies on the card, hashes, copy-back on its own thread). Most of the frame-rate work is making that cheaper.</td>
+    <td valign="top"><b>Measured, not guessed.</b> Every change is a 14-minute unattended world run with a report: frame time and its parts, captured frames, every shader by name, memory over time, and with <code>-Diag</code> a sampling profiler, GPU time per pipeline and frame shots (<a href="#diagnostics">Diagnostics</a>).</td>
+    <td valign="top"><b>The best of every project.</b> VIctory, fxceless/victory-fork, VIcky, ka1qux, DexNom, Belobug, flamingo, r4tedx and others, merged and credited; a scan of every project on the same title (and the <a href="https://portwatch-vi.xyz">PortWatch</a> board) runs before any new work.</td>
+  </tr>
+</table>
+
+## How it works
+
+```mermaid
+flowchart LR
+  subgraph game["your copy of the game (outside the repository)"]
+    exe["title executable<br/>(x86-64)"]
+    pack["shader pack,<br/>archives, video"]
+  end
+  exe --> loader["victory-loader<br/>map, relocate, bind imports"]
+  loader --> code["title code runs natively"]
+  code -- "console APIs" --> hle["victory-hle<br/>kernel, memory, files,<br/>DirectStorage, audio, input"]
+  code -- "D3D12.X command lists" --> gpu["victory-gpu<br/>D3D12.X → D3D12, title memory,<br/>descriptors, copies, copy-back"]
+  gpu -- "pipelines" --> shader["victory-shader<br/>RDNA2 → DXIL"]
+  pack --> shader
+  shader <--> cache[("shader + pipeline<br/>cache")]
+  gpu --> d3d["Direct3D 12<br/>on the PC's card"]
+```
+
+The title's code runs on the CPU as it is. Each call into a console library lands in Yuriko's
+implementation of it. Each GPU program is translated once, when the title creates a pipeline from
+its bytes, and cached under a key of the translator's own identity, so a rebuild that does not
+touch the translator keeps the cache. The details: [docs/architecture.md](docs/architecture.md),
+the memory model and its plan: [docs/yuriko-memory-plan.md](docs/yuriko-memory-plan.md), ray
+tracing: [docs/fork-ray-tracing.md](docs/fork-ray-tracing.md), where a world frame's time goes:
+[docs/frame-time.md](docs/frame-time.md).
+
+## Quick start
+
+1. **Build** (Windows 10/11 x64, Rust; the pinned toolchain installs itself through `rustup`):
+
+   ```powershell
+   cargo build --release -p victory                                # target\release\victory.exe (play)
+   cargo build --profile diag -p victory --features diagnostics    # target\diag\victory.exe (logs, captures, instruments)
+   ```
+
+2. **Prepare** (once per translator change, 20-30 minutes, nothing else running): translate the
+   title's shaders and pre-build its pipelines.
+
+   ```powershell
+   $env:VICTORY_CACHE_DIR = "D:\yuriko-data\cache"   # any folder outside the repository
+   $env:VICTORY_DATA_DIR  = "D:\yuriko-data\data"
+   target\release\victory.exe translate --cache --pipelines --jobs 6 "<your game folder>"
+   ```
+
+3. **Run:**
+
+   ```powershell
+   target\release\victory.exe run "<your game folder>\<the title's executable>" --execute
+   ```
+
+Yuriko sets its measured speed switches itself (`YURIKO_DEFAULTS=0` turns them all off). The
+first boot shows the title's setup pages; a gamepad is recommended. The game folder is never
+modified.
+
+## What works
+
+✅ done and verified · 🚧 partly · ❌ not yet. Evidence for every line: [docs/STATUS.md](docs/STATUS.md#areas).
+
+<details>
+<summary><b>Running the title's code</b>: loader, kernel, memory, files, DirectStorage</summary>
+
+| Part | State | What it does |
+|---|---|---|
+| PE loader | ✅ | maps the executable and its DLLs, relocations, imports by name and ordinal, TLS, exception tables; 0 missing imports |
+| Kernel | ✅ | threads on the PC's cores, synchronisation, TLS, time, events; no hangs in 14-minute runs |
+| Title memory | ✅ | the console's virtual and physical memory APIs, private arenas, GPU-visible ranges |
+| Files | ✅ | console paths to the game folder; writes go to the data folder, never the game's |
+| DirectStorage | ✅ | file and memory sources, zlib, BCPack (BC1, BC3-BC7); 4 GB of DirectStorage writes per run land where the title mapped them |
+| Saves, settings | ✅ | persistent local storage in `VICTORY_DATA_DIR` |
+| Input | 🚧 | keyboard and gamepad; controls not yet checked through a whole session |
+| Online services | ➖ | offline by design |
+
+</details>
+
+<details>
+<summary><b>Graphics</b>: command lists, descriptors, resources, presentation</summary>
+
+| Part | State | What it does |
+|---|---|---|
+| D3D12.X command lists | ✅ | draws, mesh draws, dispatches, indirect (with windows of clamped records), copies, barriers, queries |
+| Descriptors | ✅ | the title's descriptor records, including those it copies as bytes, mirrored into host heaps; NVIDIA's 1,000,000-view cap handled by a heap map (VIcky) |
+| Textures | ✅ | GFX10 tiling and mips detiled; refreshed when the title writes them; levels on demand |
+| Title buffers | ✅ | copies on the card, refreshed by what the title wrote (write watch, guards) and compared after shaders write; copy-back on its own thread and copy queue |
+| Presentation | ✅ | 30 fps pacing in menus; Series S second plane and upscale stretch (`--console series-s`) |
+| Ray tracing | 🚧 | acceleration-structure builder runs and draws (ka1qux's fixes), memory-bound in the copy model: off by default |
+
+</details>
+
+<details>
+<summary><b>Shaders</b>: RDNA2 → DXIL</summary>
+
+| Part | State | What it does |
+|---|---|---|
+| Vertex, pixel, mesh | ✅ | every program the first scene uses translates |
+| Compute | 🚧 | all but 3 in the first scene (a descriptor's address read as data; two wave64 groups over 64 threads with shared memory) |
+| Wave64 on 32-lane hosts | ✅ | whole-wave programs run as two host waves, cross-half exchanges where needed ([docs/wave64-on-wave32.md](docs/wave64-on-wave32.md)) |
+| DXIL clean-up | ✅ | dead code, constants, value reuse, branch facts, load forwarding, loop-invariant motion, barrier elimination (`VICTORY_SHADER_OPT`) |
+| Cache | ✅ | translations keyed by the translator's source identity and every switch that changes a translation |
+
+</details>
+
+<details>
+<summary><b>Audio, video</b></summary>
+
+| Part | State | What it does |
+|---|---|---|
+| Audio | ✅ | the title's mixer output; menus, video and cutscenes play |
+| XMA | 🚧 | decoded; some keep-up issues under load |
+| Video | ✅ | the intro and in-engine movies play smoothly |
+
+</details>
+
+## Where a frame goes
+
+A world frame on the RTX 5070 (latest numbers in [docs/STATUS.md](docs/STATUS.md); the full account
+and the levers in progress in [docs/frame-time.md](docs/frame-time.md)):
+
+<p align="center"><img src="assets/perf-history.svg" width="100%" alt="World frame time of every plain run, with the 30 fps native target"></p>
+
+| part | ms | what it is | the lever |
+|---|---|---|---|
+| preparing (CPU) | ~52 | turning the title's lists into host lists: copies of title memory (~37), texture refreshes (~12), descriptors | fewer bytes moved (landings not echoed, draws' tables left to the draws), more threads |
+| waiting for the card | ~76 | the submitting thread waiting for submissions to finish (mostly 2 settles a frame for title buffer copies that read memory the card may still write, ~78 ms; the card is busy meanwhile, so this is mostly the GPU being the wall) | copies done when their submission lands (`VICTORY_LATE_COPY`), fills that wait only for the bytes they read |
+| the card's own work | busy ~85 % of the frame | the title's lists (~82 ms of card time) (single passes up to 8.7 ms: soft shadow masks, light-probe allocation) plus our hash and compare passes | cheaper translated programs, fewer passes of ours, read-back on demand |
+| copy-back | ~35 | bringing back what shaders wrote, overlapped on its own thread | in-place title memory (memory plan stages 3-4) |
+
+The frame time is about the larger of preparing and GPU plus what cannot overlap; 30 fps needs
+both under ~33 ms. Every project on the same title measures the same four costs: **noticing** the
+title's writes, **noticing** the shaders' writes, **moving** them, and **waiting** for order.
+
+## Diagnostics
+
+Every run of the diagnostics build writes a frame log; `tools/run_victory.ps1` runs the title
+unattended and reports. `-Diag` turns every instrument on:
+
+```powershell
+tools\run_victory.ps1 -Exe target\diag\victory.exe -Seconds 840 -Tag mytest          # a plain, timed run
+tools\run_victory.ps1 -Exe target\diag\victory.exe -Seconds 840 -Tag mytest -Diag    # every instrument (slower)
+```
+
+| file in the run folder | what it holds |
+|---|---|
+| `summary.txt` | read first: world reached, ms/frame and its parts, draws, drops, refused programs |
+| `report.png`, `report.html` | one page of charts and frames; every shader by name, render-target gallery, op lists, warnings |
+| `diagnostics.md` | the frame log's newest word on everything (settles, relay, copies, textures, descriptors, write watch), the slowest windows, and with `-Diag`: **GPU time by pipeline and by list**, the **profiler**, **frame shots**, checks, device-removed data, driver events |
+| `profile.txt`, `profile.folded` | `-Diag`: where every thread spends its time; the `.folded` file feeds a flame graph |
+| `shot/shot-*` | `-Diag`: one frame taken apart: every command with its GPU timestamp, and the picture each pass left |
+| `frames/`, `mem.csv`, `problems.json` | captured frames, memory over time, everything flagged |
+
+Every switch the runtime reads, with what it does and whether it is on by default:
+**[docs/switches.md](docs/switches.md)** (generated from the source). How to read all of it:
+**[docs/diagnostics.md](docs/diagnostics.md)**.
+
+## Roadmap
+
+1. **Frame rate, native** (now ~7 fps → 30): move fewer bytes (landings not echoed, draws' tables
+   left to the draws, `VICTORY_THIN`-style recording on many threads), cut the top GPU passes, then
+   in-place title memory (memory plan stage 3).
+2. **Ray-traced light**: the builder works; it needs the in-place memory model to fit in 32 GB.
+3. **The 3 refused compute programs** (multi-wave groups with shared memory on 32-lane hosts).
+4. **Playability**: controls through a whole session, stability over an hour, missions past the
+   prologue.
+5. **Extras on top of native 30 fps**: DLSS / FSR upscaling and frame generation (branch work, off
+   by default).
+
+## Help wanted
+
+- **Test on your card** and file a [test report](../../issues/new?template=test_report.md): AMD
+  cards (64-lane waves), other NVIDIA generations, more RAM. Attach `summary.txt` and
+  `diagnostics.md` from a `-Diag` run; never attach anything from the game.
+- **Take a GPU pass apart**: `diagnostics.md` names the pipelines that take the card longest.
+- **Port what works elsewhere**: the [PortWatch board](https://portwatch-vi.xyz) lists every effort
+  on the same title; `tools/upstream_scan.py` shows what changed since the last look.
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) first. One change per pull request, measured with a world
+run before and after, and no game data of any kind in the repository.
+
+## Asset policy
+
+Nothing from the game is ever stored here: no assets, no executable code or data, nothing derived
+from them (shader dumps, captures, extracted tables). See [docs/asset-policy.md](docs/asset-policy.md);
+`cargo xtask policy` checks it and runs as a pre-commit hook (`cargo xtask install-hooks`) and in CI.
+
+## Credits
+
+Yuriko is built on the work of many people; [CREDITS.md](CREDITS.md) names them and what came from
+each. In short: [VIctory](https://github.com/Marvisak/VIctory) (Marvisak and contributors) is the
+base; [fxceless/victory-fork](https://github.com/fxceless/victory-fork) drew the world first, and
+most of the world rendering and frame-rate work comes from it; the NVIDIA heap map from
+[VIcky](https://github.com/Xeltax/VIcky); wave64 on 32-lane hosts from r4tedx and others;
+ray-tracing fixes and translator work from [ka1qux](https://github.com/ka1qux/BRVIctory-ka1qux) and
+DexNom; the indirect-light stand-in from [Belobug](https://github.com/Belobug/VIctory-Belobug-AMD);
+Series S presentation from victory-fork PR #188 and [flamingo](https://github.com/realblastex/flamingo);
+measurements and findings from [avatarmanz](https://github.com/avatarmanz/VIctory-7900XTX).
+[XCL](https://github.com/xcl-dev/xcl) is a separate project with the same aim; its notes and one
+ported file are credited in CREDITS.md.
+
+## Licence
+
+GPL-3.0-or-later, as VIctory ([LICENSE](LICENSE)). [CREDITS.md](CREDITS.md) lists the parts that
+come from elsewhere and their licences.

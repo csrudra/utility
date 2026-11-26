@@ -1,0 +1,287 @@
+From 8822fb72a1575a862834ae492684fcaf550c7307 Mon Sep 17 00:00:00 2001
+From: LowBacon <lenni.a.jokitalo@gmail.com>
+Date: Wed, 25 Nov 2026 11:29:55 +0200
+Subject: [PATCH 19/25] Page-mapping copies: one taking of the mapper's locks
+ per CopyPageMappingsBatchX call, no-op aliases skipped; remap timers split
+ system calls from GPU-side notifications (HybridGt)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crates/victory-gpu/src/host.rs           | 10 ++--
+ crates/victory-gpu/src/lib.rs            |  2 +-
+ crates/victory-gpu/src/queue.rs          | 22 ++++---
+ crates/victory-gpu/src/resource.rs       | 16 +++++
+ crates/victory-gpu/src/watch.rs          |  9 ++-
+ crates/victory-hle/src/modules/d3d12x.rs |  1 +
+ crates/victory-hle/src/modules/xmem.rs   | 74 +++++++++++++++++++-----
+ 7 files changed, 107 insertions(+), 27 deletions(-)
+
+diff --git a/crates/victory-gpu/src/host.rs b/crates/victory-gpu/src/host.rs
+index 62df3c4..017dfa8 100644
+--- a/crates/victory-gpu/src/host.rs
++++ b/crates/victory-gpu/src/host.rs
+@@ -6417,13 +6417,15 @@ impl Meter {
+                      hold still (the runtime remapping it); the rest is reading, hashing and detiling"
+                 );
+             }
+-            let [taken, wait, held, pages, unchanged] =
+-                [0, 1, 2, 3, 4].map(|i| crate::watch::REMAPS[i].swap(0, Ordering::Relaxed) as f64 / frames);
++            let [taken, wait, held, pages, unchanged, system, told] =
++                [0, 1, 2, 3, 4, 5, 6].map(|i| crate::watch::REMAPS[i].swap(0, Ordering::Relaxed) as f64 / frames);
+             if taken > 0.0 {
+                 tracing::info!(
+-                    "title memory remapping per frame: the lock taken {taken:.1} times, {:.1} ms waiting for it, {:.1} ms held,                      {pages:.0} pages mapped or unmapped, {unchanged:.1} calls found them as asked already",
++                    "title memory remapping per frame: the lock taken {taken:.1} times, {:.1} ms waiting for it, {:.1} ms held,                      {pages:.0} pages mapped or unmapped, {unchanged:.1} calls found them as asked already; of the held time                      {:.1} ms in system calls, {:.1} ms telling the GPU side",
+                     wait / 1000.0,
+-                    held / 1000.0
++                    held / 1000.0,
++                    system / 1000.0,
++                    told / 1000.0
+                 );
+             }
+             let [through, left] = [0, 1].map(|i| crate::texture::UNLOCKED[i].swap(0, Ordering::Relaxed) as f64 / frames);
+diff --git a/crates/victory-gpu/src/lib.rs b/crates/victory-gpu/src/lib.rs
+index d2efb8f..2a1a345 100644
+--- a/crates/victory-gpu/src/lib.rs
++++ b/crates/victory-gpu/src/lib.rs
+@@ -64,6 +64,6 @@ pub use host::on_failure;
+ pub use inplace::{title_memory_freeing, title_memory_section, title_memory_view};
+ #[cfg(windows)]
+ pub use watch::{
+-    title_memory_reading, title_memory_remap_pages, title_memory_remapped, title_memory_remapping, title_memory_written,
++    title_memory_reading, title_memory_remap_pages, title_memory_remap_time, title_memory_remapped, title_memory_remapping, title_memory_written,
+     writing as kernel_will_write,
+ };
+diff --git a/crates/victory-gpu/src/queue.rs b/crates/victory-gpu/src/queue.rs
+index 11d3a8c..dbd9beb 100644
+--- a/crates/victory-gpu/src/queue.rs
++++ b/crates/victory-gpu/src/queue.rs
+@@ -918,7 +918,11 @@ extern "system" fn copy_page_mappings(
+         // SAFETY: the title passes `count` batches.
+         unsafe { std::slice::from_raw_parts(batches, count as usize) }
+     });
++    // HybridGt: the mappings of the whole call are gathered first and made
++    // under one taking of the mapper's locks (`page_mapper_batch`), in the
++    // same order; one a page took the locks thousands of times a frame.
+     let mut ok = true;
++    let mut ops: Vec<(u64, u64, u64)> = Vec::new();
+     for b in batches.into_iter().flatten() {
+         if b.ranges.is_null() {
+             continue;
+@@ -930,16 +934,20 @@ extern "system" fn copy_page_mappings(
+             let len = u64::from(r.count) * PAGE;
+             let inside = |pages: u32| r.start.checked_add(pages).is_some_and(|e| e <= pool_pages);
+             let source = pool + u64::from(r.start) * PAGE;
+-            ok &= match r.kind {
+-                0 if inside(r.count) => map(at, source, len),
+-                1 if inside(1) => (0..u64::from(r.count)).all(|k| map(at + k * PAGE, source, PAGE)),
+-                2 => map(at, 0, len),
+-                3 => true,
+-                _ => false,
+-            };
++            match r.kind {
++                0 if inside(r.count) => ops.push((at, source, len)),
++                1 if inside(1) => ops.extend((0..u64::from(r.count)).map(|k| (at + k * PAGE, source, PAGE))),
++                2 => ops.push((at, 0, len)),
++                3 => {}
++                _ => ok = false,
++            }
+             at += len;
+         }
+     }
++    ok &= match crate::resource::page_mapper_batch() {
++        Some(batch) => batch(&ops),
++        None => ops.iter().fold(true, |ok, &(to, from, len)| map(to, from, len) && ok),
++    };
+     if !ok {
+         static ONCE: std::sync::Once = std::sync::Once::new();
+         ONCE.call_once(|| tracing::warn!(pool = format_args!("{pool:#x}"), "a page mapping failed"));
+diff --git a/crates/victory-gpu/src/resource.rs b/crates/victory-gpu/src/resource.rs
+index 244a76c..59b7dd0 100644
+--- a/crates/victory-gpu/src/resource.rs
++++ b/crates/victory-gpu/src/resource.rs
+@@ -945,6 +945,22 @@ pub(crate) fn page_mapper() -> Option<PageMapper> {
+     PAGE_MAPPER.get().copied()
+ }
+ 
++/// HybridGt: the runtime's page mapper for a whole page-mapping call, each
++/// `(to, from, len)` as [`PageMapper`] takes them, under one taking of its
++/// locks.
++pub type PageMapperBatch = fn(&[(u64, u64, u64)]) -> bool;
++
++static PAGE_MAPPER_BATCH: std::sync::OnceLock<PageMapperBatch> = std::sync::OnceLock::new();
++
++/// HybridGt: see [`PageMapperBatch`].
++pub fn use_page_mapper_batch(mapper: PageMapperBatch) {
++    let _ = PAGE_MAPPER_BATCH.set(mapper);
++}
++
++pub(crate) fn page_mapper_batch() -> Option<PageMapperBatch> {
++    PAGE_MAPPER_BATCH.get().copied()
++}
++
+ /// Allocation attributes for resource memory: allocator id, page size
+ /// (bits 14-15: 2 MiB pages from 2 MiB up, else 64 KiB), alignment as log2
+ /// (bits 24-28) and memory type (bits 29-32: write-combined for GPU-only
+diff --git a/crates/victory-gpu/src/watch.rs b/crates/victory-gpu/src/watch.rs
+index 89d49ed..7b59bb3 100644
+--- a/crates/victory-gpu/src/watch.rs
++++ b/crates/victory-gpu/src/watch.rs
+@@ -911,7 +911,14 @@ impl Drop for Remapping {
+ /// the runtime asked to map or unmap under it ([`title_memory_remap_pages`]),
+ /// then the calls that found their pages mapped as asked already and changed
+ /// nothing.
+-pub static REMAPS: [AtomicU64; 5] = [const { AtomicU64::new(0) }; 5];
++pub static REMAPS: [AtomicU64; 7] = [const { AtomicU64::new(0) }; 7];
++
++/// HybridGt: microseconds the runtime's mapping work spent in system calls
++/// (`system`) and in telling the GPU side what changed (`told`).
++pub fn title_memory_remap_time(system: u64, told: u64) {
++    REMAPS[5].fetch_add(system, Ordering::Relaxed);
++    REMAPS[6].fetch_add(told, Ordering::Relaxed);
++}
+ 
+ /// HybridGt: the runtime's mapping calls count their pages here, and the
+ /// calls that found nothing to change (`unchanged`).
+diff --git a/crates/victory-hle/src/modules/d3d12x.rs b/crates/victory-hle/src/modules/d3d12x.rs
+index abda4a6..ff2f7b3 100644
+--- a/crates/victory-hle/src/modules/d3d12x.rs
++++ b/crates/victory-hle/src/modules/d3d12x.rs
+@@ -19,6 +19,7 @@ extern "system" fn create_device(
+ ) -> HRESULT {
+     victory_gpu::resource::use_allocator(super::xmem::XMemAlloc, super::xmem::XMemFree);
+     victory_gpu::resource::use_page_mapper(super::xmem::map_alias);
++    victory_gpu::resource::use_page_mapper_batch(super::xmem::map_alias_batch);
+     #[cfg(windows)]
+     victory_gpu::on_failure(host_gpu_failed);
+     device::create(adapter, parameters, iid, out)
+diff --git a/crates/victory-hle/src/modules/xmem.rs b/crates/victory-hle/src/modules/xmem.rs
+index 13c8167..59828f5 100644
+--- a/crates/victory-hle/src/modules/xmem.rs
++++ b/crates/victory-hle/src/modules/xmem.rs
+@@ -784,29 +784,69 @@ pub extern "system" fn XMemMapPhysicalPagesScatter(
+ /// the title maps pages into a pool view, then has the GPU map them into its tiled
+ /// heap. Page by page; false if a source page is not mapped physical memory.
+ pub fn map_alias(to: u64, from: u64, len: u64) -> bool {
+-    let (to, from, len) = (to as usize, from as usize, len as usize);
+     let mut physical = physical();
+     // As in `XMemMapPhysicalPages`: no read in place meets the gap.
+     let _changing = victory_gpu::title_memory_remapping();
+-    unmap(&mut physical, to, len);
++    map_alias_locked(&mut physical, to as usize, from as usize, len as usize)
++}
++
++/// HybridGt: [`map_alias`] for every `(to, from, len)` of one page-mapping
++/// call, under the two locks taken once (the queue's page-mapping copies
++/// map a constant page over a range page by page: thousands of lock
++/// round trips a frame while the world streams). True if all mapped.
++pub fn map_alias_batch(ops: &[(u64, u64, u64)]) -> bool {
++    let mut physical = physical();
++    let _changing = victory_gpu::title_memory_remapping();
++    let mut ok = true;
++    for &(to, from, len) in ops {
++        ok &= map_alias_locked(&mut physical, to as usize, from as usize, len as usize);
++    }
++    ok
++}
++
++/// The slice of a section shown at `at`, if a view shows one there.
++fn slice_at(physical: &Physical, at: usize) -> Option<Slice> {
++    physical
++        .views
++        .range(..=at)
++        .next_back()
++        .filter(|(base, (size, _))| at < *base + size)
++        .map(|(base, (_, s))| Slice {
++            index: s.index + (at - base) / PAGE,
++            section: s.section.clone(),
++        })
++}
++
++/// The work of [`map_alias`] under its locks. HybridGt: a range that shows
++/// what `from` shows already, page for page, is left as it is (the same
++/// physical pages: nothing the title can see changes), and so is an unmap
++/// of a range nothing is mapped in.
++fn map_alias_locked(physical: &mut Physical, to: usize, from: usize, len: usize) -> bool {
++    let pages = len.div_ceil(PAGE);
++    let same = |a: &Slice, b: &Slice| Arc::ptr_eq(&a.section, &b.section) && a.index == b.index;
++    let unchanged = if from == 0 {
++        // Views do not overlap: the last one starting before the end is the
++        // only one that can reach into the range.
++        physical.views.range(..to + len).next_back().is_none_or(|(base, (size, _))| base + size <= to)
++    } else {
++        (0..pages).all(|k| match (slice_at(physical, from + k * PAGE), slice_at(physical, to + k * PAGE)) {
++            (Some(a), Some(b)) => same(&a, &b),
++            _ => false,
++        })
++    };
++    victory_gpu::title_memory_remap_pages(pages, unchanged);
++    if unchanged {
++        return true;
++    }
++    unmap(physical, to, len);
+     for k in (0..len).step_by(PAGE) {
+         if from == 0 {
+             break;
+         }
+-        let at = from + k;
+-        let Some(slice) = physical
+-            .views
+-            .range(..=at)
+-            .next_back()
+-            .filter(|(base, (size, _))| at < *base + size)
+-            .map(|(base, (_, s))| Slice {
+-                index: s.index + (at - base) / PAGE,
+-                section: s.section.clone(),
+-            })
+-        else {
++        let Some(slice) = slice_at(physical, from + k) else {
+             return false;
+         };
+-        if !map(&mut physical, to + k, PAGE, slice) {
++        if !map(physical, to + k, PAGE, slice) {
+             return false;
+         }
+     }
+@@ -819,6 +859,7 @@ fn map(physical: &mut Physical, base: usize, len: usize, slice: Slice) -> bool {
+     // SAFETY: splits the placeholder around the range (failing harmlessly
+     // when the range is the whole placeholder), then maps the section
+     // there; both act only on placeholders.
++    let started = std::time::Instant::now();
+     let view = unsafe {
+         VirtualFree(
+             base as *mut c_void,
+@@ -851,10 +892,12 @@ fn map(physical: &mut Physical, base: usize, len: usize, slice: Slice) -> bool {
+         unsafe { UnmapViewOfFile2(GetCurrentProcess(), view, MEM_PRESERVE_PLACEHOLDER) };
+         return false;
+     }
++    let system = started.elapsed();
+     // New contents, read-write: the GPU side's copies no longer guard it.
+     victory_gpu::title_memory_remapped(base, len);
+     // What the range shows now, for the GPU side's in-place census.
+     victory_gpu::title_memory_view(base, len, slice.section.0 as usize, (slice.index * PAGE) as u64);
++    victory_gpu::title_memory_remap_time(system.as_micros() as u64, (started.elapsed() - system).as_micros() as u64);
+     for k in 0..len.div_ceil(PAGE) {
+         physical.shown.entry(slice.key(k)).or_default().push(base + k * PAGE);
+     }
+@@ -945,7 +988,9 @@ fn unmap(physical: &mut Physical, base: usize, len: usize) {
+                 }
+             }
+         }
++        let told = std::time::Instant::now();
+         victory_gpu::title_memory_remapped(at, size);
++        let system = std::time::Instant::now();
+         // SAFETY: a view we mapped; it becomes a placeholder again.
+         unsafe {
+             UnmapViewOfFile2(
+@@ -956,6 +1001,7 @@ fn unmap(physical: &mut Physical, base: usize, len: usize) {
+                 MEM_PRESERVE_PLACEHOLDER,
+             )
+         };
++        victory_gpu::title_memory_remap_time(system.elapsed().as_micros() as u64, (system - told).as_micros() as u64);
+         if at < base {
+             map(physical, at, base - at, slice.clone());
+         }
+-- 
+2.56.1.windows.1
+

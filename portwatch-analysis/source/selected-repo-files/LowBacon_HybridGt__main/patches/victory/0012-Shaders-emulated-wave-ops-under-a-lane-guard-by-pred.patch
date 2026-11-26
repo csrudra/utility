@@ -1,0 +1,94 @@
+From 7e9d6d956fec68cb701db1c8aff3324d2430fe59 Mon Sep 17 00:00:00 2001
+From: LowBacon <lenni.a.jokitalo@gmail.com>
+Date: Tue, 24 Nov 2026 21:48:56 +0200
+Subject: [PATCH 12/14] Shaders: emulated wave ops under a lane guard by
+ predication (HybridGt)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crates/victory-shader/src/emit/lower.rs | 42 ++++++++++++++++---------
+ 1 file changed, 28 insertions(+), 14 deletions(-)
+
+diff --git a/crates/victory-shader/src/emit/lower.rs b/crates/victory-shader/src/emit/lower.rs
+index c8a6539..7655f32 100644
+--- a/crates/victory-shader/src/emit/lower.rs
++++ b/crates/victory-shader/src/emit/lower.rs
+@@ -976,15 +976,20 @@ impl<'a> Lower<'a> {
+     /// stands: in a block every thread runs once, outside lane guards.
+     // shortcut: an instruction under a lane guard is refused although only
+     // its result is guarded; allow it once guarded regions are told apart.
+-    fn exchange_site(&self) -> Result<(), Why> {
+-        let em = self.emulated.as_ref().expect("emulated");
+-        let guard = self
+-            .cur_i
+-            .is_some_and(|i| self.x.st.guards[self.cur_ir][i].is_some());
+-        if guard || self.guarded != 0 || !em.uniform[self.cur_ir] {
++    // HybridGt: an instruction under a lane guard in a block every thread
++    // runs is allowed: the exchange itself runs in every thread (so its
++    // barriers are legal) and the guard only masks what a lane contributes
++    // (predication; proven in HybridGt's gfxdiag `wave64_divergent` check).
++    // Returns that guard, `None` where every arriving lane takes part.
++    fn exchange_site(&mut self) -> Result<Option<V>, Why> {
++        let uniform = self.emulated.as_ref().expect("emulated").uniform[self.cur_ir];
++        if self.guarded != 0 || !uniform {
+             return Err(NOT_UNIFORM);
+         }
+-        Ok(())
++        match self.cur_i {
++            Some(i) => self.guard(self.cur_ir, i),
++            None => Ok(None),
++        }
+     }
+ 
+     /// The exchange memory, made on first use.
+@@ -1081,7 +1086,8 @@ impl<'a> Lower<'a> {
+     // shortcut: what the console reads from a lane that does not exist is
+     // not known; no program was seen to depend on it.
+     fn emulated_read_lane(&mut self, x: V, lane: V) -> Result<V, Why> {
+-        self.exchange_site()?;
++        // A lane read ignores which lanes are active, so a guard changes nothing.
++        let _ = self.exchange_site()?;
+         let at = self.cur;
+         self.publish(at, x)?;
+         let (k63, zero) = (self.s.m.i32(63), self.s.m.i32(0));
+@@ -1092,10 +1098,13 @@ impl<'a> Lower<'a> {
+     /// `x` of the first lane of this thread's console wave that runs the
+     /// instruction (of lane 0 when none does).
+     fn emulated_read_first(&mut self, x: V) -> Result<V, Why> {
+-        self.exchange_site()?;
++        let guard = self.exchange_site()?;
+         let at = self.cur;
+-        // Every lane arriving here runs the instruction (`exchange_site`).
+-        let on = self.s.m.bool(true);
++        // The lanes that run the instruction: those its guard lets through.
++        let on = match guard {
++            Some(g) => g,
++            None => self.s.m.bool(true),
++        };
+         let (lo, hi) = self.emulated_ballot(at, on)?;
+         let (zero, one) = (self.s.m.i32(0), self.s.m.i32(1));
+         let mut first = zero;
+@@ -1124,12 +1133,17 @@ impl<'a> Lower<'a> {
+         if prefix.is_some() && !matches!(op, Op::AddU | Op::AddF) {
+             return Err("a wave prefix of an operation other than a sum");
+         }
+-        self.exchange_site()?;
++        let guard = self.exchange_site()?;
+         let at = self.cur;
++        // Lanes the group lacks, lanes a prefix leaves out and lanes the
++        // guard turns off change nothing.
++        let none = self.s.m.i32(neutral(op));
++        let x = match guard {
++            Some(g) => self.s.m.select(at, g, x, none),
++            None => x,
++        };
+         self.publish(at, x)?;
+         let me = self.console_ids().1;
+-        // Lanes the group lacks and lanes a prefix leaves out change nothing.
+-        let none = self.s.m.i32(neutral(op));
+         let mut acc = none;
+         for k in 0..self.console_lanes_used() {
+             let lane = self.s.m.i32(k);
+-- 
+2.56.1.windows.1
+

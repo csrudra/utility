@@ -1,0 +1,80 @@
+From 8f8f873b2fd69e4c7aad8344359d97fc314752b7 Mon Sep 17 00:00:00 2001
+From: LowBacon <lenni.a.jokitalo@gmail.com>
+Date: Tue, 24 Nov 2026 21:59:52 +0200
+Subject: [PATCH 14/14] Shaders: mesh programs emulation cannot follow fall
+ back to host waves, counted (HybridGt)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ apps/victory/src/translate.rs         |  4 ++++
+ crates/victory-shader/src/emit/mod.rs | 25 +++++++++++++++++++++++--
+ 2 files changed, 27 insertions(+), 2 deletions(-)
+
+diff --git a/apps/victory/src/translate.rs b/apps/victory/src/translate.rs
+index 3007a9c..8d74056 100644
+--- a/apps/victory/src/translate.rs
++++ b/apps/victory/src/translate.rs
+@@ -270,6 +270,10 @@ pub fn run(
+         "             {} emitted of {} mesh programs; {} validated, {} pipelines",
+         t.ms_emitted, t.ms_programs, t.ms_validated, t.ms_pipelines
+     );
++    println!(
++        "             {} mesh programs fell back to host waves (wave64 emulation could not follow their control flow)",
++        victory_shader::emit::MESH_NATIVE_FALLBACKS.load(std::sync::atomic::Ordering::Relaxed)
++    );
+     if !pairs.is_empty() {
+         let host = Host::new(false).map_err(anyhow::Error::msg)?;
+         let kept = lock(&kept);
+diff --git a/crates/victory-shader/src/emit/mod.rs b/crates/victory-shader/src/emit/mod.rs
+index 36ef778..4873942 100644
+--- a/crates/victory-shader/src/emit/mod.rs
++++ b/crates/victory-shader/src/emit/mod.rs
+@@ -233,6 +233,10 @@ pub fn wave64_emulation() -> bool {
+     *ON.get_or_init(|| std::env::var_os("VICTORY_WAVE64_EMULATE").is_some_and(|v| v != "0"))
+ }
+ 
++/// HybridGt: mesh programs translated with host waves because wave64
++/// emulation could not follow their control flow (see `translate`).
++pub static MESH_NATIVE_FALLBACKS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
++
+ /// Translates the vertex, pixel, compute or mesh program of a console
+ /// shader container.
+ pub fn translate(container: &[u8]) -> Result<HostShader, ShaderError> {
+@@ -326,7 +330,7 @@ pub fn emit(
+         }
+         _ => 0,
+     };
+-    let l = lower::lower(&lower::Parts {
++    let mut parts = lower::Parts {
+         native,
+         p,
+         st,
+@@ -337,7 +341,24 @@ pub fn emit(
+         prims,
+         mesh_stride,
+         emulate_wave64: wave64_emulation(),
+-    })?;
++    };
++    let l = match lower::lower(&parts) {
++        // HybridGt: a mesh program whose cross-lane code sits in control flow
++        // the emulation cannot follow yet keeps the host's own waves (what it
++        // got before mesh emulation): its draws run, with the console's
++        // wave64 semantics only where a 64-lane host has them. Counted, so
++        // the fallback is never silent.
++        Err(ShaderError::Unsupported { what, .. })
++            if parts.emulate_wave64
++                && native.stage == HwStage::Ms
++                && what == "an emulated wave operation outside uniform control flow" =>
++        {
++            MESH_NATIVE_FALLBACKS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
++            parts.emulate_wave64 = false;
++            lower::lower(&parts)?
++        }
++        r => r?,
++    };
+     Ok(HostShader {
+         stage: native.stage,
+         dxil: l.dxil,
+-- 
+2.56.1.windows.1
+

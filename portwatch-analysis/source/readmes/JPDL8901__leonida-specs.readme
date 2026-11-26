@@ -1,0 +1,119 @@
+<p align="center">
+  <strong><a href="https://t.me/projectleonidal">Telegram — Leonida Legacy</a></strong>
+</p>
+
+<h1 align="center">
+  <br>
+  <a href="https://github.com/ProjectLeonidaL/leonida">
+    <img src="assets/logo.png" alt="Leonida Legacy" width="200">
+  </a>
+  <br>
+  <b>Leonida Legacy</b>
+  <br>
+  <sub>Run readiness checker</sub>
+  <br>
+</h1>
+
+<h4 align="center">Can this PC realistically run Leonida (GTA VI Xbox→PC) when the port is playable? CPU, RAM, Vulkan — no build tools.</h4>
+
+<p align="center"><i>Companion to <a href="https://github.com/ProjectLeonidaL/leonida">Leonida Legacy</a> — community continuation of Project Leonida, static recompilation of GTA VI (Xbox Series) for Windows.</i></p>
+
+<p align="center">
+  <a href="#status">Status</a> |
+  <a href="#quick-start">Quick start</a> |
+  <a href="#what-it-checks">What it checks</a> |
+  <a href="#build-exe">Build the .exe</a> |
+  <a href="#vs-check-pc">vs Check-PC</a>
+</p>
+
+This folder is a **small standalone check** for **playing later**, not for building the port. It does not download anything and does not read game files.
+
+> [!IMPORTANT]
+> The game **does not boot yet** for end users. Results are a **hardware estimate only**. For disk space, Python, LLVM, .NET and your game package, use **`Check-PC.bat`** in the [main port repository](https://github.com/ProjectLeonidaL/leonida).
+
+## Status
+
+| What | Meaning |
+|---|---|
+| **Green** `[OK]` | Looks fine for the run estimate |
+| **Yellow** `[!!]` | Works, but slow or tight (e.g. few CPU threads) |
+| **Red** `[XX]` | Likely too weak or unsupported |
+| Deep GPU / translator flags | Optional: Python 3.12+ and `run_check.py` (`-Full`) |
+
+## Quick start
+
+**The easy way:**
+
+1. Open this folder in the Leonida clone (or copy the whole `leonida-checker` folder).
+2. Double-click **`Check-Run.bat`** — colored report in CMD (ASCII **LEONIDA LEGACY** banner, green / yellow / red).
+3. UI languages: `Check-Run.bat -Lang de|ru|tr|en` (or `LEONIDA_LANG`).
+
+If **`LeonidaRunCheck.exe`** exists beside the batch file, the batch runs the exe instead of PowerShell.
+
+**Optional (developers, Python 3.12+):**
+
+```powershell
+python -I leonida-checker/run_check.py --lang de
+```
+
+**Full Vulkan probe** (same rules as the build’s `vk_subgroup_info`):
+
+```powershell
+Check-Run.bat -Full -Lang de
+```
+
+## What it checks
+
+| Check | How |
+|---|---|
+| **OS** | Windows 10/11 x64 (`gta6rt`) |
+| **CPU** | Model name, logical processors (8+ ideal, 4–7 warn) |
+| **RAM** | Installed and free GiB (16 GiB reference: [docs/retail_boot_intel_host.md](../docs/retail_boot_intel_host.md)) |
+| **GPU** | `vulkaninfo --summary` (many Windows installs already have it) |
+
+No Python, no .NET, no LLVM, no game folder scan.
+
+## Build the .exe
+
+`LeonidaRunCheck.exe` is not in git (`*.exe` is ignored). Build once:
+
+```text
+Check-Run.bat build
+```
+
+That runs `build_exe.ps1` (downloads `ps2exe.ps1` on first build, embeds `i18n/en.json` and `de.json`). Then use **`Check-Run.bat`** as usual.
+
+**Files in this folder:**
+
+| File | Role |
+|---|---|
+| `Check-Run.bat` | Start check (or `build` for the exe) |
+| `Check-Run.ps1` | Checker logic and colors |
+| `build_exe.ps1` | Creates `LeonidaRunCheck.exe` |
+| `run_check.py` | Optional full GPU check with Python |
+| `i18n/*.json` | UI: **en**, **de**, **ru**, **tr** |
+
+## GitHub description (copy for repo or release)
+
+Use **English** in GitHub “About”; other languages for mirrors or docs.
+
+**English:**  
+Leonida Legacy run checker — estimates whether your Windows PC (CPU, RAM, Vulkan GPU) could realistically run the GTA VI Xbox→PC static-recompilation port when it is playable. No game data. UI: EN, DE, RU, TR.
+
+**Deutsch:**  
+Leonida Legacy Lauf-Check — schätzt, ob dein Windows-PC (CPU, RAM, Vulkan-GPU) den GTA-VI-Xbox→PC-Port (statische Rekompilierung) später realistisch starten kann. Keine Spieldaten. Sprachen: EN, DE, RU, TR.
+
+**Русский:**  
+Проверка запуска Leonida Legacy — оценивает, сможет ли ваш ПК (CPU, ОЗУ, Vulkan GPU) реалистично запустить порт GTA VI (Xbox→PC, статическая рекомпиляция), когда он будет готов. Без данных игры. Языки: EN, DE, RU, TR.
+
+**Türkçe:**  
+Leonida Legacy çalıştırma kontrolü — Windows PC’nizin (CPU, RAM, Vulkan GPU) GTA VI Xbox→PC statik yeniden derleme portunu oynanabilir olduğunda gerçekçi şekilde çalıştırıp çalıştıramayacağını tahmin eder. Oyun verisi yok. Diller: EN, DE, RU, TR.
+
+## vs Check-PC
+
+| | **Check-Run** (here) | **Check-PC** ([leonida](https://github.com/ProjectLeonidaL/leonida)) |
+|---|---|---|
+| Goal | Run the game later | Build the port now |
+| Python, .NET, LLVM, disk | No | Yes |
+| Game package | No | Yes |
+| CPU / RAM / GPU | Yes | Build tools + GPU |

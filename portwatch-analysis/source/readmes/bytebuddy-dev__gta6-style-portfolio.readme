@@ -1,0 +1,69 @@
+# Bugsy's Vice Coast Portfolio 🌴
+
+An open-world-game-style developer portfolio, built with **Claude Code** for the Byte Buddy video *"I Built a GTA 6-Style Portfolio with Claude Code"*.
+
+Plain **HTML, CSS and JavaScript**. No framework, no build step. Open `index.html` and it runs.
+
+**▶ Live demo:** https://bytebuddy-dev.github.io/gta6-style-portfolio/
+**🎬 Watch the build:** [I Built a GTA 6-Style Portfolio with Claude Code](https://www.youtube.com/watch?v=hEl5TOqYgd0) · more on [Byte Buddy](https://www.youtube.com/@bytebuddydev)
+
+![Bugsy's portfolio: synthwave sunset hero](assets/screenshot.jpg)
+
+<details>
+<summary>Party mode (Konami code)</summary>
+
+![Party mode after typing the Konami code](assets/screenshot-party-mode.jpg)
+</details>
+
+## Try the cheats
+
+Click anywhere on the page (not in the form), then type:
+
+| Cheat | What happens |
+|---|---|
+| `HESOYAM` | Every skill jumps to five stars |
+| `↑ ↑ ↓ ↓ ← → ← → B A` | Party mode: the whole site changes colour (type it again to stop) |
+| a secret six-letter word | Bugsy launches straight off the screen. Hint: what he does on Fridays |
+
+On a phone, tap the cheat cards instead.
+
+## Run it locally
+
+```bash
+git clone https://github.com/bytebuddy-dev/gta6-style-portfolio.git
+cd gta6-style-portfolio
+# open index.html in your browser, or serve it:
+npx serve .
+```
+
+## What's inside
+
+| Feature | Where | The trick |
+|---|---|---|
+| Synthwave sunset with parallax palms | `index.html` hero, `style.css` | One CSS variable (`--scroll`) set on scroll; each layer moves at its own speed |
+| Wanted-level skills ★★★★☆ | `.skills` | Stars light up one by one with an `IntersectionObserver` |
+| Mission cards | `.missions` | Comic-style halftone dots from a single `radial-gradient` |
+| Minimap navigation | `.minimap` | Fixed-position nav; the active section's blip turns pink and the arrow points at it |
+| Cheat codes | `main.js` | Keep the last 10 keys, compare the end. Try **HESOYAM**, **↑↑↓↓←→←→BA** and a secret six-letter one |
+| "Mission passed" contact form | `#contact` | Demo only: nothing is sent anywhere |
+
+Phones can tap the cheat cards instead of typing. Motion is turned off for people who set *reduce motion*.
+
+## Make it yours
+
+1. Swap `assets/bugsy.png` for your photo or avatar.
+2. Edit the skills (`data-level="1"` to `"5"`) and the mission cards in `index.html`.
+3. To make the contact form really send email, point it at a form service (for example Formspree) and remove `e.preventDefault()` in `main.js`.
+4. Deploy free with **GitHub Pages**: repo **Settings → Pages → Deploy from branch → `main` / root**.
+
+## What went wrong while building it
+
+Claude Code got most of it right the first time, but not everything. See [BUILD-LOG.md](BUILD-LOG.md) for every bug and how screenshots caught it.
+
+## Credits
+
+- Built by [Byte Buddy](https://www.youtube.com/@bytebuddydev) with Claude Code.
+- Fonts: [Bungee](https://fonts.google.com/specimen/Bungee) and [Rubik](https://fonts.google.com/specimen/Rubik) (SIL Open Font License).
+- All art is original: Bugsy is Byte Buddy's mascot, and the palms, skyline and sun are hand-written SVG and CSS.
+
+Fan-made style. Not affiliated with or endorsed by Rockstar Games or Take-Two Interactive. No game assets are used.

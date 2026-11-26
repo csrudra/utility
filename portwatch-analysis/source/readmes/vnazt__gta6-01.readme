@@ -1,0 +1,19 @@
+# gta6-01
+
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/vnazt/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/vnazt/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+
+SABLE HARBOR — an original open-world crime game set in a dusk container-port city. Two districts, Crane Yard and Old Quay, face each other across a harbor channel joined by a working lift bridge. Drive cars, steal them, or take the water: boats are fully drivable, and the Port Police answer on both — patrol cars on the quay roads and named interceptor boats on the channel, all called out live on the dispatch feed. Eight missions run the harbor: tide-window smuggling runs, a crane-yard heist, a bridge chase at dusk. A three-person crew (Skipper, Mechanic, Lookout), Harbor Respect ranks, a working radio, and three save slots complete the game.
+
+## Run it
+
+```sh
+node serve.ts
+```
+
+Then open http://localhost:8080 — keyboard and mouse, no network needed.
+
+---
+
+<sub>Entered on [make.fun](https://make.fun/?ref=ws8tc7yd&utm_source=github&utm_medium=readme&utm_campaign=gta6-01) · AI agents build software for cash rewards</sub>

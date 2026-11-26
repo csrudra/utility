@@ -1,0 +1,187 @@
+# xlayer
+
+An educational compatibility layer, in the spirit of Wine and Proton, for x64 PE programs that
+import Xbox GDK system libraries such as `kernelx.dll`. The plan: load such a program with our
+own PE loader and hand it our own implementations of those libraries, written on top of the
+ordinary Win32 API, so it runs on desktop Windows.
+
+This is a learning and portfolio project. It is built in small, tested steps, from a PE inspector
+up to a loader, and then to growing API coverage.
+
+## Ground rules
+
+These rules are part of the project, not suggestions:
+
+1. **No DRM circumvention.** No code that decrypts content, bypasses copy protection, or handles
+   XVC packages.
+2. **No Microsoft code or binaries.** No leaked SDKs and no Microsoft Xbox DLLs. Every function
+   prototype is written by us from public documentation (such as the PE/COFF specification) and
+   from observing our own test programs.
+3. **Own test programs only.** Everything is tested on programs we compile ourselves (`tests/`),
+   and later on homebrew.
+4. **No commercial titles.** The project never names or targets specific commercial games.
+
+## Status
+
+| Phase | What | Status |
+|------:|------|--------|
+| 0 | `xinspect`: PE inspector and API coverage tracker (C#) | done |
+| 1 | Test executables and a PE loader with logging stubs (C++20) | done |
+| 2 | `xkernel`: real implementations (memory, threads, synchronisation), 61 kernelx functions | done |
+| 3 | Virtual file system and process identity (3a); basic runtime: initialisation, local user (3b) | done |
+| 4 | Input (own GameInput subset: XInput or replay) and audio (XAudio2 from Windows) | done |
+| 5 | Graphics: D3D12 pass-through, with a d3d12.dll overlay to choose the GPU (`--gpu`) | done (GPU code translation: long-term) |
+
+## Requirements
+
+- Windows 10/11 x64
+- [.NET 10 SDK](https://dotnet.microsoft.com/download) for xinspect
+- Visual Studio 2026 with *Desktop development with C++* (MSVC and the Windows SDK), and
+  CMake 4.2 or newer (needed for the Visual Studio 2026 generator) for the loader
+
+## xlayer (the loader)
+
+```powershell
+cmake --preset default
+cmake --build --preset debug
+ctest --preset debug
+build\bin\Debug\xlayer.exe --verbose build\bin\Debug\ret42.exe
+```
+
+`xlayer` maps the program into its own process, resolves its imports, and calls its entry
+point. Imports of Xbox DLLs come from **xkernel**, xlayer's own implementation: 84 kernelx.dll
+functions (memory, threads, synchronisation, time, files, process), 8 xgameruntime.dll
+functions (runtime initialisation, XAsync, one local offline user) and gameinput.dll (the
+current gamepad state, from a real controller through XInput or from a replay file). Imports of
+other DLLs come from Windows; audio, for example, is Windows' own XAudio2, and graphics is
+Windows' own D3D12. For d3d12.dll, xkernel is an *overlay*: it replaces only
+`D3D12CreateDevice`, so `--gpu` can choose the GPU, and every other function is Windows'. Functions neither provides get logging stubs that return 0. Every step and
+every stub call goes to `xlayer.log`; the stub summary at the end lists what to implement next.
+
+The program sees itself, not xlayer: `GetModuleHandle(NULL)` is its own image,
+`GetModuleFileName` says `G:\<program>.exe`, and `GetCommandLine` holds the arguments given
+after the program. It also sees a sandboxed virtual file system:
+
+| Drive | Is | Access |
+|-------|----|--------|
+| `G:\` | the program's folder (and its starting current directory) | read-only |
+| `T:\` | `%LOCALAPPDATA%\xlayer\<program>\` | read/write |
+
+Anything outside the mounted drives does not exist for the program. Device, UNC and `\\?\`
+paths and DOS device names such as `NUL` are refused.
+
+```powershell
+build\bin\Debug\xlayer.exe --mount T:=C:\temp\saves build\bin\Debug\files.exe alpha "two words"
+```
+
+| Option | Meaning |
+|--------|---------|
+| `-v`, `--verbose` | Print every loader step to stderr. |
+| `--log <file>` | Log file (default: `xlayer.log` in the current directory). |
+| `--force-relocate` | Never use the preferred ImageBase, so base relocations must be applied. |
+| `--mount X:=<dir>` | Mount a directory as drive X: (read/write, created if missing). Replaces a default drive with the same letter. |
+| `--mount-ro X:=<dir>` | Mount an existing directory as drive X: (read-only). |
+| `--user <name>` | Name of the local offline user that `XUserAddAsync` signs in (default `Player`). No network, accounts or licensing are involved. |
+| `--input-replay <file>` | Take the gamepad from a replay file (format in [docs/architecture.md](docs/architecture.md), section 7.7) instead of a real controller. |
+| `--native <dll>` | Take a DLL from Windows even though xkernel provides it, e.g. `--native gameinput.dll`. |
+| `--gpu <choice>` | The GPU for D3D12: `default` (the program's choice), `warp` (Windows' software renderer, the same result on every PC) or `hardware` (high performance). |
+
+A visible demo of D3D12 through xlayer (Esc closes it):
+
+```powershell
+build\bin\Debug\xlayer.exe build\bin\Debug\graphics_window.exe 10
+```
+| `--list-builtins` | List the functions xkernel provides (`<dll> <function> <win32\|own> <category>`). |
+
+Options go before the program; everything after it is passed to the program. The exit code is
+the program's own, or `125` (bad command line), or `126` (loading failed; the message names the
+step). If the program crashes, the log names the exception and the crash address, and xlayer
+exits with the exception code.
+
+How the loader, the IAT and the stub trampolines work is described in
+[docs/architecture.md](docs/architecture.md).
+
+## xinspect
+
+`xinspect` reads a PE file and shows what it asks of the system: headers, sections, imported
+DLLs and functions (including delay-load imports), and how much of that xlayer already provides.
+
+```powershell
+dotnet build
+dotnet test
+dotnet run --project tools/xinspect -- C:\Windows\System32\notepad.exe
+dotnet run --project tools/xinspect -- C:\Windows\System32\notepad.exe --json
+```
+
+| Option | Meaning |
+|--------|---------|
+| `--json` | Print a machine-readable report (no absolute paths or timestamps, so reports can be diffed over time). |
+| `--only-unknown` | Show only DLLs that are not standard Windows DLLs. |
+| `--apis <dir>` | API database directory. By default xinspect uses the nearest `apis` directory above the current directory, or above its own location. |
+
+For example, `dotnet run --project tools/xinspect -- build\bin\Debug\ret42.exe --only-unknown`
+shows the `kernelx.dll` import of our test program.
+
+Imports by ordinal are named from the export table of the DLL on this PC, so
+`d3d12.dll!#101` shows as `#101 (D3D12CreateDevice)`. A DLL that is not in the Windows system
+directory leaves the ordinal as it is.
+
+Exit codes: `0` ok, `1` usage error, `2` unreadable or invalid image, `3` invalid API database.
+
+Only x64 (PE32+) images are supported. Other formats and damaged files are reported with a clear
+error message; the tool does not crash on them.
+
+### Function status and coverage
+
+Every imported function gets one of these statuses:
+
+| Status | Meaning |
+|--------|---------|
+| `system` | Exported by a standard Windows DLL. The loader passes it through to Windows, so it is not counted in coverage. |
+| `implemented` | xlayer has a real implementation. |
+| `stub` | xlayer has a placeholder that logs the call and returns a dummy value. |
+| `missing` | Not provided yet. Functions of DLLs that are neither system nor in the database are all `missing`. |
+
+Coverage is `implemented / (implemented + stub + missing)`, per DLL and in total.
+
+`apis/kernelx.json`, `apis/xgameruntime.json`, `apis/gameinput.json` and `apis/d3d12.json` list
+exactly what xkernel provides; the CTest check `apis.match_xkernel` fails if they drift apart.
+A file with `"overlay": true` describes a Windows DLL of which xlayer replaces only the listed
+functions; xinspect counts its other functions as `system`.
+
+### API database (`apis/*.json`)
+
+One file per DLL that xlayer re-implements:
+
+```json
+{
+  "dll": "kernelx.dll",
+  "functions": {
+    "SomeFunction": "implemented",
+    "OtherFunction": "stub",
+    "#12": "missing"
+  }
+}
+```
+
+DLL names are case-insensitive. Function names are case-sensitive. Ordinal imports use the key
+`"#<ordinal>"`. Functions not listed count as `missing`.
+
+## Repository layout
+
+```
+CLAUDE.md               working rules for the AI assistant
+CMakeLists.txt          C++ build (loader and test programs); CMakePresets.json
+docs/architecture.md    how PE parsing, the loader, the IAT and stubs work
+tools/xinspect/         PE inspector (C#, .NET 10)
+tools/xinspect.Tests/   xUnit v3 tests
+apis/                   API database
+loader/                 PE loader (xlayer_core library) and launcher (xlayer.exe), C++20
+xkernel/                our implementation of kernelx.dll (static library), C++20
+tests/                  our own test programs, kernelx.def, CTest checks
+```
+
+## Further reading
+
+- [docs/architecture.md](docs/architecture.md): PE layout, RVAs, the import table and the IAT
+- Microsoft PE/COFF specification: <https://learn.microsoft.com/windows/win32/debug/pe-format>
