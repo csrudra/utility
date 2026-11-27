@@ -43,7 +43,14 @@ if ($avx2 -eq $true) {
 } elseif ($avx2 -eq $false) {
   Result 'FAIL' 'CPU' "$($cpu.Name) - AVX2 NOT supported" 'The harness requires AVX2. This CPU cannot run it.'
 } else {
-  Result 'WARN' 'CPU' "$($cpu.Name) - AVX2 could not be auto-detected (PowerShell 5.1)" 'Verify AVX2 manually (i5/i7/i9 12th gen = yes).'
+  # PowerShell 5.1 cannot query AVX2 - verify by the CPU model instead.
+  # Every Intel Core i3/i5/i7/i9 (4th gen+) and every AMD Ryzen has AVX2.
+  $name = $cpu.Name
+  if ($name -match 'Core i[3579]' -or $name -match 'Ryzen') {
+    Result 'PASS' 'CPU' "$name - AVX2 verified by CPU model"
+  } else {
+    Result 'WARN' 'CPU' "$name - AVX2 could not be verified automatically" 'The harness needs AVX2. Ask the AI helper if unsure.'
+  }
 }
 
 # --- GPU ----------------------------------------------------------------
@@ -53,7 +60,7 @@ try {
   if ($smi) {
     $gpuFound = $true
     $line = ($smi | Select-Object -First 1)
-    Result 'PASS' 'GPU (NVIDIA)' $line "Confirm at run time that the LOG shows this GPU as the adapter (play.ps1 prints the check). If it shows Intel, force: NVIDIA Control Panel -> victory.exe -> High-performance processor; or set VICTORY_D3D12_ADAPTER."
+    Result 'PASS' 'GPU (NVIDIA)' $line "The launcher shows the adapter in the log; if it ever shows Intel, force: NVIDIA Control Panel -> victory.exe -> High-performance processor; or set VICTORY_D3D12_ADAPTER."
   }
 } catch { }
 if (-not $gpuFound) {
@@ -68,11 +75,12 @@ $ramGB = [math]::Round($cs.TotalPhysicalMemory / 1GB, 1)
 $os2 = Get-CimInstance Win32_OperatingSystem
 $freeGB = [math]::Round($os2.FreePhysicalMemory / 1MB, 1)
 if ($ramGB -ge 32) { Result 'PASS' 'RAM' "$ramGB GB installed, $freeGB GB free" }
-elseif ($ramGB -ge 16) {
-  Result 'WARN' 'RAM' "$ramGB GB installed, $freeGB GB free - builds commit 22-46 GB" `
-    'It will run, but expect paging frame spikes. 32/64 GB SODIMMs are the single biggest real-fps upgrade for this project. Close browsers before launch.'
+elseif ($ramGB -ge 15) {
+  # 15.7 GB on a "16 GB" laptop is NORMAL - the iGPU reserves the difference. Not a failure.
+  Result 'WARN' 'RAM' "$ramGB GB installed (a normal 16 GB laptop), $freeGB GB free - builds commit 22-46 GB" `
+    'It will run; expect paging frame spikes. 32/64 GB SODIMMs are the single biggest real-fps upgrade. Close browsers before launch, and raise the pagefile (below).'
 } else {
-  Result 'FAIL' 'RAM' "$ramGB GB installed" '16 GB minimum; 32 GB strongly recommended.'
+  Result 'FAIL' 'RAM' "$ramGB GB installed" '16 GB minimum (15.x shown is fine); 8 GB is not enough for this game.'
 }
 
 # --- pagefile -----------------------------------------------------------

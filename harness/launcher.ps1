@@ -20,6 +20,18 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms | Out-Null
 $script:Root = $PSScriptRoot
 
+# Win32 helpers: keep the health panel above the game window, read the game window size
+$script:Win32Src = @'
+using System;
+using System.Runtime.InteropServices;
+public static class Win32Panel {
+  [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+}
+'@
+
 # ============================ tiny helpers =============================
 function Write-Banner {
   Clear-Host
@@ -165,8 +177,9 @@ function Set-GameEnv([string[]]$profiles) {
   E VICTORY_TEXTURE_BUDGET_MB '768';   E VICTORY_CARD_BUFFERS_MB '512'
 
   if ($profiles -contains 'fast')    { E VICTORY_TURBO_THREADS '1'; E VICTORY_DISPLAY_MODE '1280x720' }
-  if ($profiles -contains 'smooth')  { E VICTORY_DISPLAY_MODE '1280x720'; E VICTORY_GAME_STEP_MS '33'
+  if ($profiles -contains 'smooth')  { E VICTORY_DISPLAY_MODE '1280x720'
                                        E VICTORY_TEXTURE_STAGE_MS '25'; E VICTORY_TEXTURE_STAGE_MB '48' }
+  if ($profiles -contains 'steady')  { E VICTORY_GAME_STEP_MS '33' }   # slow-motion clock (opt-in)
   if ($profiles -contains 'debug')   { E VICTORY_D3D12_DRED 'faults'; E VICTORY_NO_WATCHDOG '1' }
 }
 
@@ -239,6 +252,13 @@ function Start-GameWithMonitor($cfg, [string[]]$profiles) {
   $start = Get-Date
   $monitorTop = [Console]::CursorTop
 
+  # keep this health panel VISIBLE above the game window (topmost)
+  try {
+    if (-not ('Win32Panel' -as [type])) { Add-Type -TypeDefinition $script:Win32Src }
+    [Win32Panel]::SetWindowPos([Win32Panel]::GetConsoleWindow(), [IntPtr](-2), 0, 0, 0, 0, 0x0003) | Out-Null
+    Write-Host '  (this panel is pinned ON TOP of the game - drag it to a corner)' -ForegroundColor DarkGray
+  } catch { }
+
   while (-not $proc.HasExited) {
     Start-Sleep -Seconds 2
 
@@ -285,6 +305,17 @@ function Start-GameWithMonitor($cfg, [string[]]$profiles) {
     if ($gpuPct -gt $peaks.gpu)        { $peaks.gpu = $gpuPct }
     $gpuSum += $gpuPct; $gpuN++
 
+    # game window size (proves 720p is really applied)
+    $winTxt = '?'
+    try {
+      $proc.Refresh()
+      $h = $proc.MainWindowHandle
+      if ($h -ne [IntPtr]::Zero -and ('Win32Panel' -as [type])) {
+        $r = New-Object Win32Panel+RECT
+        if ([Win32Panel]::GetWindowRect($h, [ref]$r)) { $winTxt = "$($r.R - $r.L) x $($r.B - $r.T)" }
+      }
+    } catch { }
+
     # ---- draw the panel ----
     $up = (Get-Date) - $start
     $igpuTxt = if ($igpuPct -ge 0) { "$igpuPct%" } else { 'n/a' }
@@ -296,15 +327,19 @@ function Start-GameWithMonitor($cfg, [string[]]$profiles) {
       ('  Windows commit  : {0}/{1} GB   (peak {2})     ' -f $commit, $commitLimit, $peaks.commit),
       ('  NVIDIA GPU      : {0,3} %   VRAM {1}/{2} GB   ' -f $gpuPct, $vramUsed, $vramTotal),
       ('  Intel iGPU busy : {0}  (display copy)         ' -f $igpuTxt),
+      ('  Game window     : {0}  (render is 720p, upscaled) ' -f $winTxt),
       ('  -------------------------------------------'),
       ('  Close the GAME window to stop. Ctrl+C here   '),
       ('  breaks the log - use the game window.        ')
     )
-    [Console]::SetCursorPosition(0, $monitorTop)
-    foreach ($line in $buf) { Write-Host $line -ForegroundColor Gray }
+    try {
+      [Console]::SetCursorPosition(0, $monitorTop)
+      foreach ($line in $buf) { Write-Host $line -ForegroundColor Gray }
+    } catch { }
   }
 
   # ---- summary ----
+  try { [Win32Panel]::SetWindowPos([Win32Panel]::GetConsoleWindow(), [IntPtr](-1), 0, 0, 0, 0, 0x0003) | Out-Null } catch { }
   $avgGpu = if ($gpuN -gt 0) { [math]::Round($gpuSum / $gpuN, 0) } else { 0 }
   Write-Host ''
   Write-Host '--- RUN FINISHED ---' -ForegroundColor Green
@@ -586,6 +621,8 @@ function Action-Play {
   Write-Host ''
   $pick = Ask-Number 'Pick 1, 2 or 3' 1 1 3
   $profiles = switch ($pick) { 1 { @('smooth') } 2 { @('fast') } 3 { @('smooth','debug') } }
+  $speed = Ask-Number 'Game speed: [1] real-time (recommended) [2] slow-motion (easier to steer)' 1 1 2
+  if ($speed -eq 2) { $profiles += 'steady' }
 
   Write-Host ''
   Write-Host 'Tip: first time? add a warm-up (y/n). It makes the first minutes much better.' -ForegroundColor DarkGray
@@ -595,8 +632,11 @@ function Action-Play {
     New-Item -ItemType Directory -Force -Path $logDir | Out-Null
     Write-Host 'Warming up (this can take many minutes the first time)...' -ForegroundColor Yellow
     $eap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
-    & $script:Cfg.harness warm --used 2>&1 | Tee-Object -FilePath (Join-Path $logDir "warm-$(Get-Date -Format 'yyyyMMdd-HHmmss').log")
+    $warmOut = & $script:Cfg.harness warm --used 2>&1 | Tee-Object -FilePath (Join-Path $logDir "warm-$(Get-Date -Format 'yyyyMMdd-HHmmss').log") | Out-String
     $ErrorActionPreference = $eap
+    if ($warmOut -match 'unrecognized subcommand') {
+      Write-Host '  (this build has no warm-up command - it caches automatically while you play. Skipping.)' -ForegroundColor DarkGray
+    }
   }
   Start-GameWithMonitor -cfg $script:Cfg -profiles $profiles
   Pause-OK

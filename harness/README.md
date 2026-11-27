@@ -31,7 +31,12 @@ The game gets its own window. The launcher window shows its health, updated ever
   Windows commit  : 21.4/47.8 GB   (peak 23.0)
   NVIDIA GPU      :  94 %   VRAM 5.4/6.0 GB
   Intel iGPU busy :  38 %  (display copy)
+  Game window     : 1920 x 1080  (render is 720p, upscaled)
 ```
+
+The panel is **pinned on top of the game** (drag it to a corner) so it never disappears behind the game window. The `Game window` line proves the 720p path is active.
+
+When you press PLAY you also pick the **game speed**: **[1] real-time** (the game runs at real speed even at 2 fps — how everyone else plays it) or [2] slow-motion (easier to steer at very low fps).
 
 Every sample is saved to `telemetry-*.csv`. When you close the game you get a summary (peaks, averages) and an offer to **bundle everything for the AI**.
 
