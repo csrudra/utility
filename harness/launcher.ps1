@@ -199,6 +199,28 @@ function Set-GameEnv([string[]]$profiles) {
     if ($profiles -contains 'fast')  { E VICTORY_TURBO_THREADS '1' }
     if ($profiles -contains 'debug') { E VICTORY_D3D12_DRED 'faults'; E VICTORY_NO_WATCHDOG '1' }
     return
+  if ($script:Cfg.engine -eq "fxce") {
+    # fxceless/victory-fork (latest character-fix engine: PR #1097 + PR #1264)
+    # - Immediate Decoration-Bake Texture Flush & 8 GB VRAM bake_room() (PR #1097)
+    # - Decoration bake draw's own textures uploaded before it (PR #1264)
+    # - VICTORY_HEAP_RECHECK (character texture rechecks)
+    # - VICTORY_AMBIENT=1.25 (tuned indirect light for character clothes)
+    # - Series X profile (required for this fork)
+    E VICTORY_HEAP_RECHECK "1";  E VICTORY_LEVELS_ON_DEMAND "1";  E VICTORY_MAX_FPS "30"
+    E VICTORY_AMBIENT "1.25";    E VICTORY_TEXTURE_BUDGET_MB "1024"; E VICTORY_CARD_BUFFERS_MB "768"
+    E VICTORY_TEXTURE_STAGE_MS "25"; E VICTORY_TEXTURE_STAGE_MB "48"
+    E VICTORY_CARD_HASH_LEN "1"; E VICTORY_HEAP_WORKER "1"
+    if (-not $script:Cfg.ambient) { E VICTORY_AMBIENT "1.25" }
+    # Series X profile (required for this fork)
+    $consoleProfile = "series-x"
+    if ($profiles -contains "fast")    { E VICTORY_TURBO_THREADS "1"; E VICTORY_DISPLAY_MODE "1280x720" }
+    if ($profiles -contains "smooth")  { E VICTORY_DISPLAY_MODE "1280x720"
+                                       E VICTORY_TEXTURE_STAGE_MS "25"; E VICTORY_TEXTURE_STAGE_MB "48" }
+    if ($profiles -contains "steady")  { E VICTORY_GAME_STEP_MS "33" }   # slow-motion clock (opt-in)
+    if ($profiles -contains "debug")   { E VICTORY_D3D12_DRED "faults"; E VICTORY_NO_WATCHDOG "1" }
+    return
+  }
+
   }
 
   # -- measured CCS03 laptop bundle (do not remove lines; they work as a set)
