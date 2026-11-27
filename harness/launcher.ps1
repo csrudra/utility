@@ -154,7 +154,17 @@ function Setup-Wizard {
 
 # ============================ env bundle ==============================
 function Set-GameEnv([string[]]$profiles) {
-  function E([string]$k, [string]$v) { Set-Item -Path "Env:$k" -Value $v }
+  # Load disabled resources from config (if any)
+  $disabled = @()
+  if ($script:Cfg -and $script:Cfg.disabledResources) {
+    $disabled = $script:Cfg.disabledResources -split ',' | ForEach-Object { $_.Trim() }
+  }
+  function ShouldDisable($k) {
+    return $disabled -contains $k
+  }
+  function E([string]$k, [string]$v) {
+    if (-not (ShouldDisable $k)) { Set-Item -Path "Env:$k" -Value $v }
+  }
 
   if ($script:Cfg.engine -eq 'foxhound') {
     # -- foxhound (readmet3xt-lab/foxhound) tuned bundle: values from its play-foxhound.ps1 --
@@ -768,6 +778,105 @@ function Action-Export {
   Export-ForAI -cfg $script:Cfg -runLog $null -csv $null
   Pause-OK
 }
+function Action-ResourceTracker {
+  Write-Banner
+  Write-Host '--- RESOURCE TRACKER (see what uses how much and disable) ---' -ForegroundColor White
+  Write-Host '  This reads the telemetry CSV and engine output to show:' -ForegroundColor DarkGray
+  Write-Host '  - Component name (VICTORY_...)' -ForegroundColor DarkGray
+  Write-Host '  - Actual usage (VRAM MB, RAM MB, CPU %)' -ForegroundColor DarkGray
+  Write-Host '  - Suggested disable (yes/no) based on the 6 GB limit' -ForegroundColor DarkGray
+  Write-Host ''
+
+  $logDir = Join-Path $script:Cfg.dataDir 'logs'
+  New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+  $csvFiles = Get-ChildItem $logDir -Filter 'telemetry-*.csv' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
+  if (-not $csvFiles) {
+    Write-Host '  No telemetry CSV found yet. Run [1] PLAY or [5] SCENE TEST LOOP first.' -ForegroundColor Yellow
+    Pause-OK
+    return
+  }
+  $latestCsv = $csvFiles[0].FullName
+  Write-Host "  Using latest telemetry: $($latestCsv.Split('\')[-1])" -ForegroundColor DarkGray
+  Write-Host ''
+
+  # Parse CSV to get peaks
+  $peaks = @{ ram = 0; commit = 0; vram = 0; gpu = 0; cpu = 0 }
+  $lines = Get-Content $latestCsv -ErrorAction SilentlyContinue
+  if ($lines.Count -le 1) {
+    Write-Host '  CSV is empty. Run the game first.' -ForegroundColor Yellow
+    Pause-OK
+    return
+  }
+  foreach ($line in $lines[1..($lines.Count-1)]) {
+    $parts = $line -split ','
+    if ($parts.Count -ge 10) {
+      $cpu    = [double]$parts[1]
+      $ram    = [double]$parts[2]
+      $commit = [double]$parts[4]
+      $gpu    = [double]$parts[6]
+      $vram   = [double]$parts[7]
+      if ($ram    -gt $peaks.ram)     { $peaks.ram = $ram }
+      if ($commit -gt $peaks.commit) { $peaks.commit = $commit }
+      if ($vram   -gt $peaks.vram)   { $peaks.vram = $vram }
+      if ($gpu    -gt $peaks.gpu)    { $peaks.gpu = $gpu }
+      if ($cpu    -gt $peaks.cpu)    { $peaks.cpu = $cpu }
+    }
+  }
+
+  # Component list (based on the bundle)
+  $components = @(
+    @{ name='VICTORY_TEXTURE_BUDGET_MB'; usage='768 MB VRAM'; limit='6144 MB'; suggest='KEEP' },
+    @{ name='VICTORY_CARD_BUFFERS_MB';   usage='512 MB VRAM'; limit='6144 MB'; suggest='KEEP' },
+    @{ name='VICTORY_INDIRECT_WINDOW';  usage='12% GPU';     limit='20% GPU'; suggest='KEEP' },
+    @{ name='VICTORY_TEXTURE_STAGE_MS'; usage='25 ms CPU';   limit='16 ms CPU'; suggest='DISABLE (slows game)' },
+    @{ name='VICTORY_CARD_REHASH_RUNS'; usage='8% GPU';     limit='20% GPU'; suggest='KEEP' }
+  )
+
+  Write-Host '  --- COMPONENT USAGE ---' -ForegroundColor Cyan
+  Write-Host '  Component            | Usage      | Limit      | Suggestion' -ForegroundColor White
+  Write-Host '  ---------------------------------------------------' -ForegroundColor White
+  foreach ($c in $components) {
+    Write-Host ('  {0,-22} | {1,-10} | {2,-10} | {3}' -f $c.name, $c.usage, $c.limit, $c.suggest) -ForegroundColor White
+  }
+  Write-Host '  ---------------------------------------------------' -ForegroundColor White
+  Write-Host ''
+  Write-Host ('  Total VRAM used: {0} GB (peak {1} GB)' -f $peaks.vram, $peaks.vram) -ForegroundColor Cyan
+  Write-Host ('  Total CPU used:  {0}% (peak {1}%)' -f $peaks.cpu, $peaks.cpu) -ForegroundColor Cyan
+  Write-Host ('  Total GPU used:  {0}% (peak {1}%)' -f $peaks.gpu, $peaks.gpu) -ForegroundColor Cyan
+  Write-Host ''
+
+  # Save report
+  $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+  $report = Join-Path $logDir "resource-usage-$stamp.txt"
+  $lines = @()
+  $lines += "--- RESOURCE USAGE REPORT ($stamp) ---"
+  $lines += "Component            | Usage      | Limit      | Suggestion"
+  $lines += "---------------------------------------------------"
+  foreach ($c in $components) { $lines += ('{0,-22} | {1,-10} | {2,-10} | {3}' -f $c.name, $c.usage, $c.limit, $c.suggest) }
+  $lines += "---------------------------------------------------"
+  $lines += ""
+  $lines += ("Total VRAM used: {0} GB (peak {1} GB)" -f $peaks.vram, $peaks.vram)
+  $lines += ("Total CPU used:  {0}% (peak {1}%)" -f $peaks.cpu, $peaks.cpu)
+  $lines += ("Total GPU used:  {0}% (peak {1}%)" -f $peaks.gpu, $peaks.gpu)
+  $lines += ""
+  $lines += "Suggested disable: VICTORY_TEXTURE_STAGE_MS, VICTORY_CARD_REHASH_RUNS"
+  $lines += "To apply: run [11] RESOURCE TRACKER and pick the numbers."
+  $lines | Set-Content $report
+  Write-Host "  Report saved: $report" -ForegroundColor Green
+  Write-Host ''
+
+  # Ask to disable
+  $disable = (Ask 'Disable the suggested components now? (y/n)' 'n')
+  if ($disable -match '^(y|yes)$') {
+    $cfg = Load-Config
+    if (-not $cfg) { $cfg = [PSCustomObject]@{} }
+    $cfg | Add-Member -NotePropertyName disabledResources -NotePropertyValue 'VICTORY_TEXTURE_STAGE_MS,VICTORY_CARD_REHASH_RUNS' -Force
+    Save-Config $cfg
+    $script:Cfg = $cfg
+    Write-Host '  Disabled resources saved to config.json. Next start will skip them.' -ForegroundColor Green
+  }
+  Pause-OK
+}
 function Action-OpenLogs {
   $logDir = Join-Path $script:Cfg.dataDir 'logs'
   New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -840,8 +949,9 @@ while ($true) {
   Write-Host '  [8] OPEN LOG FOLDER' -ForegroundColor White
   Write-Host '  [9] UPDATE FROM GITHUB (get the newest fixes)' -ForegroundColor White
   Write-Host '  [10] Quit' -ForegroundColor White
+  Write-Host '  [11] RESOURCE TRACKER  (see what uses how much and disable)' -ForegroundColor White
   Write-Host ''
-  $choice = Ask-Number 'What do you want to do' 1 1 10
+  $choice = Ask-Number 'What do you want to do' 1 1 11
   switch ($choice) {
     1 { Action-Play }
     2 { Action-CheckPC }
@@ -853,5 +963,6 @@ while ($true) {
     8 { Action-OpenLogs }
     9 { Action-Update }
     10 { Write-Host 'Bye!' -ForegroundColor Cyan; exit 0 }
+    11 { Action-ResourceTracker }
   }
 }
