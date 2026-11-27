@@ -291,6 +291,18 @@ Each idea: **claim → critique → verdict.** Verdicts: ✅ do it · ⚠️ con
 
 ---
 
+## 4b. Errata (2026-11-27, follow-up)
+
+The black-screen report on Series S + 720p exposed gaps in §3.3 of this plan. See [`PORTWATCH_720P_BLACKSCREEN.md`](PORTWATCH_720P_BLACKSCREEN.md) for the full diagnosis. Missing from the original plan, now known critical:
+
+1. **`VICTORY_OWN_UPSCALER=1` is not optional on Series S** — the title's FSR step draws nothing (untranslated compute) or throws `DXGI_ERROR_INVALID_CALL`. It was listed but under-explained; it is the #1 black-screen fix.
+2. **`VICTORY_COMPOSE=1` needs the compose-pass patch** (fxceless PR 1189) in your tree — without it Series S menus/loading screens are black by design (two-plane present).
+3. **Windows 10 needs the D3D12 Agility SDK 1.614 `D3D12\` folder** beside `victory.exe` or no pipeline can be made and "the screen stays black" (CCS03). Windows 11 unaffected.
+4. **Laptop adapter selection** — verify the log names the NVIDIA GPU; force via `VICTORY_D3D12_ADAPTER` / Windows GPU preference / MUX dGPU mode.
+5. **Windows HDR off** (SDR swapchain), **windowed/borderless** over exclusive 720p fullscreen.
+6. **`VICTORY_PIPELINE_PRIORITY=normal`**, `VICTORY_CACHE_DIR` per-PC caches, `VICTORY_PRESENT_PLANE=<n>` debug, `VICTORY_RGB9E5_AS_R11=1` (Series S render targets on NVIDIA).
+7. **CCS03 `play.ps1 -Low -Steady -Smooth`** is the supported laptop path: `-Low` = 1280x720, `-Steady` (`VICTORY_GAME_STEP_MS=33`) makes 3–5 fps controllable (slow-motion clock), `-Smooth` bounds the texture pass. `-Steady` was the biggest omission for actually using this on a laptop.
+
 ## 5. Sources
 
 - Live tracker: [portwatch-vi.xyz](https://portwatch-vi.xyz/) (leaderboard, private builds, news, watchlist; fetched 2026-11-27) — site source `4lwayz/portwatch-vi`.
