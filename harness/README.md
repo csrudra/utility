@@ -110,6 +110,20 @@ Whenever I say "there's a fix", double-click **`pull.bat`** (in the same folder 
 - Works whether you installed by Download-ZIP or git clone.
 - After an update: close the launcher and double-click `START.cmd` again.
 
+## Try foxhound (the NVIDIA-tuned engine) — optional
+
+[`readmet3xt-lab/foxhound`](https://github.com/readmet3xt-lab/foxhound) is a **VIctory fork tuned for NVIDIA RTX**: DLSS Super Resolution / Frame Generation, the 64→32-lane shader fixes, fewer stalls at scene cuts, and pipeline pre-warming (`warm --used` works there). Same engine family as the default build; your saves carry over (same `%LOCALAPPDATA%\victory\data`).
+
+**Install/switch (one double-click):** `TRY-FOXHOUND.cmd`
+- clones + builds foxhound once into `harness\setup\foxhound` (an existing build is used as-is, never rebuilt)
+- flips `config.json` to the new engine and saves your old config to `config.json.backup`
+- for **DLSS**: install NVIDIA's [Streamline SDK](https://github.com/NVIDIA-RTX/Streamline), then run `TRY-FOXHOUND.cmd -StreamlineDir "D:\sdk\streamline\bin\x64"`
+- **switch back any time:** `TRY-FOXHOUND.cmd -Restore`
+
+Play the same way afterwards: `START.cmd` → `[1] PLAY` (the launcher feeds foxhound its own tuned switch set + your 6 GB budgets).
+
+**What to expect (community reports, not measured by us):** RTX 3080 ~15 fps; i5-12600KF ~10–15 fps in the prologue; RTX 4070S-class ~30 fps. On your RTX 3060 6 GB: more fps than the default build and a sharper DLSS image, but **below 30 fps the world runs slower than real time** (the title steps its world per frame — the fork documents this honestly), and the fork wants 32 GB RAM (keep the 48–64 GB pagefile on). DLSS Super Resolution works on every RTX card; DLSS Frame Generation officially needs an RTX 40+.
+
 ## If something goes wrong
 
 | What you see | What it means | What to do |

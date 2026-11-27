@@ -156,6 +156,41 @@ function Setup-Wizard {
 function Set-GameEnv([string[]]$profiles) {
   function E([string]$k, [string]$v) { Set-Item -Path "Env:$k" -Value $v }
 
+  if ($script:Cfg.engine -eq 'foxhound') {
+    # -- foxhound (readmet3xt-lab/foxhound) tuned bundle: values from its play-foxhound.ps1 --
+    E VICTORY_THIN '1';                E VICTORY_JOIN_PARTS '8';       E VICTORY_RELAY '2'
+    E VICTORY_RELAY_COPY '1';          E VICTORY_WIDE_BACK '1';        E VICTORY_CARD_REHASH_RUNS '1'
+    E VICTORY_JOIN_COPIES '1';         E VICTORY_CARD_STEPS '2';       E VICTORY_CARD_AWAKE '1'
+    E VICTORY_CARD_BUFFERS_MIN_KB '64';E VICTORY_INDIRECT_WINDOW '1';  E VICTORY_INDIRECT_BATCH '2'
+    E VICTORY_UPLOAD_AHEAD '1';        E VICTORY_SHOW_AFTER '1';       E VICTORY_MAP_THREADS '1'
+    E VICTORY_WC_NO_BACK '1';          E VICTORY_WC_NO_BACK_MIN_KB '1024'
+    E VICTORY_SOFT_VIEWS 'copies'
+    E VICTORY_TEXTURE_POOL '1';        E VICTORY_RIPE_BLOCKS '0';      E VICTORY_TEXTURE_NO_WAIT '1'
+    E VICTORY_TEXTURE_CATCHUP '0';     E VICTORY_TEXTURE_STAGE_MS '16';E VICTORY_LEVELS_ON_DEMAND '0'
+    E VICTORY_PRELUDE_UPLOADS '1';     E VICTORY_SHOW_NEW_LATER '1';   E VICTORY_POOL_SMALL '0'
+    E VICTORY_TABLED_REREAD '1';       E VICTORY_QUEUE_HOST_TEXTURES '0'
+    E VICTORY_HEAP_SYNC_FIRST '1';     E VICTORY_SYNC_IN_PLACE '1';    E VICTORY_SPANS_QUICK '1'
+    E VICTORY_SYNC_FINE '1';           E VICTORY_HEAP_SYNC_AT_SUBMIT '1'
+    E VICTORY_HELPER_PRIORITY '1'
+    E VICTORY_AMBIENT '0.8';           E VICTORY_AMBIENT_AIR '1.5';    E VICTORY_AMBIENT_SPECULAR '1'
+    E VICTORY_EARLY_DEPTH '1'
+    E VICTORY_LEAVE_OUT '02384a60fda6f2d0,731a39171b568298'
+    E VICTORY_PIPELINE_BOOK '1'
+    # -- 6 GB card budget (this engine reads these too) --
+    E VICTORY_TEXTURE_BUDGET_MB '768'; E VICTORY_CARD_BUFFERS_MB '512'
+    # -- DLSS (needs NVIDIA Streamline; set up by TRY-FOXHOUND.cmd) --
+    $sl = $script:Cfg.streamlineDir
+    if ($sl -and (Test-Path (Join-Path $sl 'sl.interposer.dll'))) {
+      E VICTORY_DLSS '1'
+      E VICTORY_DLSS_MODE $(if ($script:Cfg.dlssMode) { [string]$script:Cfg.dlssMode } else { 'quality' })
+      E VICTORY_STREAMLINE_DIR $sl
+      if ($script:Cfg.framegen) { E VICTORY_FRAMEGEN '1' }
+    }
+    if ($profiles -contains 'fast')  { E VICTORY_TURBO_THREADS '1' }
+    if ($profiles -contains 'debug') { E VICTORY_D3D12_DRED 'faults'; E VICTORY_NO_WATCHDOG '1' }
+    return
+  }
+
   # -- measured CCS03 laptop bundle (do not remove lines; they work as a set)
   E VICTORY_DISPLAY_MODE '1920x1080';  E VICTORY_RELAY '2';            E VICTORY_ASYNC_SUBMIT '1'
   E VICTORY_QUEUE2 '1';                E VICTORY_INDIRECT_WINDOW '1';  E VICTORY_COPY_PLAIN '1'
@@ -621,8 +656,12 @@ function Action-Play {
   Write-Host ''
   $pick = Ask-Number 'Pick 1, 2 or 3' 1 1 3
   $profiles = switch ($pick) { 1 { @('smooth') } 2 { @('fast') } 3 { @('smooth','debug') } }
-  $speed = Ask-Number 'Game speed: [1] real-time (recommended) [2] slow-motion (easier to steer)' 1 1 2
-  if ($speed -eq 2) { $profiles += 'steady' }
+  if ($script:Cfg.engine -eq 'foxhound') {
+    Write-Host '  (foxhound paces the world per frame - below 30 fps the game runs slower than real time.)' -ForegroundColor DarkGray
+  } else {
+    $speed = Ask-Number 'Game speed: [1] real-time (recommended) [2] slow-motion (easier to steer)' 1 1 2
+    if ($speed -eq 2) { $profiles += 'steady' }
+  }
 
   Write-Host ''
   Write-Host 'Tip: first time? add a warm-up (y/n). It makes the first minutes much better.' -ForegroundColor DarkGray
@@ -632,9 +671,16 @@ function Action-Play {
     New-Item -ItemType Directory -Force -Path $logDir | Out-Null
     Write-Host 'Warming up (this can take many minutes the first time)...' -ForegroundColor Yellow
     $eap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    if ($script:Cfg.engine -eq 'foxhound') {
+      # foxhound: translate shaders once per build+switches, then pre-compile known pipelines
+      $env:VICTORY_HOST_WAVE = '32'
+      & $script:Cfg.harness shaders (Split-Path -Parent $script:Cfg.gameExe) 2>&1 |
+        Select-Object -Last 3 | Tee-Object -FilePath (Join-Path $logDir "shaders-$(Get-Date -Format 'yyyyMMdd-HHmmss').log")
+      Remove-Item Env:VICTORY_HOST_WAVE -ErrorAction SilentlyContinue
+    }
     $warmOut = & $script:Cfg.harness warm --used 2>&1 | Tee-Object -FilePath (Join-Path $logDir "warm-$(Get-Date -Format 'yyyyMMdd-HHmmss').log") | Out-String
     $ErrorActionPreference = $eap
-    if ($warmOut -match 'unrecognized subcommand') {
+    if ($warmOut -match 'unrecognized (subcommand|argument)') {
       Write-Host '  (this build has no warm-up command - it caches automatically while you play. Skipping.)' -ForegroundColor DarkGray
     }
   }
