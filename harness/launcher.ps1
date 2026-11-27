@@ -38,7 +38,7 @@ function Write-Banner {
   Write-Host '=========================================================' -ForegroundColor White
   Write-Host '         GTA VI  HARNESS  LAUNCHER  (6 GB laptop)'         -ForegroundColor Cyan
   Write-Host '=========================================================' -ForegroundColor White
-  Write-Host '  Everything is automatic. If unsure, just press Enter.'   -ForegroundColor DarkGray
+  Write-Host '  Review prompts carefully; setup and fork support are not guaranteed.' -ForegroundColor DarkGray
   Write-Host ''
 }
 function Ask([string]$question, [string]$default) {
@@ -82,12 +82,19 @@ function Load-Config {
 function Save-Config($cfg) {
   $cfg | ConvertTo-Json -Depth 5 | Set-Content (Config-Path) -Encoding UTF8
 }
+function Get-ConfiguredEngine {
+  if ($script:Cfg -and -not [string]::IsNullOrWhiteSpace([string]$script:Cfg.engine)) {
+    return [string]$script:Cfg.engine
+  }
+  return 'ccs03'
+}
 
 # ============================ setup wizard ============================
 function Setup-Wizard {
   param([string]$presetHarness)
+  $priorConfig = Load-Config
   Write-Banner
-  Write-Host '--- FIRST-TIME SETUP (4 questions, then never again) ---' -ForegroundColor Green
+  Write-Host '--- SETUP (4 basic questions; engine profile is asked if needed) ---' -ForegroundColor Green
   Write-Host ''
 
   # 1. game exe
@@ -120,6 +127,39 @@ function Setup-Wizard {
     }
   }
 
+  # A binary path change can imply a different fork/console profile. The executable
+  # name alone is not enough, so recognize our install paths or ask explicitly.
+  $priorHarness = if ($priorConfig -and $priorConfig.harness) { [string]$priorConfig.harness } else { '' }
+  $priorEngine = if ($priorConfig -and $priorConfig.engine) { [string]$priorConfig.engine } else { 'ccs03' }
+  $pathChanged = -not [string]::IsNullOrWhiteSpace($priorHarness) -and
+    -not [string]::Equals($priorHarness.Trim(), ([string]$harness).Trim(), [StringComparison]::OrdinalIgnoreCase)
+  $detectedEngine = $null
+  $harnessPath = [string]$harness
+  if ($harnessPath -match '(?i)[\\/]setup[\\/]CCS03[\\/]target[\\/]release[\\/]victory\.exe$') { $detectedEngine = 'ccs03' }
+  elseif ($harnessPath -match '(?i)[\\/]setup[\\/]foxhound[\\/]target[\\/]release[\\/]victory\.exe$') { $detectedEngine = 'foxhound' }
+  elseif ($harnessPath -match '(?i)[\\/]setup[\\/]victory-unified[\\/]target[\\/]release[\\/]victory\.exe$') { $detectedEngine = 'unified' }
+  elseif ($harnessPath -match '(?i)[\\/]setup[\\/]fxce[\\/]target[\\/]release[\\/]victory\.exe$') { $detectedEngine = 'fxce' }
+  $engineChoice = $priorEngine
+  if ($detectedEngine) {
+    $engineChoice = $detectedEngine
+    if ($engineChoice -ne $priorEngine) {
+      Write-Host "Detected '$engineChoice' from the selected executable path; the old engine profile will not be reused." -ForegroundColor Yellow
+    }
+  } elseif ($pathChanged -or -not $priorConfig -or -not $priorConfig.PSObject.Properties['engine']) {
+    Write-Host ''
+    Write-Host 'Choose the launcher profile that matches this executable. A mismatch can cause startup/rendering failures.' -ForegroundColor Yellow
+    Write-Host '  [1] CCS03 (default installer)'
+    Write-Host '  [2] Foxhound (NVIDIA fork)'
+    Write-Host '  [3] victory-unified'
+    Write-Host '  [4] fxceless (experimental; switcher is incomplete)'
+    $profileDefault = 1
+    if ($priorEngine -eq 'foxhound') { $profileDefault = 2 }
+    elseif ($priorEngine -eq 'unified') { $profileDefault = 3 }
+    elseif ($priorEngine -eq 'fxce') { $profileDefault = 4 }
+    $profilePick = Ask-Number 'Select engine profile 1-4' $profileDefault 1 4
+    $engineChoice = switch ($profilePick) { 1 { 'ccs03' } 2 { 'foxhound' } 3 { 'unified' } 4 { 'fxce' } }
+  }
+
   # 3. data folder
   Write-Host ''
   Write-Host 'QUESTION 3: Where should I keep logs and settings?' -ForegroundColor White
@@ -133,18 +173,29 @@ function Setup-Wizard {
   $build = [int](Get-CimInstance Win32_OperatingSystem).BuildNumber
   if ($build -lt 22000) {
     Write-Host 'QUESTION 4: You are on WINDOWS 10.' -ForegroundColor Yellow
-    Write-Host '  The harness needs one extra Microsoft file or the screen stays black.' -ForegroundColor Yellow
-    Write-Host '  I will CHECK it for you before every start and tell you exactly what to do.' -ForegroundColor Yellow
+    Write-Host '  If you select CCS03, its instructions document two D3D12 compatibility DLLs for this OS.' -ForegroundColor Yellow
+    Write-Host '  That check applies to CCS03 only; missing files are one possible pipeline issue, not a universal black-screen cause.' -ForegroundColor Yellow
   } else {
-    Write-Host "QUESTION 4: Windows build $build detected - no extra steps needed. Good." -ForegroundColor Green
+    Write-Host "QUESTION 4: Windows build $build detected - the CCS03 Windows 10 workaround is not applied." -ForegroundColor Green
   }
 
-  $cfg = [PSCustomObject]@{
-    gameExe   = $game
-    harness   = $harness
-    dataDir   = $data
-    createdAt = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+  # Preserve non-path settings, but update the engine profile to match the selected
+  # binary. Custom extraEnv values are retained; they are fork-specific and should
+  # be reviewed whenever the engine profile changes.
+  $cfg = $priorConfig
+  if (-not $cfg) { $cfg = [PSCustomObject]@{} }
+  if ($pathChanged -or $engineChoice -ne $priorEngine) {
+    [void]$cfg.PSObject.Properties.Remove('engineCommit')
+    [void]$cfg.PSObject.Properties.Remove('engineCommitEngine')
+    if ($cfg.extraEnv) {
+      Write-Host 'Existing extraEnv overrides were preserved. Review them; they may not apply to the selected fork.' -ForegroundColor Yellow
+    }
   }
+  $cfg | Add-Member -NotePropertyName engine    -NotePropertyValue $engineChoice -Force
+  $cfg | Add-Member -NotePropertyName gameExe   -NotePropertyValue $game -Force
+  $cfg | Add-Member -NotePropertyName harness   -NotePropertyValue $harness -Force
+  $cfg | Add-Member -NotePropertyName dataDir   -NotePropertyValue $data -Force
+  $cfg | Add-Member -NotePropertyName createdAt -NotePropertyValue (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') -Force
   New-Item -ItemType Directory -Force -Path $data | Out-Null
   Save-Config $cfg
   Write-Host ''
@@ -154,6 +205,26 @@ function Setup-Wizard {
 
 # ============================ env bundle ==============================
 function Set-GameEnv([string[]]$profiles) {
+  $engine = Get-ConfiguredEngine
+  if ($engine -notin @('ccs03', 'foxhound', 'fxce', 'unified')) {
+    throw "Unknown engine '$engine'. Supported profiles: ccs03, foxhound, fxce, unified."
+  }
+
+  # Build a reproducible child-process environment. The launcher stays open while
+  # users run multiple profiles; without clearing inherited switches, a prior
+  # DEBUG / slow-motion / custom run silently contaminates the next one.
+  # Preserve only runtime paths and selectors that this profile does not own.
+  # Put any other intentional VICTORY_* override in config.json's `extraEnv` object.
+  $preserveEnv = @(
+    'VICTORY_CONFIG', 'VICTORY_GAME_DIR', 'VICTORY_CACHE_DIR',
+    'VICTORY_DATA_DIR', 'VICTORY_D3D12_ADAPTER'
+  )
+  Get-ChildItem Env: | Where-Object {
+    $_.Name -like 'VICTORY_*' -and $_.Name -notin $preserveEnv
+  } | ForEach-Object {
+    Remove-Item -Path "Env:$($_.Name)" -ErrorAction SilentlyContinue
+  }
+
   # Load disabled resources from config (if any)
   $disabled = @()
   if ($script:Cfg -and $script:Cfg.disabledResources) {
@@ -163,10 +234,45 @@ function Set-GameEnv([string[]]$profiles) {
     return $disabled -contains $k
   }
   function E([string]$k, [string]$v) {
-    if (-not (ShouldDisable $k)) { Set-Item -Path "Env:$k" -Value $v }
+    if (-not (ShouldDisable $k)) {
+      Set-Item -Path "Env:$k" -Value $v
+    } else {
+      Remove-Item -Path "Env:$k" -ErrorAction SilentlyContinue
+    }
   }
+  function Apply-ExtraEnv {
+    if (-not $script:Cfg -or -not $script:Cfg.extraEnv) { return }
+    foreach ($entry in $script:Cfg.extraEnv.PSObject.Properties) {
+      if ($entry.MemberType -ne 'NoteProperty') { continue }
+      $k = [string]$entry.Name
+      if ($k -notmatch '^VICTORY_[A-Z0-9_]+$') { continue }
+      if (ShouldDisable $k) {
+        Remove-Item -Path "Env:$k" -ErrorAction SilentlyContinue
+      } else {
+        Set-Item -Path "Env:$k" -Value ([string]$entry.Value)
+      }
+    }
+  }
+  $ambientValue = $null
+  if ($script:Cfg -and $script:Cfg.ambientByEngine -and
+      $script:Cfg.ambientByEngine.PSObject.Properties[$engine] -and
+      -not [string]::IsNullOrWhiteSpace([string]$script:Cfg.ambientByEngine.$engine)) {
+    $ambientValue = [string]$script:Cfg.ambientByEngine.$engine
+  } elseif ($engine -eq 'ccs03' -and $script:Cfg -and
+            $script:Cfg.PSObject.Properties['ambient'] -and
+            -not [string]::IsNullOrWhiteSpace([string]$script:Cfg.ambient)) {
+    # Backward compatibility: the old scalar setting was only calibrated for CCS03.
+    $ambientValue = [string]$script:Cfg.ambient
+  }
+  $ambientDefault = switch ($engine) {
+    'foxhound' { '0.8' }
+    'fxce' { '1.25' }
+    'unified' { '0.8' }
+    default { '0.9' }
+  }
+  $ambientEffective = if ($null -ne $ambientValue) { $ambientValue } else { $ambientDefault }
 
-  if ($script:Cfg.engine -eq 'foxhound') {
+  if ($engine -eq 'foxhound') {
     # -- foxhound (readmet3xt-lab/foxhound) tuned bundle: values from its play-foxhound.ps1 --
     E VICTORY_THIN '1';                E VICTORY_JOIN_PARTS '8';       E VICTORY_RELAY '2'
     E VICTORY_RELAY_COPY '1';          E VICTORY_WIDE_BACK '1';        E VICTORY_CARD_REHASH_RUNS '1'
@@ -182,7 +288,8 @@ function Set-GameEnv([string[]]$profiles) {
     E VICTORY_HEAP_SYNC_FIRST '1';     E VICTORY_SYNC_IN_PLACE '1';    E VICTORY_SPANS_QUICK '1'
     E VICTORY_SYNC_FINE '1';           E VICTORY_HEAP_SYNC_AT_SUBMIT '1'
     E VICTORY_HELPER_PRIORITY '1'
-    E VICTORY_AMBIENT '0.8';           E VICTORY_AMBIENT_AIR '1.5';    E VICTORY_AMBIENT_SPECULAR '1'
+    E VICTORY_AMBIENT $ambientEffective
+    E VICTORY_AMBIENT_AIR '1.5';       E VICTORY_AMBIENT_SPECULAR '1'
     E VICTORY_EARLY_DEPTH '1'
     E VICTORY_LEAVE_OUT '02384a60fda6f2d0,731a39171b568298'
     E VICTORY_PIPELINE_BOOK '1'
@@ -198,80 +305,98 @@ function Set-GameEnv([string[]]$profiles) {
     }
     if ($profiles -contains 'fast')  { E VICTORY_TURBO_THREADS '1' }
     if ($profiles -contains 'debug') { E VICTORY_D3D12_DRED 'faults'; E VICTORY_NO_WATCHDOG '1' }
+    Apply-ExtraEnv
     return
-  if ($script:Cfg.engine -eq "fxce") {
-    # fxceless/victory-fork (latest character-fix engine: PR #1097 + PR #1264)
-    # - Immediate Decoration-Bake Texture Flush & 8 GB VRAM bake_room() (PR #1097)
-    # - Decoration bake draw's own textures uploaded before it (PR #1264)
-    # - VICTORY_HEAP_RECHECK (character texture rechecks)
-    # - VICTORY_AMBIENT=1.25 (tuned indirect light for character clothes)
-    # - Series X profile (required for this fork)
-    E VICTORY_HEAP_RECHECK "1";  E VICTORY_LEVELS_ON_DEMAND "1";  E VICTORY_MAX_FPS "30"
-    E VICTORY_AMBIENT "1.25";    E VICTORY_TEXTURE_BUDGET_MB "1024"; E VICTORY_CARD_BUFFERS_MB "768"
-    E VICTORY_TEXTURE_STAGE_MS "25"; E VICTORY_TEXTURE_STAGE_MB "48"
-    E VICTORY_CARD_HASH_LEN "1"; E VICTORY_HEAP_WORKER "1"
-    if (-not $script:Cfg.ambient) { E VICTORY_AMBIENT "1.25" }
+  }
+
+  if ($engine -eq 'fxce') {
+    # Experimental fxceless/victory-fork profile. Its PRs address some texture
+    # residency/bake cases, but its current README still reports transient black
+    # faces. The current ray-tracing builder is extremely slow and memory-heavy;
+    # this engine profile is not appropriate for a 6 GB / 16 GB machine.
+    # Ambient settings are a fallback only when the builder is not running.
+    E VICTORY_HEAP_RECHECK '1';  E VICTORY_LEVELS_ON_DEMAND '1';  E VICTORY_MAX_FPS '30'
+    E VICTORY_AMBIENT $ambientEffective
+    E VICTORY_TEXTURE_BUDGET_MB '1024'; E VICTORY_CARD_BUFFERS_MB '768'
+    E VICTORY_TEXTURE_STAGE_MS '25'; E VICTORY_TEXTURE_STAGE_MB '48'
+    E VICTORY_CARD_HASH_LEN '1'; E VICTORY_HEAP_WORKER '1'
     # Series X profile (required for this fork)
     $consoleProfile = "series-x"
     if ($profiles -contains "fast")    { E VICTORY_TURBO_THREADS "1"; E VICTORY_DISPLAY_MODE "1280x720" }
     if ($profiles -contains "smooth")  { E VICTORY_DISPLAY_MODE "1280x720"
                                        E VICTORY_TEXTURE_STAGE_MS "25"; E VICTORY_TEXTURE_STAGE_MB "48" }
-    if ($profiles -contains "steady")  { E VICTORY_GAME_STEP_MS "33" }   # slow-motion clock (opt-in)
-    if ($profiles -contains "debug")   { E VICTORY_D3D12_DRED "faults"; E VICTORY_NO_WATCHDOG "1" }
+    if ($profiles -contains 'steady')  { E VICTORY_GAME_STEP_MS '33' }   # slow-motion clock (opt-in)
+    if ($profiles -contains 'debug')   { E VICTORY_D3D12_DRED 'faults'; E VICTORY_NO_WATCHDOG '1' }
+    Apply-ExtraEnv
     return
   }
 
+  if ($engine -eq 'unified') {
+    # Mirror Itsbatt/victory-unified's current scripts/play.ps1, not CCS03's
+    # Series S bundle. In particular, do not set BVH_MISS here: it prevents
+    # real ray hits on trees that support the optional BVH builder.
+    E VICTORY_TEXTURE_NO_WAIT '1'; E VICTORY_RELAY '2'; E VICTORY_WIDE_BACK '1'
+    E VICTORY_CARD_REHASH_RUNS '1'; E VICTORY_JOIN_COPIES '1'; E VICTORY_INDIRECT_WINDOW '1'
+    E VICTORY_RELAY_COPY '1'; E VICTORY_CARD_STEPS '2'; E VICTORY_INDIRECT_BATCH '2'
+    E VICTORY_MAP_THREADS '1'; E VICTORY_TITLE_PRIORITIES '0'; E VICTORY_CARD_AWAKE '1'
+    E VICTORY_SHOW_AFTER '1'
+    E VICTORY_AMBIENT $ambientEffective
+    E VICTORY_D3D12_DRED 'light'
+    E VICTORY_UNDER_WIDE '0'; E VICTORY_LAND_ECHO '0'
+    E VICTORY_THIN '1'; E VICTORY_JOIN_PARTS '8'; E VICTORY_UPLOAD_AHEAD '1'
+    if ($profiles -contains 'debug') { E VICTORY_D3D12_DRED 'faults'; E VICTORY_NO_WATCHDOG '1' }
+    Apply-ExtraEnv
+    return
   }
 
-  # -- measured CCS03 laptop bundle (do not remove lines; they work as a set)
+  # -- CCS03-specific laptop profile. Switches are fork/commit-specific and must be verified upstream.
   E VICTORY_DISPLAY_MODE '1920x1080';  E VICTORY_RELAY '2';            E VICTORY_ASYNC_SUBMIT '1'
   E VICTORY_QUEUE2 '1';                E VICTORY_INDIRECT_WINDOW '1';  E VICTORY_COPY_PLAIN '1'
   E VICTORY_TEXTURE_NO_WAIT '1';       E VICTORY_WIDE_TEXTURES '1';    E VICTORY_TEXTURE_DROP_MIPS '1'
   E VICTORY_TEXTURE_ROOM_PERCENT '86'; E VICTORY_CARD_ROOM_FOR_TARGETS_MB '1024'
-  E VICTORY_AMBIENT $(if ($script:Cfg.ambient) { [string]$script:Cfg.ambient } else { '1.2' })
+  # CCS03's own play.ps1 uses 0.9 (ambient.rs default is 0.6); this is the
+  # upstream script's starting value, not a promise of physically correct GI.
+  E VICTORY_AMBIENT $ambientEffective
   E VICTORY_JOIN_PARTS '1';            E VICTORY_BACK_OWN_VIEW '1'
   E VICTORY_INDIRECT_GATHER '1';       E VICTORY_CARD_REHASH_RUNS '1'; E VICTORY_TEXTURE_BACK '1'
   E VICTORY_CARD_HASH_LEN '1'
-  # -- black-screen fixes (each one was found the hard way)
+  # -- CCS03 present/upscale profile values; support depends on the source revision
   E VICTORY_OWN_UPSCALER '1';          E VICTORY_COMPOSE '1';          E VICTORY_SHOW_AFTER '1'
   E VICTORY_PIPELINE_WAIT_MS '10000';  E VICTORY_PIPELINE_PRIORITY 'normal'
   E VICTORY_DYNAMIC_SLOTS '262144';    E VICTORY_D3D12_DRED 'light';   E VICTORY_WAVE_WIDE '0'
+  # CCS03 laptop profile keeps its structure builder off; end stale ray walks.
+  # This switch is intentionally absent from the ray-tracing-capable unified profile.
   E VICTORY_BVH_MISS '1'
-  # -- speed stack (measured)
+  # -- performance-related switches reported for CCS03; not independently measured here
   E VICTORY_HOIST_CLAMPS '7';          E VICTORY_CARD_BUFFERS_MIN_MB '1'
   E VICTORY_HAIR '0';                  E VICTORY_WIDE_REFRESH '1'
   E VICTORY_TEXTURE_CATCHUP '0';       E VICTORY_CARD_FETCH_INFLIGHT '0'
   # -- 6 GB card budget
   E VICTORY_TEXTURE_BUDGET_MB '768';   E VICTORY_CARD_BUFFERS_MB '512'
 
-  if ($script:Cfg.engine -eq 'unified') {
-    # victory-unified (Itsbatt) extras: character/skin texture rechecks, their tuned ambient
-    E VICTORY_HEAP_RECHECK '1';  E VICTORY_LEVELS_ON_DEMAND '1';  E VICTORY_MAX_FPS '30'
-    if (-not $script:Cfg.ambient) { E VICTORY_AMBIENT '1.25' }
-  }
-
   if ($profiles -contains 'fast')    { E VICTORY_TURBO_THREADS '1'; E VICTORY_DISPLAY_MODE '1280x720' }
   if ($profiles -contains 'smooth')  { E VICTORY_DISPLAY_MODE '1280x720'
                                        E VICTORY_TEXTURE_STAGE_MS '25'; E VICTORY_TEXTURE_STAGE_MB '48' }
   if ($profiles -contains 'steady')  { E VICTORY_GAME_STEP_MS '33' }   # slow-motion clock (opt-in)
   if ($profiles -contains 'debug')   { E VICTORY_D3D12_DRED 'faults'; E VICTORY_NO_WATCHDOG '1' }
+  Apply-ExtraEnv
 }
 
 # ============================ preflight (quick gates) =================
 function Quick-Gates {
   $problems = @()
+  $engine = Get-ConfiguredEngine
   $build = [int](Get-CimInstance Win32_OperatingSystem).BuildNumber
-  if ($build -lt 22000) {
-    $agility = Join-Path (Split-Path $script:Cfg.harness) 'D3D12\D3D12Core.dll'
-    if (-not (Test-Path $agility)) {
-      $problems += 'WINDOWS 10 FIX NEEDED: put D3D12Core.dll + d3d12SDKLayers.dll (Microsoft "Direct3D 12 Agility SDK 1.614") into a folder named D3D12 next to victory.exe. Without it the screen stays black.'
+  if ($build -lt 22000 -and $engine -eq 'ccs03') {
+    $agilityDir = Join-Path (Split-Path $script:Cfg.harness) 'D3D12'
+    $core = Join-Path $agilityDir 'D3D12Core.dll'
+    $layers = Join-Path $agilityDir 'd3d12SDKLayers.dll'
+    if (-not (Test-Path $core) -or -not (Test-Path $layers)) {
+      $problems += 'WINDOWS 10 AGILITY SDK INCOMPLETE: both D3D12Core.dll and d3d12SDKLayers.dll are required in the D3D12 folder next to victory.exe. This is one possible pipeline-start failure, not the only cause of a black screen.'
     }
   }
-  $pf = Get-CimInstance Win32_PageFileUsage
-  $pfGB = if ($pf) { [math]::Round(($pf | Measure-Object AllocatedBaseSize -Sum).Sum / 1024, 1) } else { 0 }
-  if ($pfGB -lt 48) { $problems += "PAGEFILE SMALL ($pfGB GB): set a fixed 48-64 GB pagefile (search Windows for 'View advanced system settings' -> Performance Settings -> Advanced -> Virtual memory). The game needs it or it will not start." }
   $ramGB = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 1)
-  if ($ramGB -lt 16) { $problems += "ONLY $ramGB GB RAM: 16 GB is the minimum. Close every other program." }
+  if ($ramGB -lt 16) { $problems += "SYSTEM RAM IS $ramGB GB: below one test reference of 16 GB. Memory demand varies by fork and scene; check the selected build's requirements and actual commit/OOM evidence." }
   return $problems
 }
 
@@ -286,10 +411,20 @@ function Action-SceneLoop {
   Write-Host ''
   $runs = Ask-Number 'How many runs in a row' 3 1 20
   $mins = Ask-Number 'Minutes per run (0 = play until you close the game)' 8 0 120
-  $pick = Ask-Number 'Settings: [1] SMOOTH (720p) [2] FASTEST [3] DEBUG' 1 1 3
-  $profiles = switch ($pick) { 1 { @('smooth') } 2 { @('fast') } 3 { @('smooth','debug') } }
-  if ($script:Cfg.engine -notin @('foxhound', 'unified')) {
-    $speed = Ask-Number 'Game speed: [1] real-time (recommended) [2] slow-motion' 1 1 2
+  $engine = Get-ConfiguredEngine
+  if ($engine -in @('unified', 'foxhound')) {
+    $pick = Ask-Number 'Settings: [1] launcher profile [2] GPU diagnostics' 1 1 2
+    $profiles = @()
+    if ($pick -eq 2) { $profiles = @('debug') }
+    if ($engine -eq 'unified') {
+      Write-Host 'The optional BVH builder remains off; its documented cost is substantial.' -ForegroundColor Yellow
+    }
+  } else {
+    $pick = Ask-Number 'Settings: [1] SMOOTH (720p) [2] FASTEST [3] DEBUG' 1 1 3
+    $profiles = switch ($pick) { 1 { @('smooth') } 2 { @('fast') } 3 { @('smooth','debug') } }
+  }
+  if ($engine -notin @('foxhound', 'unified')) {
+    $speed = Ask-Number 'Timing: [1] default timing [2] slow-motion diagnostic' 1 1 2
     if ($speed -eq 2) { $profiles += 'steady' }
   }
   for ($i = 1; $i -le $runs; $i++) {
@@ -307,33 +442,38 @@ function Action-SceneLoop {
   Write-Host "All $runs runs are in the logs folder. Menu [7] EXPORT LOGS FOR AI sends the full set." -ForegroundColor Green
 }
 
-# ============================ dark rooms ================================
+# ============================ ambient fallback ==========================
 function Action-FixDark {
+  $engine = Get-ConfiguredEngine
   Write-Host ''
-  Write-Host '--- DARK ROOMS (brighten shadowy places) ---' -ForegroundColor White
-  Write-Host 'Why rooms go black: the game lights its indirect bounce light with its'
-  Write-Host 'own ray tracing, which cannot run on PC yet (about 3 fps and a broken'
-  Write-Host 'picture when forced on - everyone in the scene stubs it). The harness'
-  Write-Host 'puts a constant indirect light in its place. Raising the level brightens'
-  Write-Host 'everything the sun or a lamp does not reach directly.'
-  Write-Host '(Note: the first ~4 seconds of any new scene are always a bit darker -'
-  Write-Host 'that is streaming, it fixes itself. And a sunset doorway will always'
-  Write-Host 'outshine a hallway - that part is art direction.)' -ForegroundColor DarkGray
+  Write-Host '--- TUNE AMBIENT-LIGHT FALLBACK ---' -ForegroundColor White
+  if ($engine -ne 'ccs03') {
+    Write-Host "No ambient preset is exposed for '$engine'. Forks use different VICTORY_AMBIENT semantics; this menu will not change it." -ForegroundColor Yellow
+    Write-Host 'Use only a value documented by the selected fork, or switch to CCS03 before using this menu.' -ForegroundColor DarkGray
+    return
+  }
+  Write-Host 'This changes only CCS03 VICTORY_AMBIENT, a constant approximation for missing'
+  Write-Host 'indirect diffuse light. It is not display brightness, exposure, or full GI.'
+  Write-Host 'More light can lift shadows but also flatten contrast; it cannot fix a'
+  Write-Host 'black game window, missing textures, or black character faces.' -ForegroundColor DarkGray
   Write-Host ''
-  Write-Host '  [1] Brighter      (recommended)'
-  Write-Host '  [2] Normal'
-  Write-Host '  [3] Very bright   (can look flat)'
-  Write-Host '  [4] Off           (the game''s own - deep shadows pure black)'
+  Write-Host '  [1] 0.9  CCS03 play-script starting point'
+  Write-Host '  [2] 1.2  Brighter experiment (may wash out contrast)'
+  Write-Host '  [3] 1.5  Strong lift (likely to look flat)'
+  Write-Host '  [4] off  Disable the fallback; raw title output may still be black/invalid'
   $lvl = Ask-Number 'Pick 1-4' 1 1 4
-  $val = switch ($lvl) { 1 { '1.2' } 2 { '0.9' } 3 { '1.5' } 4 { 'off' } }
+  $val = switch ($lvl) { 1 { '0.9' } 2 { '1.2' } 3 { '1.5' } 4 { 'off' } }
   $config = Load-Config
   if (-not $config) { Write-Host 'No config yet - run START.cmd setup first.' -ForegroundColor Red; return }
-  $config | Add-Member -NotePropertyName ambient -NotePropertyValue $val -Force
+  if (-not $config.ambientByEngine) {
+    $config | Add-Member -NotePropertyName ambientByEngine -NotePropertyValue ([PSCustomObject]@{}) -Force
+  }
+  $config.ambientByEngine | Add-Member -NotePropertyName ccs03 -NotePropertyValue $val -Force
   Save-Config $config
   $script:Cfg = $config
   Write-Host ''
-  Write-Host "Saved. From the next [1] PLAY, indirect light uses level '$val'." -ForegroundColor Green
-  Write-Host 'Come back here any time to change it.' -ForegroundColor DarkGray
+  Write-Host "Saved CCS03 ambient setting. The next run will request VICTORY_AMBIENT=$val." -ForegroundColor Green
+  Write-Host 'Restart the game for the setting to take effect. This is not a lighting fix for black output.' -ForegroundColor DarkGray
 }
 
 # ============================ monitor =================================
@@ -347,20 +487,51 @@ function Start-GameWithMonitor($cfg, [string[]]$profiles, [int]$MaxMinutes = 0) 
   $errLog = Join-Path $logDir "run-$stamp.err.log"
   $csv    = Join-Path $logDir "telemetry-$stamp.csv"
 
-  # save the settings used, so an AI can see them
-  Get-ChildItem Env: | Where-Object { $_.Name -like 'VICTORY_*' } |
-    Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" } |
-    Set-Content (Join-Path $logDir "settings-$stamp.txt")
+  # Record run identity as well as switches. A switch list alone is not enough
+  # to reproduce a fork-specific rendering failure.
+  $engine = Get-ConfiguredEngine
+  $profileLabel = if ($profiles -and $profiles.Count -gt 0) { $profiles -join ',' } else { 'launcher-default' }
+  $sourceRoot = 'not detected'
+  $sourceCommit = 'not recorded (source archive or no Git metadata)'
+  if ($cfg.harness) {
+    $releaseDir = Split-Path -Parent $cfg.harness
+    $targetDir = Split-Path -Parent $releaseDir
+    $candidateRoot = Split-Path -Parent $targetDir
+    if (Test-Path (Join-Path $candidateRoot 'Cargo.toml')) {
+      $sourceRoot = $candidateRoot
+      if ($cfg.engineCommitEngine -eq $engine -and $cfg.engineCommit) {
+        $sourceCommit = [string]$cfg.engineCommit
+      } elseif ((Test-Path (Join-Path $candidateRoot '.git')) -and (Get-Command git -ErrorAction SilentlyContinue)) {
+        $gitCmd = Get-Command git -ErrorAction SilentlyContinue
+        $gitPath = $gitCmd.Source
+        $gitRev = & $gitPath -C $candidateRoot rev-parse HEAD 2>$null
+        if ($LASTEXITCODE -eq 0 -and $gitRev) { $sourceCommit = ([string]$gitRev).Trim() }
+      }
+    }
+  }
+  $settings = @(
+    "captured_at=$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss K')"
+    "engine=$engine"
+    "engine_executable=$($cfg.harness)"
+    "engine_source=$sourceRoot"
+    "engine_source_revision=$sourceCommit"
+    'binary_build_provenance=not verified by this launcher'
+    "run_profile=$profileLabel"
+  )
+  $envSettings = @(Get-ChildItem Env: | Where-Object { $_.Name -like 'VICTORY_*' } |
+    Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" })
+  $settings += $envSettings
+  $settings | Set-Content (Join-Path $logDir "settings-$stamp.txt")
 
   Write-Banner
   Write-Host '--- PRE-FLIGHT (automatic) ---' -ForegroundColor White
   $problems = Quick-Gates
   if ($problems.Count -gt 0) {
     foreach ($p in $problems) { Write-Host "  ! $p" -ForegroundColor Yellow }
-    $go = (Ask 'Problems found. Try to start anyway? (y/n)' 'n')
+    $go = (Ask 'Warnings found. Try to start anyway? (y/n)' 'n')
     if ($go -notmatch '^(y|yes)$') { return }
   } else {
-    Write-Host '  All good.' -ForegroundColor Green
+    Write-Host '  No warnings from these quick checks; they do not verify every requirement.' -ForegroundColor Green
   }
 
   Write-Host ''
@@ -447,7 +618,7 @@ function Start-GameWithMonitor($cfg, [string[]]$profiles, [int]$MaxMinutes = 0) 
     if ($gpuPct -gt $peaks.gpu)        { $peaks.gpu = $gpuPct }
     $gpuSum += $gpuPct; $gpuN++
 
-    # game window size (proves 720p is really applied)
+    # Game window bounds (do not infer internal render resolution from them).
     $winTxt = '?'
     try {
       $proc.Refresh()
@@ -469,7 +640,7 @@ function Start-GameWithMonitor($cfg, [string[]]$profiles, [int]$MaxMinutes = 0) 
       ('  Windows commit  : {0}/{1} GB   (peak {2})     ' -f $commit, $commitLimit, $peaks.commit),
       ('  NVIDIA GPU      : {0,3} %   VRAM {1}/{2} GB   ' -f $gpuPct, $vramUsed, $vramTotal),
       ('  Intel iGPU busy : {0}  (display copy)         ' -f $igpuTxt),
-      ('  Game window     : {0}  (render is 720p, upscaled) ' -f $winTxt),
+      ('  Game window     : {0}  (window bounds only; render resolution may differ) ' -f $winTxt),
       ('  -------------------------------------------'),
       ('  Close the GAME window to stop. Ctrl+C here   '),
       ('  breaks the log - use the game window.        ')
@@ -535,8 +706,8 @@ function Export-ForAI($cfg, $runLog, $csv) {
   $pre = @()
   $pre += "== QUICK GATES ($(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')) =="
   $gates = Quick-Gates
-  if ($gates.Count -eq 0) { $pre += 'All quick gates passed.' }
-  else { $gates | ForEach-Object { $pre += "PROBLEM: $_" } }
+  if ($gates.Count -eq 0) { $pre += 'No warnings from quick checks.' }
+  else { $gates | ForEach-Object { $pre += "WARNING: $_" } }
   $pre += ''
   $pre += "Free RAM now : $([math]::Round((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory / 1MB, 1)) GB"
   Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | ForEach-Object {
@@ -588,15 +759,15 @@ function Full-Auto-Setup {
   Write-Banner
   Write-Host '--- FULL AUTO SETUP (one button) ---' -ForegroundColor Green
   Write-Host ''
-  Write-Host '  This downloads and installs EVERYTHING the game needs to start,' -ForegroundColor White
-  Write-Host '  and builds the harness. Nothing to type, nothing to find.' -ForegroundColor White
+  Write-Host '  This downloads the CCS03 source and build tools, then builds the harness.' -ForegroundColor White
+  Write-Host '  It does not include the game or guarantee that every PC can start it.' -ForegroundColor White
   Write-Host ''
   Write-Host '  What happens now:' -ForegroundColor White
   Write-Host '   1. Downloads the harness source code (about 50 MB)'
   Write-Host '   2. Installs the free "Rust" build tool if missing (about 1 GB)'
   Write-Host '   3. Installs Microsoft build tools if missing (several GB - slow!)'
   Write-Host '   4. Builds the harness (10-40 minutes of scrolling text - normal)'
-  Write-Host '   5. Installs one small Microsoft file (fixes the black screen)'
+  Write-Host '   5. On Windows 10, checks the two D3D12 files documented by CCS03 (one possible pipeline issue)'
   Write-Host ''
   Write-Host '  You need an internet connection. Total time: 30-90 minutes.' -ForegroundColor Yellow
   $go = (Ask 'Start the big setup now? (y/n)' 'y')
@@ -654,15 +825,15 @@ function Full-Auto-Setup {
     Write-Host '    build tools installed.' -ForegroundColor Green
   } else { Write-Host '    build tools already there.' -ForegroundColor Green }
 
-  # ---- 4. build (never rebuilds finished work; interrupted builds resume) ----
+  # ---- 4. build (reuses an existing binary by path; provenance is not verified) ----
   Write-Host ''
   Write-Host 'STEP 4/5: building the harness...' -ForegroundColor Cyan
   $victory = Join-Path $src 'target\release\victory.exe'
   if (Test-Path $victory) {
-    Write-Host '    ALREADY BUILT - reusing it. Nothing is rebuilt.' -ForegroundColor Green
+    Write-Host '    EXECUTABLE EXISTS - reusing it by path. Source revision/build provenance are not checked.' -ForegroundColor Yellow
   } else {
     Write-Host '    First build: 10-40 minutes. Please keep this window open.' -ForegroundColor Yellow
-    Write-Host '    (If it stops and you run this again, it CONTINUES - it never starts over.)' -ForegroundColor DarkGray
+    Write-Host '    Cargo may reuse completed artifacts on retry, but setup is not guaranteed to resume every download/installer step.' -ForegroundColor DarkGray
     $buildOut = Join-Path $work 'build-out.log'
     $buildErr = Join-Path $work 'build-err.log'
     Push-Location $src
@@ -681,7 +852,7 @@ function Full-Auto-Setup {
       }
     } finally { Pop-Location }
     "cargo exit code: $($p.ExitCode)" | Add-Content $setupLog
-    if (-not (Test-Path $victory)) {
+    if ($p.ExitCode -ne 0 -or -not (Test-Path $victory)) {
       Write-Host ''
       Write-Host "    BUILD FAILED (exit code $($p.ExitCode)). Last errors:" -ForegroundColor Red
       Get-Content $buildErr -Tail 10 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "      $_" -ForegroundColor Red }
@@ -690,48 +861,55 @@ function Full-Auto-Setup {
       Write-Host "    Full log: $buildErr" -ForegroundColor Cyan
       Write-Host '    Tip: run setup again first - builds CONTINUE, and most failures are' -ForegroundColor Cyan
       Write-Host '    one-time glitches (antivirus, internet). If it fails again, use menu' -ForegroundColor Cyan
-      Write-Host '    [5] EXPORT LOGS FOR AI and send the zip.' -ForegroundColor Cyan
+      Write-Host '    [7] EXPORT LOGS FOR AI and send the zip.' -ForegroundColor Cyan
       Pause-OK
       return $null
     }
     Write-Host '    harness built.' -ForegroundColor Green
   }
 
-  # ---- 5. black-screen fix file (Agility SDK) ----
+  # ---- 5. Windows 10 D3D12 compatibility files ----
   Write-Host ''
-  Write-Host 'STEP 5/5: installing the black-screen fix (small Microsoft file)...' -ForegroundColor Cyan
-  $d3dDir = Join-Path (Split-Path $victory) 'D3D12'
-  New-Item -ItemType Directory -Force -Path $d3dDir | Out-Null
-  if (-not (Test-Path (Join-Path $d3dDir 'D3D12Core.dll'))) {
-    $nupkg = Join-Path $work 'd3d12.zip'
-    $ok = $false
-    foreach ($ver in @('1.614.0','1.614')) {
-      try {
-        Download-File "https://www.nuget.org/api/v2/package/Microsoft.Direct3D.D3D12/$ver" $nupkg
-        $ok = $true; break
-      } catch { }
-    }
-    if ($ok) {
-      $x = Join-Path $work 'd3d12x'
-      if (Test-Path $x) { Remove-Item $x -Recurse -Force }
-      Expand-Archive -Path $nupkg -DestinationPath $x -Force
-      $core = Get-ChildItem $x -Recurse -Filter 'D3D12Core.dll'      | Where-Object { $_.FullName -match 'x64' } | Select-Object -First 1
-      $layers = Get-ChildItem $x -Recurse -Filter 'D3d12SDKLayers.dll' | Where-Object { $_.FullName -match 'x64' } | Select-Object -First 1
-      if (-not $core)    { $core   = Get-ChildItem $x -Recurse -Filter 'D3D12Core.dll'      | Select-Object -First 1 }
-      if (-not $layers)  { $layers = Get-ChildItem $x -Recurse -Filter 'D3d12SDKLayers.dll' | Select-Object -First 1 }
-      if ($core)   { Copy-Item $core.FullName   (Join-Path $d3dDir 'D3D12Core.dll') -Force }
-      if ($layers) { Copy-Item $layers.FullName (Join-Path $d3dDir 'D3d12SDKLayers.dll') -Force }
-      Remove-Item $x -Recurse -Force -ErrorAction SilentlyContinue
-    }
-    if (-not (Test-Path (Join-Path $d3dDir 'D3D12Core.dll'))) {
-      Write-Host '    (could not download it automatically - the launcher will tell you the manual 2-minute fix)' -ForegroundColor Yellow
+  Write-Host 'STEP 5/5: checking the documented Windows 10 D3D12 files...' -ForegroundColor Cyan
+  $osBuild = [int](Get-CimInstance Win32_OperatingSystem).BuildNumber
+  if ($osBuild -lt 22000) {
+    $d3dDir = Join-Path (Split-Path $victory) 'D3D12'
+    $corePath = Join-Path $d3dDir 'D3D12Core.dll'
+    $layersPath = Join-Path $d3dDir 'd3d12SDKLayers.dll'
+    New-Item -ItemType Directory -Force -Path $d3dDir | Out-Null
+    if (-not (Test-Path $corePath) -or -not (Test-Path $layersPath)) {
+      $nupkg = Join-Path $work 'd3d12.zip'
+      $ok = $false
+      foreach ($ver in @('1.614.0','1.614')) {
+        try {
+          Download-File "https://www.nuget.org/api/v2/package/Microsoft.Direct3D.D3D12/$ver" $nupkg
+          $ok = $true; break
+        } catch { }
+      }
+      if ($ok) {
+        $x = Join-Path $work 'd3d12x'
+        if (Test-Path $x) { Remove-Item $x -Recurse -Force }
+        Expand-Archive -Path $nupkg -DestinationPath $x -Force
+        $core = Get-ChildItem $x -Recurse -Filter 'D3D12Core.dll' | Where-Object { $_.FullName -match 'x64' } | Select-Object -First 1
+        $layers = Get-ChildItem $x -Recurse -Filter 'D3d12SDKLayers.dll' | Where-Object { $_.FullName -match 'x64' } | Select-Object -First 1
+        if ($core)   { Copy-Item $core.FullName   $corePath -Force }
+        if ($layers) { Copy-Item $layers.FullName $layersPath -Force }
+        Remove-Item $x -Recurse -Force -ErrorAction SilentlyContinue
+      }
+      if (-not (Test-Path $corePath) -or -not (Test-Path $layersPath)) {
+        Write-Host '    Agility SDK files remain incomplete; consult the selected fork''s Windows 10 instructions.' -ForegroundColor Yellow
+      } else {
+        Write-Host '    both documented Agility SDK files are present.' -ForegroundColor Green
+      }
     } else {
-      Write-Host '    fix installed.' -ForegroundColor Green
+      Write-Host '    both documented Agility SDK files are already present.' -ForegroundColor Green
     }
-  } else { Write-Host '    fix already there.' -ForegroundColor Green }
+  } else {
+    Write-Host '    Windows 11 detected; skipping the Windows 10-only Agility SDK package.' -ForegroundColor DarkGray
+  }
 
   Write-Host ''
-  Write-Host 'SETUP COMPLETE. The harness is ready.' -ForegroundColor Green
+  Write-Host 'SETUP STEPS FINISHED. Review any warnings above and confirm the selected fork''s requirements.' -ForegroundColor Green
   Pause-OK
   return $victory
 }
@@ -740,45 +918,66 @@ function Full-Auto-Setup {
 function Action-CheckPC {
   Write-Banner
   Write-Host '--- CHECKING YOUR PC ---' -ForegroundColor White
-  & (Join-Path $script:Root 'preflight.ps1') -VictoryExe $script:Cfg.harness
+  & (Join-Path $script:Root 'preflight.ps1') -VictoryExe $script:Cfg.harness -Engine (Get-ConfiguredEngine)
   Pause-OK
 }
 function Action-FixBlack {
   Write-Banner
-  Write-Host '--- BLACK SCREEN FIXER ---' -ForegroundColor White
+  Write-Host '--- BLACK-SCREEN DIAGNOSIS (read-only) ---' -ForegroundColor White
   $logDir = Join-Path $script:Cfg.dataDir 'logs'
   $latest = Get-ChildItem $logDir -Filter 'run-*.log' -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notlike '*.err.log' } |
             Sort-Object LastWriteTime | Select-Object -Last 1
   $logArg = if ($latest) { $latest.FullName } else { $null }
+  $errArg = if ($logArg) { $logArg -replace '\.log$', '.err.log' } else { $null }
   if ($logArg) { Write-Host "Using latest log: $logArg" -ForegroundColor DarkGray }
-  & (Join-Path $script:Root 'fix-blackscreen.ps1') -VictoryExe $script:Cfg.harness -RunLog $logArg
+  & (Join-Path $script:Root 'fix-blackscreen.ps1') -VictoryExe $script:Cfg.harness -RunLog $logArg -RunErrorLog $errArg -Engine (Get-ConfiguredEngine)
   Pause-OK
 }
 function Action-Play {
   Write-Banner
-  Write-Host '--- CHOOSE HOW IT SHOULD RUN ---' -ForegroundColor White
-  Write-Host '  [1] SMOOTH  720p, slow-motion clock  <- best on this laptop (default)'
-  Write-Host '  [2] FASTEST smallest picture, maximum speed'
-  Write-Host '  [3] DEBUG   extra error info (for fixing problems)'
-  Write-Host ''
-  $pick = Ask-Number 'Pick 1, 2 or 3' 1 1 3
-  $profiles = switch ($pick) { 1 { @('smooth') } 2 { @('fast') } 3 { @('smooth','debug') } }
+  $engine = Get-ConfiguredEngine
+  if ($engine -in @('unified', 'foxhound')) {
+    Write-Host "--- $($engine.ToUpperInvariant()) PLAY PROFILE ---" -ForegroundColor White
+    Write-Host 'This applies launcher settings based on a checked fork play script; the exact binary support is not verified.' -ForegroundColor DarkGray
+    Write-Host 'The CCS03 720p/FAST presets do not apply.' -ForegroundColor DarkGray
+    Write-Host '  [1] PLAY with the launcher profile'
+    Write-Host '  [2] PLAY with GPU diagnostics (slower, more logging)'
+    if ($engine -eq 'unified') {
+      Write-Host '  Ray tracing is not enabled by default. The upstream builder has a substantial GPU-time and memory cost.' -ForegroundColor Yellow
+    }
+    Write-Host ''
+    $pick = Ask-Number 'Pick 1 or 2' 1 1 2
+    $profiles = @()
+    if ($pick -eq 2) { $profiles = @('debug') }
+  } else {
+    Write-Host '--- CHOOSE HOW IT SHOULD RUN ---' -ForegroundColor White
+    Write-Host '  [1] SMOOTH  720p and a bounded texture pass (default)'
+    Write-Host '  [2] FASTEST 720p with extra CPU threads'
+    Write-Host '  [3] DEBUG   extra GPU error details (slower)'
+    Write-Host ''
+    $pick = Ask-Number 'Pick 1, 2 or 3' 1 1 3
+    $profiles = switch ($pick) { 1 { @('smooth') } 2 { @('fast') } 3 { @('smooth','debug') } }
+  }
   if ($script:Cfg.engine -in @('foxhound', 'unified')) {
     Write-Host '  (this engine paces the world per frame - below 30 fps the game runs slower than real time.)' -ForegroundColor DarkGray
   } else {
-    $speed = Ask-Number 'Game speed: [1] real-time (recommended) [2] slow-motion (easier to steer)' 1 1 2
+    $speed = Ask-Number 'Timing: [1] default timing [2] slow-motion diagnostic (easier to steer)' 1 1 2
     if ($speed -eq 2) { $profiles += 'steady' }
   }
 
+  # Use the same switch set for cache warm-up and the subsequent run. The
+  # launcher clears/rebuilds this set again at the actual start.
+  Set-GameEnv $profiles
   Write-Host ''
-  Write-Host 'Tip: first time? add a warm-up (y/n). It makes the first minutes much better.' -ForegroundColor DarkGray
+  Write-Host 'Optional: run the build''s warm-up command first? It may pre-cache work if this fork supports it (y/n).' -ForegroundColor DarkGray
   $warm = (Ask 'Warm up before playing? (y/n)' 'y')
   if ($warm -match '^(y|yes)$') {
     $logDir = Join-Path $script:Cfg.dataDir 'logs'
     New-Item -ItemType Directory -Force -Path $logDir | Out-Null
     Write-Host 'Warming up (this can take many minutes the first time)...' -ForegroundColor Yellow
     $eap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
-    if ($script:Cfg.engine -eq 'foxhound') {
+    if ($engine -eq 'foxhound') {
       # foxhound: translate shaders once per build+switches, then pre-compile known pipelines
       $env:VICTORY_HOST_WAVE = '32'
       & $script:Cfg.harness shaders (Split-Path -Parent $script:Cfg.gameExe) 2>&1 |
@@ -788,7 +987,7 @@ function Action-Play {
     $warmOut = & $script:Cfg.harness warm --used 2>&1 | Tee-Object -FilePath (Join-Path $logDir "warm-$(Get-Date -Format 'yyyyMMdd-HHmmss').log") | Out-String
     $ErrorActionPreference = $eap
     if ($warmOut -match 'unrecognized (subcommand|argument)') {
-      Write-Host '  (this build has no warm-up command - it caches automatically while you play. Skipping.)' -ForegroundColor DarkGray
+      Write-Host '  (this build did not recognize the optional warm-up command; continuing without it.)' -ForegroundColor DarkGray
     }
   }
   Start-GameWithMonitor -cfg $script:Cfg -profiles $profiles
@@ -802,11 +1001,9 @@ function Action-Export {
 }
 function Action-ResourceTracker {
   Write-Banner
-  Write-Host '--- RESOURCE TRACKER (see what uses how much and disable) ---' -ForegroundColor White
-  Write-Host '  This reads the telemetry CSV and engine output to show:' -ForegroundColor DarkGray
-  Write-Host '  - Component name (VICTORY_...)' -ForegroundColor DarkGray
-  Write-Host '  - Actual usage (VRAM MB, RAM MB, CPU %)' -ForegroundColor DarkGray
-  Write-Host '  - Suggested disable (yes/no) based on the 6 GB limit' -ForegroundColor DarkGray
+  Write-Host '--- SYSTEM RESOURCE SNAPSHOT (no per-switch attribution) ---' -ForegroundColor White
+  Write-Host '  This summarizes host-level telemetry only: RAM, commit, CPU and (on NVIDIA) GPU/VRAM.' -ForegroundColor DarkGray
+  Write-Host '  It cannot tell how much memory or time a specific VICTORY_* switch uses, and will not change settings.' -ForegroundColor DarkGray
   Write-Host ''
 
   $logDir = Join-Path $script:Cfg.dataDir 'logs'
@@ -845,58 +1042,33 @@ function Action-ResourceTracker {
     }
   }
 
-  # Component list (based on the bundle)
-  $components = @(
-    @{ name='VICTORY_TEXTURE_BUDGET_MB'; usage='768 MB VRAM'; limit='6144 MB'; suggest='KEEP' },
-    @{ name='VICTORY_CARD_BUFFERS_MB';   usage='512 MB VRAM'; limit='6144 MB'; suggest='KEEP' },
-    @{ name='VICTORY_INDIRECT_WINDOW';  usage='12% GPU';     limit='20% GPU'; suggest='KEEP' },
-    @{ name='VICTORY_TEXTURE_STAGE_MS'; usage='25 ms CPU';   limit='16 ms CPU'; suggest='DISABLE (slows game)' },
-    @{ name='VICTORY_CARD_REHASH_RUNS'; usage='8% GPU';     limit='20% GPU'; suggest='KEEP' }
-  )
-
-  Write-Host '  --- COMPONENT USAGE ---' -ForegroundColor Cyan
-  Write-Host '  Component            | Usage      | Limit      | Suggestion' -ForegroundColor White
-  Write-Host '  ---------------------------------------------------' -ForegroundColor White
-  foreach ($c in $components) {
-    Write-Host ('  {0,-22} | {1,-10} | {2,-10} | {3}' -f $c.name, $c.usage, $c.limit, $c.suggest) -ForegroundColor White
-  }
-  Write-Host '  ---------------------------------------------------' -ForegroundColor White
-  Write-Host ''
-  Write-Host ('  Total VRAM used: {0} GB (peak {1} GB)' -f $peaks.vram, $peaks.vram) -ForegroundColor Cyan
-  Write-Host ('  Total CPU used:  {0}% (peak {1}%)' -f $peaks.cpu, $peaks.cpu) -ForegroundColor Cyan
-  Write-Host ('  Total GPU used:  {0}% (peak {1}%)' -f $peaks.gpu, $peaks.gpu) -ForegroundColor Cyan
+  Write-Host '  --- PEAKS FROM THE LATEST TELEMETRY CSV ---' -ForegroundColor Cyan
+  Write-Host ('  Peak RAM       : {0} GB' -f $peaks.ram) -ForegroundColor White
+  Write-Host ('  Peak commit    : {0} GB' -f $peaks.commit) -ForegroundColor White
+  Write-Host ('  Peak CPU       : {0} %' -f $peaks.cpu) -ForegroundColor White
+  Write-Host ('  Peak NVIDIA GPU: {0} %' -f $peaks.gpu) -ForegroundColor White
+  Write-Host ('  Peak NVIDIA VRAM: {0} GB' -f $peaks.vram) -ForegroundColor White
+  Write-Host '  Note: NVIDIA counters may be zero/unavailable on AMD/Intel systems.' -ForegroundColor DarkGray
   Write-Host ''
 
-  # Save report
+  # Save only the counters actually present in telemetry. No switch-level
+  # attribution exists here, so do not invent per-component numbers or toggles.
   $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
   $report = Join-Path $logDir "resource-usage-$stamp.txt"
-  $lines = @()
-  $lines += "--- RESOURCE USAGE REPORT ($stamp) ---"
-  $lines += "Component            | Usage      | Limit      | Suggestion"
-  $lines += "---------------------------------------------------"
-  foreach ($c in $components) { $lines += ('{0,-22} | {1,-10} | {2,-10} | {3}' -f $c.name, $c.usage, $c.limit, $c.suggest) }
-  $lines += "---------------------------------------------------"
-  $lines += ""
-  $lines += ("Total VRAM used: {0} GB (peak {1} GB)" -f $peaks.vram, $peaks.vram)
-  $lines += ("Total CPU used:  {0}% (peak {1}%)" -f $peaks.cpu, $peaks.cpu)
-  $lines += ("Total GPU used:  {0}% (peak {1}%)" -f $peaks.gpu, $peaks.gpu)
-  $lines += ""
-  $lines += "Suggested disable: VICTORY_TEXTURE_STAGE_MS, VICTORY_CARD_REHASH_RUNS"
-  $lines += "To apply: run [11] RESOURCE TRACKER and pick the numbers."
-  $lines | Set-Content $report
-  Write-Host "  Report saved: $report" -ForegroundColor Green
-  Write-Host ''
-
-  # Ask to disable
-  $disable = (Ask 'Disable the suggested components now? (y/n)' 'n')
-  if ($disable -match '^(y|yes)$') {
-    $cfg = Load-Config
-    if (-not $cfg) { $cfg = [PSCustomObject]@{} }
-    $cfg | Add-Member -NotePropertyName disabledResources -NotePropertyValue 'VICTORY_TEXTURE_STAGE_MS,VICTORY_CARD_REHASH_RUNS' -Force
-    Save-Config $cfg
-    $script:Cfg = $cfg
-    Write-Host '  Disabled resources saved to config.json. Next start will skip them.' -ForegroundColor Green
-  }
+  @(
+    "--- SYSTEM RESOURCE SNAPSHOT ($stamp) ---"
+    "Source CSV: $latestCsv"
+    ""
+    "Peak RAM: $($peaks.ram) GB"
+    "Peak commit: $($peaks.commit) GB"
+    "Peak CPU: $($peaks.cpu) %"
+    "Peak NVIDIA GPU: $($peaks.gpu) %"
+    "Peak NVIDIA VRAM: $($peaks.vram) GB"
+    ""
+    'No per-switch resource attribution is collected. These system totals cannot justify disabling a VICTORY_* option.'
+  ) | Set-Content $report
+  Write-Host "  Snapshot saved: $report" -ForegroundColor Green
+  Write-Host '  No settings were changed.' -ForegroundColor DarkGray
   Pause-OK
 }
 function Action-OpenLogs {
@@ -961,17 +1133,17 @@ while ($true) {
   Write-Host "  Harness: $($config.harness)" -ForegroundColor DarkGray
   Write-Host "  Logs   : $($config.dataDir)" -ForegroundColor DarkGray
   Write-Host ''
-  Write-Host '  [1] PLAY               (recommended settings + live stats)' -ForegroundColor White
+  Write-Host '  [1] PLAY               (profile settings + live stats)' -ForegroundColor White
   Write-Host '  [2] CHECK MY PC        (is everything ready?)' -ForegroundColor White
-  Write-Host '  [3] FIX BLACK SCREEN   (automatic doctor)' -ForegroundColor White
-  Write-Host '  [4] FIX DARK ROOMS     (brighten shadowy places)' -ForegroundColor White
+  Write-Host '  [3] DIAGNOSE BLACK SCREEN (read-only checks; no auto-fix)' -ForegroundColor White
+  Write-Host '  [4] TUNE AMBIENT LIGHT   (approximation only; not full GI)' -ForegroundColor White
   Write-Host '  [5] SCENE TEST LOOP    (replay the same spot again and again)' -ForegroundColor White
   Write-Host '  [6] CHANGE SETTINGS    (game file, folders, start over)' -ForegroundColor White
   Write-Host '  [7] EXPORT LOGS FOR AI (makes one .zip to send)' -ForegroundColor White
   Write-Host '  [8] OPEN LOG FOLDER' -ForegroundColor White
   Write-Host '  [9] UPDATE FROM GITHUB (get the newest fixes)' -ForegroundColor White
   Write-Host '  [10] Quit' -ForegroundColor White
-  Write-Host '  [11] RESOURCE TRACKER  (see what uses how much and disable)' -ForegroundColor White
+  Write-Host '  [11] RESOURCE SNAPSHOT (system totals only; no per-switch attribution)' -ForegroundColor White
   Write-Host ''
   $choice = Ask-Number 'What do you want to do' 1 1 11
   switch ($choice) {

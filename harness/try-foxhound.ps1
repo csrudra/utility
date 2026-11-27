@@ -6,8 +6,8 @@
 #   TRY-FOXHOUND.cmd              install/switch to foxhound (builds it once)
 #   TRY-FOXHOUND.cmd -Restore     switch back to the CCS03 harness
 #
-# Never rebuilds finished work: an existing foxhound build is adopted as-is.
-# Never destroys your setup: the old config.json is saved to config.json.backup
+# Reuses an existing executable by path alone; it does not verify source/build provenance.
+# Saves the old config.json to config.json.backup before switching.
 # (kept forever) and -Restore brings it back. Your game, saves and logs are
 # untouched by this script.
 
@@ -124,13 +124,11 @@ Say ' SWITCHED TO FOXHOUND (NVIDIA-tuned engine)' Green
 Say '=============================================================' Green
 Say 'Play as usual:  START.cmd  ->  [1] PLAY'
 Say ''
-Say 'What you should expect on an RTX 3060 6GB / i7-12700H / 16 GB:'
-Say '  - more fps than the default harness (community: RTX 3080 ~15 fps,'
-Say '    i5-12600KF ~10-15 fps in the prologue), sharper image with DLSS'
-Say '  - WARNING: below 30 fps the world runs slower than real time (the'
-Say '    title steps its world per frame - the fork says so honestly).'
-Say '  - WARNING: the fork wants 32 GB RAM. Keep the 48-64 GB pagefile'
-Say '    on and close browsers. Watch the RAM line in the panel.'
-Say '  - Keep the 6GB budgets (768/512) - they work in this engine too.'
+Say 'Performance reports are from other GPUs/scenes and do not predict an RTX 3060 result.'
+Say '  - The fork reports below-30-fps simulation slowdown and recommends 32 GB RAM.'
+Say '  - A larger pagefile is not a substitute for RAM. Watch committed memory and logs;'
+Say '    change virtual-memory settings only when there is evidence of exhausted commit.'
+Say '  - The launcher supplies 768/512 MB texture/buffer settings. These are not a'
+Say '    hard VRAM cap; verify their meaning/support in the exact foxhound source.'
 Say ''
 Say 'Switch back any time:   TRY-FOXHOUND.cmd -Restore' Cyan
