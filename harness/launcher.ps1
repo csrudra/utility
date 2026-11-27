@@ -73,6 +73,7 @@ function Save-Config($cfg) {
 
 # ============================ setup wizard ============================
 function Setup-Wizard {
+  param([string]$presetHarness)
   Write-Banner
   Write-Host '--- FIRST-TIME SETUP (4 questions, then never again) ---' -ForegroundColor Green
   Write-Host ''
@@ -86,14 +87,25 @@ function Setup-Wizard {
     if (-not $game) { Write-Host '  No file chosen - the game cannot start without it.' -ForegroundColor Yellow }
   }
 
-  # 2. harness exe
+  # 2. harness exe (pre-filled after auto setup)
   $harness = $null
+  if ($presetHarness -and (Test-Path $presetHarness)) {
+    Write-Host ''
+    Write-Host 'QUESTION 2: HARNESS - found automatically!' -ForegroundColor Green
+    Write-Host "  $presetHarness" -ForegroundColor DarkGray
+    $keep = (Ask 'Press Enter to use it (or type n to pick a different file)' '')
+    if ($keep -notmatch '^n$') { $harness = $presetHarness }
+  }
   while (-not $harness) {
     Write-Host ''
     Write-Host 'QUESTION 2: Where is the HARNESS file?' -ForegroundColor White
-    Write-Host '  (victory.exe - the program you built from CCS03. See README step 1)' -ForegroundColor DarkGray
+    Write-Host '  (victory.exe - the program that runs the game)' -ForegroundColor DarkGray
     $harness = Pick-File 'Select the harness (victory.exe)' 'Harness (victory.exe)|victory.exe;*.exe'
-    if (-not $harness) { Write-Host '  No file chosen - build it first (README step 1).' -ForegroundColor Yellow }
+    if (-not $harness) {
+      Write-Host '  No file chosen.' -ForegroundColor Yellow
+      $auto = (Ask 'No problem - I can DOWNLOAD AND BUILD it automatically now. Do that? (y/n)' 'y')
+      if ($auto -match '^(y|yes)$') { $harness = Full-Auto-Setup }
+    }
   }
 
   # 3. data folder
@@ -378,6 +390,142 @@ function Export-ForAI($cfg, $runLog, $csv) {
   Write-Host '  the stats timeline (CSV), and health checks.' -ForegroundColor DarkGray
 }
 
+# ============================ full auto setup =========================
+function Download-File([string]$url, [string]$dest) {
+  $ErrorActionPreference = 'Continue'
+  $ProgressPreference = 'SilentlyContinue'   # PS5.1 downloads crawl otherwise
+  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+  Write-Host "    downloading $url" -ForegroundColor DarkGray
+  Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
+  if (-not (Test-Path $dest)) { throw "Download failed: $url" }
+}
+
+function Full-Auto-Setup {
+  Write-Banner
+  Write-Host '--- FULL AUTO SETUP (one button) ---' -ForegroundColor Green
+  Write-Host ''
+  Write-Host '  This downloads and installs EVERYTHING the game needs to start,' -ForegroundColor White
+  Write-Host '  and builds the harness. Nothing to type, nothing to find.' -ForegroundColor White
+  Write-Host ''
+  Write-Host '  What happens now:' -ForegroundColor White
+  Write-Host '   1. Downloads the harness source code (about 50 MB)'
+  Write-Host '   2. Installs the free "Rust" build tool if missing (about 1 GB)'
+  Write-Host '   3. Installs Microsoft build tools if missing (several GB - slow!)'
+  Write-Host '   4. Builds the harness (10-40 minutes of scrolling text - normal)'
+  Write-Host '   5. Installs one small Microsoft file (fixes the black screen)'
+  Write-Host ''
+  Write-Host '  You need an internet connection. Total time: 30-90 minutes.' -ForegroundColor Yellow
+  $go = (Ask 'Start the big setup now? (y/n)' 'y')
+  if ($go -notmatch '^(y|yes)$') { return $null }
+
+  $work = Join-Path $script:Root 'setup'
+  $src  = Join-Path $work 'CCS03'
+  $setupLog = Join-Path $work 'setup-log.txt'
+  New-Item -ItemType Directory -Force -Path $work | Out-Null
+  "Setup started $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" | Set-Content $setupLog
+
+  # ---- 1. source code ----
+  Write-Host ''
+  Write-Host 'STEP 1/5: getting the harness source code...' -ForegroundColor Cyan
+  if (-not (Test-Path (Join-Path $src 'Cargo.toml'))) {
+    $zip = Join-Path $work 'ccs03.zip'
+    Download-File 'https://github.com/JozefDeTremmerie/CCS03/archive/refs/heads/ccs03.zip' $zip
+    $unzip = Join-Path $work 'unzipped'
+    if (Test-Path $unzip) { Remove-Item $unzip -Recurse -Force }
+    Expand-Archive -Path $zip -DestinationPath $unzip -Force
+    $found = Get-ChildItem $unzip -Directory | Select-Object -First 1
+    Move-Item $found.FullName $src
+    Remove-Item $unzip -Recurse -Force; Remove-Item $zip -Force
+    Write-Host '    source code ready.' -ForegroundColor Green
+  } else { Write-Host '    source code already there.' -ForegroundColor Green }
+
+  # ---- 2. Rust ----
+  Write-Host ''
+  Write-Host 'STEP 2/5: checking the "Rust" build tool...' -ForegroundColor Cyan
+  $cargo = Join-Path $env:USERPROFILE '.cargo\bin\cargo.exe'
+  if (-not (Test-Path $cargo)) {
+    $rustup = Join-Path $work 'rustup-init.exe'
+    Download-File 'https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe' $rustup
+    Write-Host '    installing Rust (if Windows asks permission, click Yes)...' -ForegroundColor Yellow
+    Start-Process -FilePath $rustup -ArgumentList '-y' -Wait
+  }
+  if (-not (Test-Path $cargo)) { throw 'Rust did not install. Screenshot this and send it to the AI.' }
+  Write-Host "    Rust ready: $(& $cargo --version)" -ForegroundColor Green
+
+  # ---- 3. Microsoft build tools ----
+  Write-Host ''
+  Write-Host 'STEP 3/5: checking Microsoft build tools...' -ForegroundColor Cyan
+  $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+  $hasMsvc = $false
+  if (Test-Path $vswhere) {
+    $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+    if ($vsPath) { $hasMsvc = $true }
+  }
+  if (-not $hasMsvc) {
+    Write-Host '    NOT FOUND. Installing now (SEVERAL GB - this is the slow part).' -ForegroundColor Yellow
+    Write-Host '    If a Microsoft window opens: just let it run. Click "Yes" if asked.' -ForegroundColor Yellow
+    $vsbt = Join-Path $work 'vs_BuildTools.exe'
+    Download-File 'https://aka.ms/vs/17/release/vs_BuildTools.exe' $vsbt
+    Start-Process -FilePath $vsbt -ArgumentList '--add','Microsoft.VisualStudio.Workload.VCTools','--includeRecommended','--passive','--norestart' -Wait
+    Write-Host '    build tools installed.' -ForegroundColor Green
+  } else { Write-Host '    build tools already there.' -ForegroundColor Green }
+
+  # ---- 4. build ----
+  Write-Host ''
+  Write-Host 'STEP 4/5: building the harness (10-40 min, scrolling text is normal)...' -ForegroundColor Cyan
+  Push-Location $src
+  try {
+    & $cargo build --release -p victory 2>&1 | Tee-Object -FilePath $setupLog -Append
+  } finally { Pop-Location }
+  $victory = Join-Path $src 'target\release\victory.exe'
+  if (-not (Test-Path $victory)) {
+    Write-Host '    BUILD FAILED. The full error is in:' -ForegroundColor Red
+    Write-Host "    $setupLog" -ForegroundColor Cyan
+    Write-Host '    Use menu [5] EXPORT LOGS FOR AI and send the zip.' -ForegroundColor Cyan
+    Pause-OK
+    return $null
+  }
+  Write-Host '    harness built.' -ForegroundColor Green
+
+  # ---- 5. black-screen fix file (Agility SDK) ----
+  Write-Host ''
+  Write-Host 'STEP 5/5: installing the black-screen fix (small Microsoft file)...' -ForegroundColor Cyan
+  $d3dDir = Join-Path (Split-Path $victory) 'D3D12'
+  New-Item -ItemType Directory -Force -Path $d3dDir | Out-Null
+  if (-not (Test-Path (Join-Path $d3dDir 'D3D12Core.dll'))) {
+    $nupkg = Join-Path $work 'd3d12.zip'
+    $ok = $false
+    foreach ($ver in @('1.614.0','1.614')) {
+      try {
+        Download-File "https://www.nuget.org/api/v2/package/Microsoft.Direct3D.D3D12/$ver" $nupkg
+        $ok = $true; break
+      } catch { }
+    }
+    if ($ok) {
+      $x = Join-Path $work 'd3d12x'
+      if (Test-Path $x) { Remove-Item $x -Recurse -Force }
+      Expand-Archive -Path $nupkg -DestinationPath $x -Force
+      $core = Get-ChildItem $x -Recurse -Filter 'D3D12Core.dll'      | Where-Object { $_.FullName -match 'x64' } | Select-Object -First 1
+      $layers = Get-ChildItem $x -Recurse -Filter 'D3d12SDKLayers.dll' | Where-Object { $_.FullName -match 'x64' } | Select-Object -First 1
+      if (-not $core)    { $core   = Get-ChildItem $x -Recurse -Filter 'D3D12Core.dll'      | Select-Object -First 1 }
+      if (-not $layers)  { $layers = Get-ChildItem $x -Recurse -Filter 'D3d12SDKLayers.dll' | Select-Object -First 1 }
+      if ($core)   { Copy-Item $core.FullName   (Join-Path $d3dDir 'D3D12Core.dll') -Force }
+      if ($layers) { Copy-Item $layers.FullName (Join-Path $d3dDir 'D3d12SDKLayers.dll') -Force }
+      Remove-Item $x -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if (-not (Test-Path (Join-Path $d3dDir 'D3D12Core.dll'))) {
+      Write-Host '    (could not download it automatically - the launcher will tell you the manual 2-minute fix)' -ForegroundColor Yellow
+    } else {
+      Write-Host '    fix installed.' -ForegroundColor Green
+    }
+  } else { Write-Host '    fix already there.' -ForegroundColor Green }
+
+  Write-Host ''
+  Write-Host 'SETUP COMPLETE. The harness is ready.' -ForegroundColor Green
+  Pause-OK
+  return $victory
+}
+
 # ============================ menu actions ============================
 function Action-CheckPC {
   Write-Banner
@@ -437,13 +585,28 @@ Write-Banner
 $config = Load-Config
 if ($DataDir -and $config) { $config.dataDir = $DataDir }
 
-if (-not $config -or -not (Test-Path $config.gameExe) -or -not (Test-Path $config.harness)) {
+# no harness yet? offer the one-button setup (download + install + build)
+$autoHarness = $null
+$harnessOk = $config -and $config.harness -and (Test-Path $config.harness)
+if (-not $harnessOk) {
+  Write-Banner
+  Write-Host 'The harness (the program that runs the game) is not set up on this PC yet.' -ForegroundColor Yellow
+  Write-Host 'You do NOT need to know anything - it can download, install and build by itself.' -ForegroundColor White
+  $do = (Ask 'Run FULL AUTO SETUP now? (takes 30-90 min, needs internet) (y/n)' 'y')
+  if ($do -match '^(y|yes)$') { $autoHarness = Full-Auto-Setup }
+}
+
+if (-not $config -or -not (Test-Path $config.gameExe) -or -not ($autoHarness -or $harnessOk)) {
   if ($config) {
     Write-Host 'Saved game/harness paths no longer exist. Running setup again.' -ForegroundColor Yellow
     Pause-OK
   }
-  Setup-Wizard
+  Setup-Wizard -presetHarness $autoHarness
   $config = Load-Config
+} elseif ($autoHarness -and (-not $config.harness -or -not (Test-Path $config.harness))) {
+  # auto setup finished after config existed - save the found harness
+  $config | Add-Member -NotePropertyName harness -NotePropertyValue $autoHarness -Force
+  Save-Config $config
 }
 $script:Cfg = $config
 New-Item -ItemType Directory -Force -Path $config.dataDir | Out-Null

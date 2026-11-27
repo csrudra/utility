@@ -50,7 +50,32 @@ Creates `data\exports\gta6-ai-report-<date>.zip` containing:
 
 Send that one zip and the AI can debug anything.
 
-## Before all this: get the harness itself (one-time)
+## Is it really "download and run"? YES.
+
+```
+ 1. DOWNLOAD   github.com/csrudra/utility -> Code -> Download ZIP -> unzip
+ 2. DOUBLE-CLICK  harness\START.cmd      (say YES to the auto setup and wait)
+ 3. PICK YOUR GAME FILE   (one file-picker window)
+ 4. PLAY
+```
+
+Step 2 is the only long one (30–90 minutes, several GB of downloads, **once per PC**). The launcher does all of it by itself:
+
+| What | How it gets it | Why |
+|---|---|---|
+| Harness source code | downloads the CCS03 `ccs03` branch zip from GitHub | the code that runs the game |
+| "Rust" build tool | downloads `rustup-init.exe` from rust-lang.org and installs it | needed to compile the harness |
+| Microsoft build tools | downloads `vs_BuildTools.exe` from Microsoft (only if missing) | the compiler Rust needs |
+| The harness itself | compiles it (`cargo build`, 10–40 min of scrolling text = normal) | no official prebuilt exists — building from source is also the only auditable way |
+| Black-screen fix | downloads Microsoft's Direct3D 12 Agility SDK and places the 2 files | without it Windows 10 shows a black screen |
+
+Notes for the very first run:
+- If Windows SmartScreen says "unrecognized app": click **More info → Run anyway** (the scripts are in this public repo).
+- If an antivirus pauses the build tools install: allow it once (they are Microsoft's own installer).
+- **The game itself is NOT downloaded** — legally it can't be. The launcher asks you to *point at* `game_scarlett_master.exe` you already have (one file-picker window, question 1).
+- No internet mid-setup? Just run `START.cmd` again later — setup continues where it stopped.
+
+## Before all this (manual route, if you prefer)
 
 ```powershell
 git clone https://github.com/JozefDeTremmerie/CCS03
@@ -80,5 +105,6 @@ CCS03's `victory.exe` is the only harness with measured **laptop** runs (prison 
 | `fix-blackscreen.ps1` | black-screen doctor (also callable from the menu) |
 | `config.json` | created on first run — your remembered answers |
 | `data\` | logs, telemetry, settings, exports (your AI bundle) |
+| `setup\` | created by FULL AUTO SETUP: downloaded installers, harness source, build log |
 
 Scripts are Windows PowerShell 5.1 compatible and were statically reviewed; run `[2] CHECK MY PC` first and read what it prints. Switch values are compiled from measured work in GPL-3.0 VIctory-family repos (CCS03, VKarameloVI, Belobug, zsy-miao, fxceless, Pavl3000, Ryanabcraft, Linox, wardevsa, Dolberthi, Beaver) — no upstream code is copied.
