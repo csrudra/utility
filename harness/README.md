@@ -1,73 +1,84 @@
-# GTA VI compat-layer harness for a 6 GB / 16 GB laptop — start here
+# GTA VI harness — the ONE launcher (6 GB / 16 GB laptop)
 
-**Short answer to "which harness?":** the game needs a *compatibility layer* ("harness") to run, and the best one to start with is **CCS03's `ccs03` branch — its `victory.exe` is the harness**. This folder is the custom part around it: preflight checks, a tuned launcher for your RTX 3060 6 GB / 16 GB laptop, and a black-screen fixer.
+**Double-click `START.cmd`. That's it.** Everything else is automatic: one menu, plain language, your answers are remembered, and all logs live in **one folder** you can zip and send to an AI.
 
-Why CCS03 and not the others:
-
-| Harness (all `victory.exe`-family) | Verdict for this laptop |
-|---|---|
-| **CCS03 `ccs03`** | ✅ **START HERE.** Only tree with measured *laptop* runs (prison yard, 5.5–7.6 fps on an 8 GB laptop), auto-selects the laptop dGPU and logs it, Win10 Agility path, built-in 720p (`-Low`), slow-mo clock (`-Steady`), per-PC caches |
-| VKarameloVI | Switch donor (20–22 fps stack) — tuned for 12 GB cards, don't run it as-is on 6 GB |
-| zsy-miao/victory-perf | Second reference (fastest measured profile); port its switches into CCS03 later |
-| Marvisak/VIctory (upstream) | Clean base but ~1 fps and 33 GB commit — research, not play |
-| Beaver/ztrx-lowvram | Fallback if VRAM budgets still explode (only 4 GB evidence) |
-| XCL | Different stack (GPL-2.0-only), GTA VI dies to a GPU watchdog in 3–14 min — not a starter |
-| Random forks / "GTA VI installer" exes / private launchers | ❌ malware vector. Build from source only |
-
-## 0. What you need before anything (legally and technically)
-
-- Windows 10/11 x64 laptop, AVX2 CPU (your i7-12th gen ✅), D3D12 GPU with SM 6.6 + mesh shaders (RTX 3060 ✅), Rust (pinned by the repo's `rust-toolchain.toml`), Git, ~30 GB free disk.
-- The game data itself is **not** provided here and never will be (it is a leaked, copyrighted build; buy the official release when it lands). This harness assumes you already have a legally obtained dump — no downloads, no installers from this project.
-- Expectation management: 6–9 real fps in interiors / 4–6 in the world, 20+ *displayed* with frame generation (see §4). Not "playing GTA VI".
-
-## 1. From zero to first picture
-
-```powershell
-# 1. Get and build the harness (CCS03, branch ccs03)
-git clone https://github.com/JozefDeTremmerie/CCS03
-cd CCS03; git checkout ccs03
-cargo build --release -p victory        # produces target\release\victory.exe
-
-# 2. Windows 10 only: Agility SDK (WITHOUT THIS THE SCREEN STAYS BLACK on Win10)
-#    Download Microsoft.Direct3D.D3D12 1.614 (NuGet), extract, copy
-#    D3D12Core.dll + d3d12SDKLayers.dll into a "D3D12" folder BESIDE victory.exe
-#    Windows 11: skip this step.
-
-# 3. Preflight — checks GPU/driver/RAM/pagefile/disk/HDR and prints fixes
-powershell -ExecutionPolicy Bypass -File harness\preflight.ps1 `
-    -VictoryExe target\release\victory.exe
-
-# 4. Play (720p + slow-mo clock + smooth textures is the recommended profile)
-powershell -ExecutionPolicy Bypass -File harness\play.ps1 `
-    -Title "D:\games\GTA6\game_scarlett_master.exe" `
-    -VictoryExe "C:\src\CCS03\target\release\victory.exe" `
-    -Prewarm
+```
+  [1] PLAY               recommended settings + live stats (RAM / GPU / VRAM)
+  [2] CHECK MY PC        is everything ready?
+  [3] FIX BLACK SCREEN   automatic doctor
+  [4] CHANGE SETTINGS    game file, folders, start over
+  [5] EXPORT LOGS FOR AI makes ONE .zip to send
+  [6] OPEN LOG FOLDER
+  [7] Quit
 ```
 
-First run (or any run after a driver/update): let `-Prewarm` finish — it translates shaders and builds the per-PC pipeline cache (several GB, that is why you kept 30 GB free). A cold run compiles ~5 GB of pipelines live and the title's watchdog kills the run to a black screen.
+## First time (4 questions, asked once)
 
-## 2. The scripts
+1. **Where is the game file?** — a file picker opens; choose your `game_scarlett_master.exe`.
+2. **Where is the harness?** — choose `victory.exe` (built from CCS03, see below).
+3. **Where should logs go?** — pick any folder (default: `harness\data\`). This folder is your "send to AI" bundle.
+4. **Windows 10?** — detected automatically; if you need the one extra Microsoft file, the launcher checks it before every start and tells you exactly what to do.
 
-| File | What it does |
+## While the game runs
+
+The game gets its own window. The launcher window shows its health, updated every 2 s:
+
+```
+  GAME RUNNING  for 00:12:41
+  -------------------------------------------
+  CPU             :  61 %
+  RAM             : 13.2/15.8 GB   (peak 14.1)
+  Windows commit  : 21.4/47.8 GB   (peak 23.0)
+  NVIDIA GPU      :  94 %   VRAM 5.4/6.0 GB
+  Intel iGPU busy :  38 %  (display copy)
+```
+
+Every sample is saved to `telemetry-*.csv`. When you close the game you get a summary (peaks, averages) and an offer to **bundle everything for the AI**.
+
+## The AI bundle (`[5] EXPORT LOGS FOR AI`)
+
+Creates `data\exports\gta6-ai-report-<date>.zip` containing:
+
+| File | What an AI reads in it |
 |---|---|
-| `preflight.ps1` | Hardware/OS gate: OS version + Win10 Agility check, GPU + driver, RAM + committed headroom, pagefile size, disk space, HDR state, AVX2. PASS/FAIL with the exact fix per failure |
-| `play.ps1` | The launcher: sets the measured CCS03 bundle + 6 GB overrides + all black-screen fixes, then runs `victory.exe run <title> --execute --console series-s`. Profiles: `-Low` (720p), `-Steady` (game clock 33 ms → controllable slow motion), `-Smooth` (bounded texture pass), `-Fast`, `-Diag` (logs why draws drop), `-NoWatchdog`. Logs every run |
-| `fix-blackscreen.ps1` | The diagnosis ladder from `PORTWATCH_720P_BLACKSCREEN.md`, automated: adapter check, upscaler/compose env, Win10 Agility, pipeline cache, pagefile, HDR, and the `VICTORY_PRESENT_PLANE` isolation trick |
+| `system.txt` | your CPU/RAM/GPUs/drivers/OS/pagefile + the exact settings used |
+| `preflight.txt` | health checks at export time |
+| `run-*.log` / `run-*.err.log` | the full harness output (adapter name, `DXGI_ERROR_*`, `0x887A*`) |
+| `telemetry-*.csv` | CPU/RAM/commit/GPU/VRAM timeline, 2 s samples |
+| `settings-*.txt` | every `VICTORY_*` switch used for that run |
+| `config.json` | your paths (game/harness/data folder) |
 
-Unknown `VICTORY_*` variables are ignored by builds that don't implement them, so the launcher's union bundle (CCS03 + VKarameloVI + Belobug + zsy-miao switches) is safe on any VIctory-family tree.
+Send that one zip and the AI can debug anything.
 
-## 3. If the screen is black
+## Before all this: get the harness itself (one-time)
 
-Run `harness\fix-blackscreen.ps1`. The four causes that cover ~all reports, in order: wrong tree → FSR path without `VICTORY_OWN_UPSCALER=1` → missing compose (`VICTORY_COMPOSE=1`) → Win10 without the Agility `D3D12\` folder. Laptop extra: the run must be on the **NVIDIA** GPU — `play.ps1` tells you how to confirm the adapter line in the log and force it.
+```powershell
+git clone https://github.com/JozefDeTremmerie/CCS03
+cd CCS03; git checkout ccs03
+cargo build --release -p victory        # -> target\release\victory.exe
+```
 
-## 4. Reaching 20+ (displayed)
+- **Windows 10 only:** download Microsoft's *Direct3D 12 Agility SDK 1.614* (NuGet `Microsoft.Direct3D.D3D12`), copy `D3D12Core.dll` + `d3d12SDKLayers.dll` into a `D3D12` folder next to `victory.exe`. Without this the screen stays black — the launcher checks for it and will not let you miss it.
+- The game data is **not** and will never be part of this project (leaked, copyrighted build — buy the official release). The launcher only points at files you already have.
 
-`PORTWATCH_20FPS_WORKAROUND.md` has the full math. The short version, after the base is stable:
+## Why this harness (CCS03) and not another
 
-1. **Lossless Scaling (Steam) → run LSFG on the Intel iGPU** while the 3060 renders: LSFG 3, Fixed ×3, borderless 720p, Performance Mode, flow scale 50–75% → 6–9 real → **21–27 displayed** at ~zero base cost.
-2. Alternative: NVIDIA Smooth Motion ported to 30-series (`NVSmooth30`, MIT — demonstrated on an RTX 3050 Laptop) with the `victory_sm.exe` rename pattern. ×2 unless you use the MFG variant.
+CCS03's `victory.exe` is the only harness with measured **laptop** runs (prison yard, 5.5–7.6 fps on an 8 GB laptop); it auto-selects the laptop's NVIDIA GPU and logs the adapter; it carries the Win10 fix, the Series S black-screen fixes (own upscaler + compose) and the slow-motion clock. VKarameloVI/zsy-miao are switch donors for later; XCL dies to a GPU watchdog in minutes; random forks and "installer" exes are malware traps. Unknown `VICTORY_*` switches are ignored by builds that don't implement them, so the launcher's tuned bundle is safe on any VIctory-family build.
 
-## 5. Provenance
+## Honest expectations on this laptop
 
-- The launcher bundles switches measured in: JozefDeTremmerie/CCS03 (GPL-3.0-or-later), lucas-TagDev/VKarameloVI, Belobug/VIctory-Belobug-AMD, zsy-miao/victory-perf, fxceless/victory-fork, Pavl3000/victory-speed, Ryanabcraft/scarlett-victory-bench, Linox-IDK/LNX-victory, wardevsa/victory-pc-layer, Beaver6513/ztrx-lowvram — all GPL-3.0-or-later. Switch names only; no upstream code is copied here.
-- These scripts are provided as-is; they were written for Windows and reviewed statically (this workspace is Linux, so they are untested on a live machine — run `preflight.ps1` first and read what it prints before the first launch).
+- **SMOOTH mode (default):** 720p, slow-motion game clock → 6–9 real fps in interiors/prison, 4–6 in the open world, 30 fps menus. Controllable and stable-ish.
+- **20+ fps:** not real — displayed. Run Lossless Scaling on the Intel iGPU (LSFG ×3) after the base is stable; see `../PORTWATCH_20FPS_WORKAROUND.md` for the full math.
+
+## Files
+
+| File | Role |
+|---|---|
+| `START.cmd` | double-click entry point |
+| `launcher.ps1` | the one launcher (wizard, menu, live stats, AI export) |
+| `preflight.ps1` | full PC check (also callable from the menu) |
+| `fix-blackscreen.ps1` | black-screen doctor (also callable from the menu) |
+| `config.json` | created on first run — your remembered answers |
+| `data\` | logs, telemetry, settings, exports (your AI bundle) |
+
+Scripts are Windows PowerShell 5.1 compatible and were statically reviewed; run `[2] CHECK MY PC` first and read what it prints. Switch values are compiled from measured work in GPL-3.0 VIctory-family repos (CCS03, VKarameloVI, Belobug, zsy-miao, fxceless, Pavl3000, Ryanabcraft, Linox, wardevsa, Dolberthi, Beaver) — no upstream code is copied.
