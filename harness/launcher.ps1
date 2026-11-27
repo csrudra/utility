@@ -612,6 +612,20 @@ function Action-OpenLogs {
   New-Item -ItemType Directory -Force -Path $logDir | Out-Null
   Start-Process explorer.exe $script:Cfg.dataDir
 }
+function Action-Update {
+  Write-Banner
+  Write-Host '--- UPDATE FROM GITHUB ---' -ForegroundColor White
+  $pull = Join-Path (Split-Path $script:Root) 'pull.ps1'
+  if (Test-Path $pull) {
+    & $pull
+    Write-Host ''
+    Write-Host 'If files were updated: close this window and double-click START.cmd again.' -ForegroundColor Cyan
+  } else {
+    Write-Host '  pull.ps1 not found next to the harness folder.' -ForegroundColor Red
+    Write-Host '  Download the fresh ZIP: https://github.com/csrudra/utility/archive/refs/heads/main.zip' -ForegroundColor Cyan
+  }
+  Pause-OK
+}
 
 # ============================ main ====================================
 Write-Banner
@@ -661,9 +675,10 @@ while ($true) {
   Write-Host '  [4] CHANGE SETTINGS    (game file, folders, start over)' -ForegroundColor White
   Write-Host '  [5] EXPORT LOGS FOR AI (makes one .zip to send)' -ForegroundColor White
   Write-Host '  [6] OPEN LOG FOLDER' -ForegroundColor White
-  Write-Host '  [7] Quit' -ForegroundColor White
+  Write-Host '  [7] UPDATE FROM GITHUB (get the newest fixes)' -ForegroundColor White
+  Write-Host '  [8] Quit' -ForegroundColor White
   Write-Host ''
-  $choice = Ask-Number 'What do you want to do' 1 1 7
+  $choice = Ask-Number 'What do you want to do' 1 1 8
   switch ($choice) {
     1 { Action-Play }
     2 { Action-CheckPC }
@@ -671,6 +686,7 @@ while ($true) {
     4 { Setup-Wizard; $config = Load-Config; $script:Cfg = $config }
     5 { Action-Export }
     6 { Action-OpenLogs }
-    7 { Write-Host 'Bye!' -ForegroundColor Cyan; exit 0 }
+    7 { Action-Update }
+    8 { Write-Host 'Bye!' -ForegroundColor Cyan; exit 0 }
   }
 }
