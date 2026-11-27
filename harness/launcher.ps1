@@ -196,7 +196,8 @@ function Set-GameEnv([string[]]$profiles) {
   E VICTORY_QUEUE2 '1';                E VICTORY_INDIRECT_WINDOW '1';  E VICTORY_COPY_PLAIN '1'
   E VICTORY_TEXTURE_NO_WAIT '1';       E VICTORY_WIDE_TEXTURES '1';    E VICTORY_TEXTURE_DROP_MIPS '1'
   E VICTORY_TEXTURE_ROOM_PERCENT '86'; E VICTORY_CARD_ROOM_FOR_TARGETS_MB '1024'
-  E VICTORY_AMBIENT '0.9';             E VICTORY_JOIN_PARTS '1';       E VICTORY_BACK_OWN_VIEW '1'
+  E VICTORY_AMBIENT $(if ($script:Cfg.ambient) { [string]$script:Cfg.ambient } else { '1.2' })
+  E VICTORY_JOIN_PARTS '1';            E VICTORY_BACK_OWN_VIEW '1'
   E VICTORY_INDIRECT_GATHER '1';       E VICTORY_CARD_REHASH_RUNS '1'; E VICTORY_TEXTURE_BACK '1'
   E VICTORY_CARD_HASH_LEN '1'
   # -- black-screen fixes (each one was found the hard way)
@@ -234,6 +235,35 @@ function Quick-Gates {
   $ramGB = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 1)
   if ($ramGB -lt 16) { $problems += "ONLY $ramGB GB RAM: 16 GB is the minimum. Close every other program." }
   return $problems
+}
+
+# ============================ dark rooms ================================
+function Action-FixDark {
+  Write-Host ''
+  Write-Host '--- DARK ROOMS (brighten shadowy places) ---' -ForegroundColor White
+  Write-Host 'Why rooms go black: the game lights its indirect bounce light with its'
+  Write-Host 'own ray tracing, which cannot run on PC yet (about 3 fps and a broken'
+  Write-Host 'picture when forced on - everyone in the scene stubs it). The harness'
+  Write-Host 'puts a constant indirect light in its place. Raising the level brightens'
+  Write-Host 'everything the sun or a lamp does not reach directly.'
+  Write-Host '(Note: the first ~4 seconds of any new scene are always a bit darker -'
+  Write-Host 'that is streaming, it fixes itself. And a sunset doorway will always'
+  Write-Host 'outshine a hallway - that part is art direction.)' -ForegroundColor DarkGray
+  Write-Host ''
+  Write-Host '  [1] Brighter      (recommended)'
+  Write-Host '  [2] Normal'
+  Write-Host '  [3] Very bright   (can look flat)'
+  Write-Host '  [4] Off           (the game''s own - deep shadows pure black)'
+  $lvl = Ask-Number 'Pick 1-4' 1 1 4
+  $val = switch ($lvl) { 1 { '1.2' } 2 { '0.9' } 3 { '1.5' } 4 { 'off' } }
+  $config = Load-Config
+  if (-not $config) { Write-Host 'No config yet - run START.cmd setup first.' -ForegroundColor Red; return }
+  $config | Add-Member -NotePropertyName ambient -NotePropertyValue $val -Force
+  Save-Config $config
+  $script:Cfg = $config
+  Write-Host ''
+  Write-Host "Saved. From the next [1] PLAY, indirect light uses level '$val'." -ForegroundColor Green
+  Write-Host 'Come back here any time to change it.' -ForegroundColor DarkGray
 }
 
 # ============================ monitor =================================
@@ -758,21 +788,23 @@ while ($true) {
   Write-Host '  [1] PLAY               (recommended settings + live stats)' -ForegroundColor White
   Write-Host '  [2] CHECK MY PC        (is everything ready?)' -ForegroundColor White
   Write-Host '  [3] FIX BLACK SCREEN   (automatic doctor)' -ForegroundColor White
-  Write-Host '  [4] CHANGE SETTINGS    (game file, folders, start over)' -ForegroundColor White
-  Write-Host '  [5] EXPORT LOGS FOR AI (makes one .zip to send)' -ForegroundColor White
-  Write-Host '  [6] OPEN LOG FOLDER' -ForegroundColor White
-  Write-Host '  [7] UPDATE FROM GITHUB (get the newest fixes)' -ForegroundColor White
-  Write-Host '  [8] Quit' -ForegroundColor White
+  Write-Host '  [4] FIX DARK ROOMS     (brighten shadowy places)' -ForegroundColor White
+  Write-Host '  [5] CHANGE SETTINGS    (game file, folders, start over)' -ForegroundColor White
+  Write-Host '  [6] EXPORT LOGS FOR AI (makes one .zip to send)' -ForegroundColor White
+  Write-Host '  [7] OPEN LOG FOLDER' -ForegroundColor White
+  Write-Host '  [8] UPDATE FROM GITHUB (get the newest fixes)' -ForegroundColor White
+  Write-Host '  [9] Quit' -ForegroundColor White
   Write-Host ''
-  $choice = Ask-Number 'What do you want to do' 1 1 8
+  $choice = Ask-Number 'What do you want to do' 1 1 9
   switch ($choice) {
     1 { Action-Play }
     2 { Action-CheckPC }
     3 { Action-FixBlack }
-    4 { Setup-Wizard; $config = Load-Config; $script:Cfg = $config }
-    5 { Action-Export }
-    6 { Action-OpenLogs }
-    7 { Action-Update }
-    8 { Write-Host 'Bye!' -ForegroundColor Cyan; exit 0 }
+    4 { Action-FixDark }
+    5 { Setup-Wizard; $config = Load-Config; $script:Cfg = $config }
+    6 { Action-Export }
+    7 { Action-OpenLogs }
+    8 { Action-Update }
+    9 { Write-Host 'Bye!' -ForegroundColor Cyan; exit 0 }
   }
 }
