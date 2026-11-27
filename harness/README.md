@@ -95,6 +95,16 @@ CCS03's `victory.exe` is the only harness with measured **laptop** runs (prison 
 - **SMOOTH mode (default):** 720p, slow-motion game clock → 6–9 real fps in interiors/prison, 4–6 in the open world, 30 fps menus. Controllable and stable-ish.
 - **20+ fps:** not real — displayed. Run Lossless Scaling on the Intel iGPU (LSFG ×3) after the base is stable; see `../PORTWATCH_20FPS_WORKAROUND.md` for the full math.
 
+## Staying up to date — `pull.bat`
+
+Whenever I say "there's a fix", double-click **`pull.bat`** (in the same folder as `START.cmd`). Or use menu **[7] UPDATE FROM GITHUB** inside the launcher.
+
+- It downloads the newest files from GitHub and replaces only the program files.
+- **It never touches your stuff:** the built harness (`harness\setup`), your settings (`config.json`) and your logs (`harness\data`) are protected — updates can't destroy a 40-minute build or your AI logs.
+- If nothing changed it says "You already have the latest version".
+- Works whether you installed by Download-ZIP or git clone.
+- After an update: close the launcher and double-click `START.cmd` again.
+
 ## If something goes wrong
 
 | What you see | What it means | What to do |
@@ -109,6 +119,7 @@ CCS03's `victory.exe` is the only harness with measured **laptop** runs (prison 
 | File | Role |
 |---|---|
 | `START.cmd` | double-click entry point |
+| `..\pull.bat` / `..\pull.ps1` | double-click updater — gets new fixes from GitHub (see "Staying up to date") |
 | `launcher.ps1` | the one launcher (wizard, menu, live stats, AI export) |
 | `preflight.ps1` | full PC check (also callable from the menu) |
 | `fix-blackscreen.ps1` | black-screen doctor (also callable from the menu) |
