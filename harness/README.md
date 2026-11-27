@@ -95,6 +95,15 @@ CCS03's `victory.exe` is the only harness with measured **laptop** runs (prison 
 - **SMOOTH mode (default):** 720p, slow-motion game clock → 6–9 real fps in interiors/prison, 4–6 in the open world, 30 fps menus. Controllable and stable-ish.
 - **20+ fps:** not real — displayed. Run Lossless Scaling on the Intel iGPU (LSFG ×3) after the base is stable; see `../PORTWATCH_20FPS_WORKAROUND.md` for the full math.
 
+## If something goes wrong
+
+| What you see | What it means | What to do |
+|---|---|---|
+| `NativeCommandError ... Compiling ...` during setup | Old launcher bug (PowerShell treated the compiler's normal progress messages as errors). **Fixed.** | Download this folder again, run `START.cmd` → it **continues** the build, never starts over |
+| "BUILD FAILED" | One-time glitch (antivirus, internet, disk full) is the usual cause | Run `START.cmd` again first — builds resume. If it fails twice: menu `[5] EXPORT LOGS FOR AI`, send the zip |
+| "is it rebuilding everything?" | No. The build result is kept in `setup\CCS03\target\`. Finished work is never redone; setup skips the build entirely when the harness already exists | nothing — this is by design |
+| Setup seems stuck at "still building" | Normal: the first build compiles thousands of files for 10–40 minutes | leave the window open |
+
 ## Files
 
 | File | Role |

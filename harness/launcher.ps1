@@ -392,12 +392,19 @@ function Export-ForAI($cfg, $runLog, $csv) {
 
 # ============================ full auto setup =========================
 function Download-File([string]$url, [string]$dest) {
+  # PS5.1 needs relaxed error/progress settings for downloads; restore after.
+  $eap = $ErrorActionPreference; $pp = $ProgressPreference
   $ErrorActionPreference = 'Continue'
   $ProgressPreference = 'SilentlyContinue'   # PS5.1 downloads crawl otherwise
   [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-  Write-Host "    downloading $url" -ForegroundColor DarkGray
-  Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
-  if (-not (Test-Path $dest)) { throw "Download failed: $url" }
+  try {
+    Write-Host "    downloading $url" -ForegroundColor DarkGray
+    Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
+    if (-not (Test-Path $dest)) { throw "Download failed: $url" }
+  } finally {
+    $ErrorActionPreference = $eap
+    $ProgressPreference = $pp
+  }
 }
 
 function Full-Auto-Setup {
@@ -470,22 +477,48 @@ function Full-Auto-Setup {
     Write-Host '    build tools installed.' -ForegroundColor Green
   } else { Write-Host '    build tools already there.' -ForegroundColor Green }
 
-  # ---- 4. build ----
+  # ---- 4. build (never rebuilds finished work; interrupted builds resume) ----
   Write-Host ''
-  Write-Host 'STEP 4/5: building the harness (10-40 min, scrolling text is normal)...' -ForegroundColor Cyan
-  Push-Location $src
-  try {
-    & $cargo build --release -p victory 2>&1 | Tee-Object -FilePath $setupLog -Append
-  } finally { Pop-Location }
+  Write-Host 'STEP 4/5: building the harness...' -ForegroundColor Cyan
   $victory = Join-Path $src 'target\release\victory.exe'
-  if (-not (Test-Path $victory)) {
-    Write-Host '    BUILD FAILED. The full error is in:' -ForegroundColor Red
-    Write-Host "    $setupLog" -ForegroundColor Cyan
-    Write-Host '    Use menu [5] EXPORT LOGS FOR AI and send the zip.' -ForegroundColor Cyan
-    Pause-OK
-    return $null
+  if (Test-Path $victory) {
+    Write-Host '    ALREADY BUILT - reusing it. Nothing is rebuilt.' -ForegroundColor Green
+  } else {
+    Write-Host '    First build: 10-40 minutes. Please keep this window open.' -ForegroundColor Yellow
+    Write-Host '    (If it stops and you run this again, it CONTINUES - it never starts over.)' -ForegroundColor DarkGray
+    $buildOut = Join-Path $work 'build-out.log'
+    $buildErr = Join-Path $work 'build-err.log'
+    Push-Location $src
+    try {
+      # NOTE: do not use "2>&1 |" here - PowerShell 5.1 turns the compiler's normal
+      # progress messages (they go to stderr) into errors and kills the script.
+      $p = Start-Process -FilePath $cargo `
+             -ArgumentList 'build','--release','-p','victory' `
+             -RedirectStandardOutput $buildOut -RedirectStandardError $buildErr `
+             -PassThru -NoNewWindow
+      $t0 = Get-Date
+      while (-not $p.HasExited) {
+        Start-Sleep -Seconds 15
+        $mins = [math]::Round(((Get-Date) - $t0).TotalMinutes, 0)
+        Write-Host "    still building... ($mins min elapsed, safe to leave alone)" -ForegroundColor DarkGray
+      }
+    } finally { Pop-Location }
+    "cargo exit code: $($p.ExitCode)" | Add-Content $setupLog
+    if (-not (Test-Path $victory)) {
+      Write-Host ''
+      Write-Host "    BUILD FAILED (exit code $($p.ExitCode)). Last errors:" -ForegroundColor Red
+      Get-Content $buildErr -Tail 10 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "      $_" -ForegroundColor Red }
+      Get-Content $buildOut -Tail 10 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "      $_" -ForegroundColor DarkGray }
+      Write-Host ''
+      Write-Host "    Full log: $buildErr" -ForegroundColor Cyan
+      Write-Host '    Tip: run setup again first - builds CONTINUE, and most failures are' -ForegroundColor Cyan
+      Write-Host '    one-time glitches (antivirus, internet). If it fails again, use menu' -ForegroundColor Cyan
+      Write-Host '    [5] EXPORT LOGS FOR AI and send the zip.' -ForegroundColor Cyan
+      Pause-OK
+      return $null
+    }
+    Write-Host '    harness built.' -ForegroundColor Green
   }
-  Write-Host '    harness built.' -ForegroundColor Green
 
   # ---- 5. black-screen fix file (Agility SDK) ----
   Write-Host ''
@@ -585,9 +618,14 @@ Write-Banner
 $config = Load-Config
 if ($DataDir -and $config) { $config.dataDir = $DataDir }
 
-# no harness yet? offer the one-button setup (download + install + build)
+# no harness yet? first try to reuse one from an earlier (possibly interrupted) setup
 $autoHarness = $null
-$harnessOk = $config -and $config.harness -and (Test-Path $config.harness)
+$built = Join-Path $script:Root 'setup\CCS03\target\release\victory.exe'
+if (Test-Path $built) {
+  Write-Host '  Found the harness from an earlier setup - reusing it (nothing is rebuilt).' -ForegroundColor Green
+  $autoHarness = $built
+}
+$harnessOk = ($config -and $config.harness -and (Test-Path $config.harness)) -or [bool]$autoHarness
 if (-not $harnessOk) {
   Write-Banner
   Write-Host 'The harness (the program that runs the game) is not set up on this PC yet.' -ForegroundColor Yellow
