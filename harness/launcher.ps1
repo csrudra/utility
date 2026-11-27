@@ -373,7 +373,7 @@ function Start-GameWithMonitor($cfg, [string[]]$profiles, [int]$MaxMinutes = 0) 
   Write-Host '  (RAM / graphics card usage, updated every 2 seconds)'
   Write-Host ''
 
-  $consoleProfile = if ($cfg.engine -eq 'unified') { 'series-x' } else { 'series-s' }
+  $consoleProfile = if ($script:Cfg.engine -eq "unified" -or $script:Cfg.engine -eq "fxce" -or $script:Cfg.engine -eq "foxhound") { "series-x" } else { "series-s" }
   $proc = Start-Process -FilePath $cfg.harness `
     -ArgumentList @('run', ('"{0}"' -f $cfg.gameExe), '--execute', '--console', $consoleProfile) `
     -RedirectStandardOutput $outLog -RedirectStandardError $errLog -PassThru
