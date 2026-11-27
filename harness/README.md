@@ -7,11 +7,12 @@
   [2] CHECK MY PC        is everything ready?
   [3] FIX BLACK SCREEN   automatic doctor
   [4] FIX DARK ROOMS     brighten shadowy places
-  [5] CHANGE SETTINGS    game file, folders, start over
-  [6] EXPORT LOGS FOR AI makes ONE .zip to send
-  [7] OPEN LOG FOLDER
-  [8] UPDATE FROM GITHUB get the newest fixes
-  [9] Quit
+  [5] SCENE TEST LOOP    replay the same spot again and again
+  [6] CHANGE SETTINGS    game file, folders, start over
+  [7] EXPORT LOGS FOR AI makes ONE .zip to send
+  [8] OPEN LOG FOLDER
+  [9] UPDATE FROM GITHUB get the newest fixes
+  [10] Quit
 ```
 
 ## First time (4 questions, asked once)
@@ -134,6 +135,12 @@ Three separate causes — only one needs fixing:
 1. **The first ~4 seconds of a new scene are darker** — streaming warm-up; it fixes itself.
 2. **Indirect (bounce) light is stubbed by design.** The game lights shadows with its *own ray tracing*, which runs at ~3 fps with a broken picture when forced on — every port in the scene stubs it. The harness puts a constant indirect light in its place instead. If rooms still feel dim: **`[4] FIX DARK ROOMS`** → `[1] Brighter`. (A sunset doorway will always outshine a hallway — that part is art direction, on the console too.)
 3. **foxhound users:** the NVIDIA fork's lighting estimate follows the room itself (it is generally brighter and more natural indoors). If you play on foxhound and rooms look wrong, tell the AI helper — the knobs there are `VICTORY_AMBIENT`, `VICTORY_AMBIENT_AIR`, `VICTORY_AMBIENT_SPECULAR`.
+
+### Characters are black / dark faces in shade
+
+Different problem from dark rooms: characters (and their skin/clothes) are lit by a *dynamic-object* path that the constant light does not fully cover, and some builds also miss the character skin/cloth *textures* (a residency bug). The scene tracks this as "dark faces in shade" / "black skin" and the fixes live in newer engines — none of those switches exist in the default CCS03 build.
+
+**The fix that exists today:** `TRY-UNIFIED.cmd` switches to **victory-unified** (community fork tuned for RTX 3070-class cards) which carries the character texture rechecks (`VICTORY_HEAP_RECHECK`) and an indirect light tuned so character clothes keep readable color. Expect ~2–4 fps and keep the pagefile ON (it commits ~20 GB). Switch back with `TRY-UNIFIED.cmd -Restore`. The full fix — the game's real ray-traced bounce light on characters — is landing in newer forks week by week; the AI helper tracks them.
 
 | What you see | What it means | What to do |
 |---|---|---|

@@ -212,6 +212,12 @@ function Set-GameEnv([string[]]$profiles) {
   # -- 6 GB card budget
   E VICTORY_TEXTURE_BUDGET_MB '768';   E VICTORY_CARD_BUFFERS_MB '512'
 
+  if ($script:Cfg.engine -eq 'unified') {
+    # victory-unified (Itsbatt) extras: character/skin texture rechecks, their tuned ambient
+    E VICTORY_HEAP_RECHECK '1';  E VICTORY_LEVELS_ON_DEMAND '1';  E VICTORY_MAX_FPS '30'
+    if (-not $script:Cfg.ambient) { E VICTORY_AMBIENT '1.25' }
+  }
+
   if ($profiles -contains 'fast')    { E VICTORY_TURBO_THREADS '1'; E VICTORY_DISPLAY_MODE '1280x720' }
   if ($profiles -contains 'smooth')  { E VICTORY_DISPLAY_MODE '1280x720'
                                        E VICTORY_TEXTURE_STAGE_MS '25'; E VICTORY_TEXTURE_STAGE_MB '48' }
@@ -235,6 +241,38 @@ function Quick-Gates {
   $ramGB = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 1)
   if ($ramGB -lt 16) { $problems += "ONLY $ramGB GB RAM: 16 GB is the minimum. Close every other program." }
   return $problems
+}
+
+# ============================ scene test loop ==========================
+function Action-SceneLoop {
+  Write-Host ''
+  Write-Host '--- SCENE TEST LOOP (replay the same spot again and again) ---' -ForegroundColor White
+  Write-Host 'Tip: make a save at the scene you want to test (in-game Pause > Save Game).'
+  Write-Host 'Each run starts the game fresh - load that save and you are at the scene in seconds,'
+  Write-Host 'no intro walking. Every run gets its own logs, so you can compare fps run after run'
+  Write-Host 'while the shader/pipeline caches fill up.'
+  Write-Host ''
+  $runs = Ask-Number 'How many runs in a row' 3 1 20
+  $mins = Ask-Number 'Minutes per run (0 = play until you close the game)' 8 0 120
+  $pick = Ask-Number 'Settings: [1] SMOOTH (720p) [2] FASTEST [3] DEBUG' 1 1 3
+  $profiles = switch ($pick) { 1 { @('smooth') } 2 { @('fast') } 3 { @('smooth','debug') } }
+  if ($script:Cfg.engine -notin @('foxhound', 'unified')) {
+    $speed = Ask-Number 'Game speed: [1] real-time (recommended) [2] slow-motion' 1 1 2
+    if ($speed -eq 2) { $profiles += 'steady' }
+  }
+  for ($i = 1; $i -le $runs; $i++) {
+    Write-Host ''
+    Write-Host "======== RUN $i OF $runs ========" -ForegroundColor Cyan
+    Start-GameWithMonitor -cfg $script:Cfg -profiles $profiles -MaxMinutes $mins
+    if ($i -lt $runs) {
+      Write-Host 'Warming the caches for the next run...' -ForegroundColor DarkGray
+      $eap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+      & $script:Cfg.harness warm --used 2>&1 | Select-Object -Last 1
+      $ErrorActionPreference = $eap
+    }
+  }
+  Write-Host ''
+  Write-Host "All $runs runs are in the logs folder. Menu [7] EXPORT LOGS FOR AI sends the full set." -ForegroundColor Green
 }
 
 # ============================ dark rooms ================================
@@ -267,7 +305,7 @@ function Action-FixDark {
 }
 
 # ============================ monitor =================================
-function Start-GameWithMonitor($cfg, [string[]]$profiles) {
+function Start-GameWithMonitor($cfg, [string[]]$profiles, [int]$MaxMinutes = 0) {
   Set-GameEnv $profiles
 
   $logDir = Join-Path $cfg.dataDir 'logs'
@@ -303,8 +341,9 @@ function Start-GameWithMonitor($cfg, [string[]]$profiles) {
   Write-Host '  (RAM / graphics card usage, updated every 2 seconds)'
   Write-Host ''
 
+  $consoleProfile = if ($cfg.engine -eq 'unified') { 'series-x' } else { 'series-s' }
   $proc = Start-Process -FilePath $cfg.harness `
-    -ArgumentList @('run', ('"{0}"' -f $cfg.gameExe), '--execute', '--console', 'series-s') `
+    -ArgumentList @('run', ('"{0}"' -f $cfg.gameExe), '--execute', '--console', $consoleProfile) `
     -RedirectStandardOutput $outLog -RedirectStandardError $errLog -PassThru
 
   # ---- monitor loop ----
@@ -326,6 +365,12 @@ function Start-GameWithMonitor($cfg, [string[]]$profiles) {
 
   while (-not $proc.HasExited) {
     Start-Sleep -Seconds 2
+
+    if ($MaxMinutes -gt 0 -and ((Get-Date) - $start).TotalMinutes -ge $MaxMinutes) {
+      Write-Host "  ($MaxMinutes minutes reached - closing the game for the next run)" -ForegroundColor Yellow
+      Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+      break
+    }
 
     # CPU / memory counters (one call)
     $cpu = 0; $commit = 0; $commitLimit = 0
@@ -686,8 +731,8 @@ function Action-Play {
   Write-Host ''
   $pick = Ask-Number 'Pick 1, 2 or 3' 1 1 3
   $profiles = switch ($pick) { 1 { @('smooth') } 2 { @('fast') } 3 { @('smooth','debug') } }
-  if ($script:Cfg.engine -eq 'foxhound') {
-    Write-Host '  (foxhound paces the world per frame - below 30 fps the game runs slower than real time.)' -ForegroundColor DarkGray
+  if ($script:Cfg.engine -in @('foxhound', 'unified')) {
+    Write-Host '  (this engine paces the world per frame - below 30 fps the game runs slower than real time.)' -ForegroundColor DarkGray
   } else {
     $speed = Ask-Number 'Game speed: [1] real-time (recommended) [2] slow-motion (easier to steer)' 1 1 2
     if ($speed -eq 2) { $profiles += 'steady' }
@@ -789,22 +834,24 @@ while ($true) {
   Write-Host '  [2] CHECK MY PC        (is everything ready?)' -ForegroundColor White
   Write-Host '  [3] FIX BLACK SCREEN   (automatic doctor)' -ForegroundColor White
   Write-Host '  [4] FIX DARK ROOMS     (brighten shadowy places)' -ForegroundColor White
-  Write-Host '  [5] CHANGE SETTINGS    (game file, folders, start over)' -ForegroundColor White
-  Write-Host '  [6] EXPORT LOGS FOR AI (makes one .zip to send)' -ForegroundColor White
-  Write-Host '  [7] OPEN LOG FOLDER' -ForegroundColor White
-  Write-Host '  [8] UPDATE FROM GITHUB (get the newest fixes)' -ForegroundColor White
-  Write-Host '  [9] Quit' -ForegroundColor White
+  Write-Host '  [5] SCENE TEST LOOP    (replay the same spot again and again)' -ForegroundColor White
+  Write-Host '  [6] CHANGE SETTINGS    (game file, folders, start over)' -ForegroundColor White
+  Write-Host '  [7] EXPORT LOGS FOR AI (makes one .zip to send)' -ForegroundColor White
+  Write-Host '  [8] OPEN LOG FOLDER' -ForegroundColor White
+  Write-Host '  [9] UPDATE FROM GITHUB (get the newest fixes)' -ForegroundColor White
+  Write-Host '  [10] Quit' -ForegroundColor White
   Write-Host ''
-  $choice = Ask-Number 'What do you want to do' 1 1 9
+  $choice = Ask-Number 'What do you want to do' 1 1 10
   switch ($choice) {
     1 { Action-Play }
     2 { Action-CheckPC }
     3 { Action-FixBlack }
     4 { Action-FixDark }
-    5 { Setup-Wizard; $config = Load-Config; $script:Cfg = $config }
-    6 { Action-Export }
-    7 { Action-OpenLogs }
-    8 { Action-Update }
-    9 { Write-Host 'Bye!' -ForegroundColor Cyan; exit 0 }
+    5 { Action-SceneLoop }
+    6 { Setup-Wizard; $config = Load-Config; $script:Cfg = $config }
+    7 { Action-Export }
+    8 { Action-OpenLogs }
+    9 { Action-Update }
+    10 { Write-Host 'Bye!' -ForegroundColor Cyan; exit 0 }
   }
 }
