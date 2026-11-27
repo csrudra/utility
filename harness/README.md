@@ -44,6 +44,8 @@ The panel attempts to stay **on top of the game** (drag it to a corner). `Game w
 
 On engines that expose the timing switch, PLAY also offers the default timing or a slow-motion diagnostic. At low frame rates, simulation pacing is fork-specific; selecting “real-time” does not guarantee real-time world simulation.
 
+For CCS03 and fxceless, PLAY also offers a per-run A/B choice for `VICTORY_TEXTURE_NO_WAIT`: the engine profile baseline or the opposite value. CCS03's baseline is `1`; fxceless's source default/baseline is `0`. Run the same scene once with each choice and compare the matching `settings-*.txt` files. This changes only that launch, and the launcher cannot prove that a selected binary consumed the switch.
+
 Every sample is saved to `telemetry-*.csv`. When you close the game you get a summary (peaks, averages) and an offer to **bundle everything for the AI**.
 
 ## The AI bundle (`[7] EXPORT LOGS FOR AI`)
@@ -129,6 +131,12 @@ Play afterwards: `START.cmd` → `[1] PLAY`. The launcher supplies a fork-specif
 
 **What to expect (maintainer/community reports, not measured by us):** the figures shown elsewhere are tied to named systems and scenes. On a 6 GB RTX 3060, the result is unknown. The fork reports that below 30 fps world simulation slows and recommends 32 GB system RAM; verify the current source and requirements before switching. DLSS Super Resolution is intended for RTX cards; DLSS Frame Generation officially needs RTX 40+ hardware.
 
+## Try fxceless — highly experimental, not recommended for 6 GB / 16 GB systems
+
+`TRY-FXCELESS.cmd` runs `try-fxce.ps1`, which clones the mutable default branch of [`fxceless/victory-fork`](https://github.com/fxceless/victory-fork) into `harness\setup\fxce`, builds `victory.exe` when needed, and switches `config.json` to that executable. It requires Git and Rust/Cargo; run the normal setup first if Cargo is missing. An existing checkout is kept without fetching updates; an existing executable is reused by path alone. Pass `-Rebuild` to rebuild it. The prior config is saved once as `config.json.fxce-backup`; use `TRY-FXCELESS.cmd -Restore` to restore it. Source/build files are not deleted.
+
+The switcher displays the risk information and requires confirmation (unless `-Force` is supplied). As of the upstream check on 2026-11-27, one RTX 4070 / 32 GB report described **0.2–3 world fps**, about **23–27 GB system memory**, and **9.2–9.6 GB VRAM**. Those figures are not a prediction for other PCs, but they make this a poor choice for a 6 GB GPU / 16 GB RAM laptop: paging, severe stalls, or crashes are possible. It does not automatically enable the ray-tracing builder or promise to fix black faces, lighting, or textures. Save compatibility and the behavior of the selected binary are not verified here; back up saves and compare matching logs/screenshots.
+
 ## If something goes wrong
 
 ### If the picture is black or badly lit
@@ -152,7 +160,7 @@ For a useful diagnosis, export the exact run log/settings and include: (1) wheth
 
 | What you see | What it means | What to do |
 |---|---|---|
-| `TRY-FXCELESS.cmd` reports that `try-fxce.ps1` is missing | The engine switcher is not implemented in this checkout; it did not install or change engines. | Do not create a placeholder script. Current upstream ray-tracing results are far beyond a 6 GB / 16 GB budget; see the lighting review. |
+| `TRY-FXCELESS.cmd` warns about high resource use or asks for confirmation | By default, the switcher displays the risks and requires confirmation; `-Force` skips only that prompt. Upstream figures are from one RTX 4070 / 32 GB PC, not a prediction. | On a 6 GB / 16 GB system, avoid it unless you accept severe stalls, paging, or crashes. It is not a guaranteed fix; see the lighting review. Use `-Restore` to return to the saved config. |
 | `NativeCommandError ... Compiling ...` during setup | The current code redirects build output separately, but the reported fix has not been run on Windows in this review. | Capture `setup\build-err.log`, `setup\build-out.log`, and the process exit code; don't assume the build can never fail. |
 | "BUILD FAILED" | The log/exit code is the evidence; a download, toolchain, disk, source, or compile error may be responsible | Preserve `setup\build-err.log` and `setup\build-out.log`; rerunning may reuse Cargo artifacts but is not guaranteed to resume every setup step. Export via menu `[7]`. |
 | "is it rebuilding everything?" | If `victory.exe` exists, setup reuses it by path alone; it does not verify source revision, build options, or provenance before reuse. | Check the binary's source/commit and build logs; don't treat file existence as proof it matches current source. |
@@ -165,6 +173,7 @@ For a useful diagnosis, export the exact run log/settings and include: (1) wheth
 | `START.cmd` | double-click entry point |
 | `..\pull.bat` / `..\pull.ps1` | double-click updater — gets new fixes from GitHub (see "Staying up to date") |
 | `launcher.ps1` | the one launcher (wizard, menu, live stats, AI export) |
+| `TRY-FXCELESS.cmd` / `try-fxce.ps1` | high-risk experimental fork switcher; see the resource warnings above |
 | `preflight.ps1` | full PC check (also callable from the menu) |
 | `fix-blackscreen.ps1` | read-only black-screen diagnosis (also callable from the menu; changes nothing) |
 | `config.json` | created on first run — your remembered answers |

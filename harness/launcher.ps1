@@ -151,7 +151,7 @@ function Setup-Wizard {
     Write-Host '  [1] CCS03 (default installer)'
     Write-Host '  [2] Foxhound (NVIDIA fork)'
     Write-Host '  [3] victory-unified'
-    Write-Host '  [4] fxceless (experimental; switcher is incomplete)'
+    Write-Host '  [4] fxceless (experimental; high memory use, not recommended for 6 GB / 16 GB systems)'
     $profileDefault = 1
     if ($priorEngine -eq 'foxhound') { $profileDefault = 2 }
     elseif ($priorEngine -eq 'unified') { $profileDefault = 3 }
@@ -204,7 +204,10 @@ function Setup-Wizard {
 }
 
 # ============================ env bundle ==============================
-function Set-GameEnv([string[]]$profiles) {
+function Set-GameEnv([string[]]$profiles, [string]$TextureNoWait = '') {
+  if ($TextureNoWait -notin @('', '0', '1')) {
+    throw "VICTORY_TEXTURE_NO_WAIT override must be empty, 0, or 1 (got '$TextureNoWait')."
+  }
   $engine = Get-ConfiguredEngine
   if ($engine -notin @('ccs03', 'foxhound', 'fxce', 'unified')) {
     throw "Unknown engine '$engine'. Supported profiles: ccs03, foxhound, fxce, unified."
@@ -241,15 +244,25 @@ function Set-GameEnv([string[]]$profiles) {
     }
   }
   function Apply-ExtraEnv {
-    if (-not $script:Cfg -or -not $script:Cfg.extraEnv) { return }
-    foreach ($entry in $script:Cfg.extraEnv.PSObject.Properties) {
-      if ($entry.MemberType -ne 'NoteProperty') { continue }
-      $k = [string]$entry.Name
-      if ($k -notmatch '^VICTORY_[A-Z0-9_]+$') { continue }
-      if (ShouldDisable $k) {
-        Remove-Item -Path "Env:$k" -ErrorAction SilentlyContinue
+    if ($script:Cfg -and $script:Cfg.extraEnv) {
+      foreach ($entry in $script:Cfg.extraEnv.PSObject.Properties) {
+        if ($entry.MemberType -ne 'NoteProperty') { continue }
+        $k = [string]$entry.Name
+        if ($k -notmatch '^VICTORY_[A-Z0-9_]+$') { continue }
+        if (ShouldDisable $k) {
+          Remove-Item -Path "Env:$k" -ErrorAction SilentlyContinue
+        } else {
+          Set-Item -Path "Env:$k" -Value ([string]$entry.Value)
+        }
+      }
+    }
+    # The per-run A/B choice is more specific than config.json's extraEnv;
+    # disabledResources still wins so the setting is never silently re-enabled.
+    if ($TextureNoWait -ne '') {
+      if (ShouldDisable 'VICTORY_TEXTURE_NO_WAIT') {
+        Remove-Item -Path 'Env:VICTORY_TEXTURE_NO_WAIT' -ErrorAction SilentlyContinue
       } else {
-        Set-Item -Path "Env:$k" -Value ([string]$entry.Value)
+        Set-Item -Path 'Env:VICTORY_TEXTURE_NO_WAIT' -Value $TextureNoWait
       }
     }
   }
@@ -477,8 +490,8 @@ function Action-FixDark {
 }
 
 # ============================ monitor =================================
-function Start-GameWithMonitor($cfg, [string[]]$profiles, [int]$MaxMinutes = 0) {
-  Set-GameEnv $profiles
+function Start-GameWithMonitor($cfg, [string[]]$profiles, [int]$MaxMinutes = 0, [string]$TextureNoWait = '') {
+  Set-GameEnv $profiles $TextureNoWait
 
   $logDir = Join-Path $cfg.dataDir 'logs'
   New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -491,6 +504,7 @@ function Start-GameWithMonitor($cfg, [string[]]$profiles, [int]$MaxMinutes = 0) 
   # to reproduce a fork-specific rendering failure.
   $engine = Get-ConfiguredEngine
   $profileLabel = if ($profiles -and $profiles.Count -gt 0) { $profiles -join ',' } else { 'launcher-default' }
+  if ($TextureNoWait -ne '') { $profileLabel += ",texture-no-wait=$TextureNoWait" }
   $sourceRoot = 'not detected'
   $sourceCommit = 'not recorded (source archive or no Git metadata)'
   if ($cfg.harness) {
@@ -966,9 +980,37 @@ function Action-Play {
     if ($speed -eq 2) { $profiles += 'steady' }
   }
 
+  # CCS03's selected profile enables the nonblocking texture-remap path;
+  # fxceless leaves it off by default. Let users compare each engine's baseline
+  # with the opposite value, one launch at a time, without changing saved config.
+  $textureNoWait = ''
+  if ($engine -in @('ccs03', 'fxce')) {
+    $disabledNoWait = $false
+    if ($script:Cfg -and $script:Cfg.disabledResources) {
+      $disabledNoWait = @($script:Cfg.disabledResources -split ',' | ForEach-Object { $_.Trim() }) -contains 'VICTORY_TEXTURE_NO_WAIT'
+    }
+    if ($disabledNoWait) {
+      Write-Host ''
+      Write-Host 'VICTORY_TEXTURE_NO_WAIT is disabled in config.json. Remove it from disabledResources to run this A/B test.' -ForegroundColor Yellow
+    } else {
+      $baselineNoWait = if ($engine -eq 'ccs03') { '1' } else { '0' }
+      $comparisonNoWait = if ($baselineNoWait -eq '1') { '0' } else { '1' }
+      $baselineLabel = if ($engine -eq 'ccs03') { 'CCS03 PROFILE BASELINE' } else { 'FXCE SOURCE DEFAULT' }
+      Write-Host ''
+      Write-Host '--- TEXTURE REMAP A/B (this launch only) ---' -ForegroundColor White
+      Write-Host 'Repeat the same scene with each choice. This switch may affect stalls during texture remapping; it is not a guaranteed visual fix.' -ForegroundColor DarkGray
+      Write-Host 'The source supports this switch, but this launcher cannot prove the selected executable consumed it.' -ForegroundColor Yellow
+      Write-Host "  [1] $baselineLabel  VICTORY_TEXTURE_NO_WAIT=$baselineNoWait"
+      Write-Host "  [2] A/B COMPARISON  VICTORY_TEXTURE_NO_WAIT=$comparisonNoWait"
+      Write-Host '  1 = nonblocking refresh; 0 = wait for refresh (may stall). Compare the matching settings-*.txt files.' -ForegroundColor DarkGray
+      $noWaitPick = Ask-Number 'Choose baseline or comparison' 1 1 2
+      $textureNoWait = if ($noWaitPick -eq 1) { $baselineNoWait } else { $comparisonNoWait }
+    }
+  }
+
   # Use the same switch set for cache warm-up and the subsequent run. The
   # launcher clears/rebuilds this set again at the actual start.
-  Set-GameEnv $profiles
+  Set-GameEnv -profiles $profiles -TextureNoWait $textureNoWait
   Write-Host ''
   Write-Host 'Optional: run the build''s warm-up command first? It may pre-cache work if this fork supports it (y/n).' -ForegroundColor DarkGray
   $warm = (Ask 'Warm up before playing? (y/n)' 'y')
@@ -990,7 +1032,7 @@ function Action-Play {
       Write-Host '  (this build did not recognize the optional warm-up command; continuing without it.)' -ForegroundColor DarkGray
     }
   }
-  Start-GameWithMonitor -cfg $script:Cfg -profiles $profiles
+  Start-GameWithMonitor -cfg $script:Cfg -profiles $profiles -TextureNoWait $textureNoWait
   Pause-OK
 }
 function Action-Export {

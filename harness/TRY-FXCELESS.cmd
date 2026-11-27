@@ -1,5 +1,5 @@
 @echo off
-title TRY-FXCELESS - experimental renderer (not installed)
+title TRY-FXCELESS - experimental renderer switcher
 cd /d "%~dp0"
 where powershell >nul 2>nul || (echo PowerShell not found. & pause & exit /b 1)
 
