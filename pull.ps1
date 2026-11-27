@@ -2,9 +2,9 @@
 .SYNOPSIS
   Updates this folder from GitHub. Double-click pull.bat.
 .DESCRIPTION
-  Safe by design: it NEVER touches your build (harness\setup), your settings
-  (harness\config.json) or your logs (harness\data) - only the program files
-  are updated. Works both for folders from "Download ZIP" and "git clone".
+  For a Git checkout, updates only a clean main branch by fast-forward. For a ZIP
+  folder, skips the named build/settings/log paths; other local program-file edits
+  can be overwritten. Neither mode verifies archive signatures or source provenance.
 #>
 [CmdletBinding()]
 param()
@@ -28,17 +28,31 @@ try {
 } catch { }
 
 # ============================ git folder ==============================
-if ((Test-Path (Join-Path $root '.git')) -and (Get-Command git -ErrorAction SilentlyContinue)) {
-  Write-Host 'This is a git folder - pulling the latest changes...' -ForegroundColor White
+if (Test-Path (Join-Path $root '.git')) {
+  if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    Write-Host 'This folder is a Git checkout, but Git is unavailable. The ZIP updater will not overwrite its working tree.' -ForegroundColor Yellow
+    exit 4
+  }
+  $branch = (& git -C $root branch --show-current 2>$null | Out-String).Trim()
+  if ($LASTEXITCODE -ne 0 -or $branch -ne 'main') {
+    Write-Host "This Git checkout is on '$branch', not 'main'. The updater will not pull main into another branch." -ForegroundColor Yellow
+    Write-Host 'Use your normal Git workflow to update this checkout, or use the Download-ZIP updater in a separate clean folder.' -ForegroundColor Cyan
+    exit 2
+  }
+  $dirty = & git -C $root status --porcelain 2>$null
+  if ($LASTEXITCODE -ne 0 -or $dirty) {
+    Write-Host 'This Git checkout has local changes. Commit or back them up before updating; nothing was changed.' -ForegroundColor Yellow
+    exit 3
+  }
+  Write-Host 'This is a clean main-branch Git checkout - pulling the latest changes...' -ForegroundColor White
   & git -C $root pull --ff-only origin main
   if ($LASTEXITCODE -eq 0) {
     Write-Host ''
     Write-Host 'Done. You are up to date.' -ForegroundColor Green
   } else {
     Write-Host ''
-    Write-Host 'Automatic git update did not finish. Easiest fix for a non-technical user:' -ForegroundColor Yellow
-    Write-Host 'download https://github.com/csrudra/utility/archive/refs/heads/main.zip' -ForegroundColor Cyan
-    Write-Host 'and unzip it over this folder (your setup/data/config are kept).' -ForegroundColor Cyan
+    Write-Host 'Automatic fast-forward update did not finish; no branch reset was attempted.' -ForegroundColor Yellow
+    Write-Host 'Review the Git error or download a fresh ZIP to a separate folder.' -ForegroundColor Cyan
   }
   exit $LASTEXITCODE
 }

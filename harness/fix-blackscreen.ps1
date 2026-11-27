@@ -1,76 +1,83 @@
 <#
 .SYNOPSIS
-  Automated diagnosis ladder for "Series S / 720p shows no screen" on a VIctory-family harness.
+  Read-only triage hints for a black or blank game window.
 .DESCRIPTION
-  Checks, in the order that covers ~all published black-screen reports:
-    1. Harness binary + tree sanity          4. Pagefile / commit / disk
-    2. Windows 10 Agility SDK gate           5. HDR state
-    3. Laptop GPU adapter selection          6. Env fixes + the present-plane isolation trick
+  Checks a few host and log clues. It does not cover every failure mode,
+  verify GPU feature support, apply fixes, or diagnose dark lighting/artifacts.
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File fix-blackscreen.ps1 -VictoryExe C:\src\CCS03\target\release\victory.exe
+  powershell -ExecutionPolicy Bypass -File fix-blackscreen.ps1 -VictoryExe C:\src\CCS03\target\release\victory.exe -Engine ccs03
 #>
 [CmdletBinding()]
 param(
   [string]$VictoryExe,
-  [string]$RunLog            # optional: latest run log to grep for adapter / DXGI errors
+  [string]$RunLog,           # optional: captured stdout log
+  [string]$RunErrorLog,      # optional: matching captured stderr log
+  [string]$Engine = 'ccs03'
 )
 
 function Say($s, $c = 'White') { Write-Host $s -ForegroundColor $c }
 
-Say '=== Black-screen diagnosis (PORTWATCH_720P_BLACKSCREEN.md) ===' White
+Say '=== Black-screen diagnosis (read-only; this script changes nothing) ===' White
 Say ''
 
 # 1. Harness sanity ------------------------------------------------------
 if ($VictoryExe -and (Test-Path $VictoryExe)) {
   Say "[OK] Harness found: $VictoryExe" Green
   $exeDir = Split-Path $VictoryExe
-  Say '     Is this CCS03 (ccs03 branch), VKarameloVI, zsy-miao or Linox?' Cyan
-  Say '     A tree without the Series S present path (FSR replacement + compose) ALWAYS black-screens with --console series-s.' Cyan
+  Say '     Confirm which repository and commit produced this binary; forks have different switches and present paths.' Cyan
+  Say '     A missing Series S upscaler/compose path is one possible black-window cause, not a universal rule.' Cyan
 } else {
-  Say "[!!] Harness binary not found. A random fork at an old commit is cause #1 of black screens." Red
-  Say '     Use CCS03 branch ccs03 (see harness/README.md).' Cyan
+  Say '[!!] Harness binary not found at the configured path.' Red
+  Say '     This prevents a reliable diagnosis. Check config.json and the build log.' Cyan
 }
 
-# 2. Win10 Agility gate --------------------------------------------------
+# 2. Windows 10 Agility files: only documented for this CCS03 setup --------
 $os = Get-CimInstance Win32_OperatingSystem
-if ([int]$os.BuildNumber -lt 22000) {
-  $agility = if ($VictoryExe) { Join-Path (Split-Path $VictoryExe) 'D3D12\D3D12Core.dll' } else { $null }
-  if ($agility -and (Test-Path $agility)) {
-    Say "[OK] Windows 10 + Agility SDK D3D12Core.dll present" Green
+if ([int]$os.BuildNumber -lt 22000 -and $Engine -eq 'ccs03') {
+  $agilityDir = if ($VictoryExe) { Join-Path (Split-Path $VictoryExe) 'D3D12' } else { $null }
+  $core = if ($agilityDir) { Join-Path $agilityDir 'D3D12Core.dll' } else { $null }
+  $layers = if ($agilityDir) { Join-Path $agilityDir 'd3d12SDKLayers.dll' } else { $null }
+  if ($core -and $layers -and (Test-Path $core) -and (Test-Path $layers)) {
+    Say '[INFO] Both Agility SDK files documented for CCS03 are present; their versions still need to match.' Green
   } else {
-    Say "[!!] Windows 10 WITHOUT the D3D12 Agility SDK -> literally 'no pipeline can be made and the screen stays black' (CCS03)." Red
-    Say '     Fix: Microsoft.Direct3D.D3D12 1.614 (NuGet) -> copy D3D12Core.dll + d3d12SDKLayers.dll into D3D12\ beside victory.exe.' Cyan
+    Say '[WARN] One or both Agility SDK files documented for CCS03 are missing; this is one possible pipeline issue, not a diagnosis.' Yellow
+    Say '       Check that D3D12Core.dll and d3d12SDKLayers.dll are both in D3D12\ beside victory.exe.' Cyan
   }
+} elseif ([int]$os.BuildNumber -lt 22000) {
+  Say "[INFO] Windows 10 SDK guidance is fork-specific; not applying the CCS03 check to '$Engine'." Cyan
 } else {
-  Say '[OK] Windows 11: SM 6.6 pipelines work with the built-in D3D12 runtime' Green
+  Say '[INFO] Windows 11 detected; GPU feature support and driver health still need to be verified from the run log.' Cyan
 }
 
 # 3. Laptop adapter ------------------------------------------------------
 Say ''
-Say '--- GPU adapter (the #1 laptop trap) ---' White
+Say '--- Hybrid-GPU hint (this is not adapter verification) ---' White
 $intel = Get-CimInstance Win32_VideoController | Where-Object { $_.Name -match 'Intel' }
 if ($intel) {
-  Say "[..] Hybrid graphics detected ($($intel.Name) + dGPU). The run MUST execute on the NVIDIA GPU." Yellow
-  Say '     - NVIDIA Control Panel -> Manage 3D -> victory.exe -> High-performance NVIDIA processor' Cyan
-  Say '     - Windows Settings -> Display -> Graphics -> the exe -> High performance' Cyan
-  Say '     - Or set: VICTORY_D3D12_ADAPTER=<index|name>  (CCS03 prints the adapter in the log)' Cyan
-  Say '     - If your laptop has a MUX switch: enable dGPU-only mode (Advanced Optimus)' Cyan
+  Say "[INFO] Hybrid graphics detected ($($intel.Name) + dGPU). Check the run log to see which adapter was actually selected." Yellow
+  Say '     - For NVIDIA: NVIDIA Control Panel -> Manage 3D -> victory.exe -> High-performance NVIDIA processor.' Cyan
+  Say '     - Windows Settings -> Display -> Graphics -> the exe -> High performance, then verify the adapter in the log.' Cyan
+  Say '     - Some forks support VICTORY_D3D12_ADAPTER=<index|name>; check that exact fork before using it.' Cyan
+  Say '     - If your laptop has a MUX switch, dGPU-only mode is an A/B test, not a diagnosis by itself.' Cyan
 }
-if ($RunLog -and (Test-Path $RunLog)) {
+$logsToScan = @($RunLog, $RunErrorLog) | Where-Object {
+  -not [string]::IsNullOrWhiteSpace([string]$_) -and (Test-Path $_)
+}
+foreach ($logPath in $logsToScan) {
   Say ''
-  Say "--- Scanning run log: $RunLog ---" White
-  $log = Get-Content $RunLog
+  Say "--- Scanning run log: $logPath ---" White
+  $log = Get-Content $logPath
   $adapter = $log | Select-String -Pattern 'adapter|Adapter|GPU' | Select-Object -First 3
   if ($adapter) { $adapter | ForEach-Object { Say "     $($_.Line.Trim())" Gray } }
   $errs = $log | Select-String -Pattern 'DXGI_ERROR|0x887A|device (removed|lost)|TDR|headless|swapchain' | Select-Object -First 8
   if ($errs) {
-    Say '[!!] Errors found in log:' Red
+    Say '[WARN] Matching error clues found; inspect the surrounding log context:' Yellow
     $errs | ForEach-Object { Say "     $($_.Line.Trim())" Red }
-    Say '     DXGI_ERROR_INVALID_CALL / 0x887A0001 in FFX/FSR  -> VICTORY_OWN_UPSCALER=1 missing (play.ps1 sets it)' Cyan
-    Say '     0x887A0005/0x887A0006 device removed            -> VRAM/commit pressure: lower TextureBudgetMB, raise pagefile' Cyan
-    Say '     headless / swapchain                             -> swapchain creation failed: turn HDR OFF, run borderless windowed' Cyan
+    Say '     0x887A0001 / INVALID_CALL -> inspect the failing API/path; an upscaler flag helps only if this exact build implements it.' Cyan
+    Say '     0x887A0005/0x887A0006 -> device removed/hung; collect DRED + Event Viewer evidence before changing VRAM/pagefile settings.' Cyan
+    Say '     headless / swapchain -> inspect swapchain/HDR/window mode; turning HDR off is an A/B test, not a guaranteed fix.' Cyan
   } else {
-    Say '[OK] No known black-screen error signatures in log' Green
+    Say '[INFO] No matching error signature was found in this log; that does not rule out a failure.' Gray
   }
 }
 
@@ -79,33 +86,31 @@ Say ''
 Say '--- Memory gates ---' White
 $pf = Get-CimInstance Win32_PageFileUsage
 $pfGB = if ($pf) { [math]::Round(($pf | Measure-Object AllocatedBaseSize -Sum).Sum / 1024, 1) } else { 0 }
-if ($pfGB -ge 48) { Say "[OK] Pagefile ${pfGB} GB" Green }
-else { Say "[!!] Pagefile only ${pfGB} GB -> fix at 48-64 GB on NVMe (commit exhaustion = boot-time black screen)" Red }
+if ($pfGB -ge 48) { Say "[INFO] Pagefile allocation ${pfGB} GB (not the configured maximum or current commit headroom)." Gray }
+else { Say "[INFO] Pagefile allocation ${pfGB} GB; this is below one test reference, not evidence of a black-screen cause." Gray }
 $free = [math]::Round((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory / 1MB, 1)
-Say "     Free RAM now: ${free} GB. The title needs SEVERAL GB of free commit at startup (Linox). Close browsers." Yellow
-Say '     Shader cache needs ~5 GB free disk and is PER-PC (VICTORY_CACHE_DIR). Never copy a cache from another machine.' Cyan
+Say "     Free physical RAM now: ${free} GB. Check Task Manager > Memory > Committed and the run log for actual commit/OOM exhaustion." Yellow
+Say '     Shader/pipeline caches are machine/build-specific; do not copy caches from another machine or build.' Cyan
 
 # 5. HDR ----------------------------------------------------------------
 $hdr = $null
 try { $hdr = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\VideoSettings' -Name EnableHDRForPlayback -ErrorAction Stop } catch { }
 if ($hdr -and $hdr.EnableHDRForPlayback -ne 0) {
-  Say '[!!] Windows HDR ON -> swapchain failures / silent headless mode. TURN HDR OFF.' Red
+  Say '[INFO] HDR registry flag is set; confirm the actual setting in Windows Display Settings. HDR off is a useful A/B test, not a proven cause.' Yellow
 } else {
-  Say '[OK] HDR off or not detectable' Green
+  Say '[INFO] HDR registry flag is off or unavailable; this script cannot reliably verify the active HDR state.' Gray
 }
 
 # 6. Env + isolation ----------------------------------------------------
 Say ''
-Say '--- The fixes that produce a picture (play.ps1 sets all of these) ---' White
-Say '     VICTORY_OWN_UPSCALER=1   (Series S FSR step draws NOTHING without it)' Cyan
-Say '     VICTORY_COMPOSE=1        (Series S = two planes; without compose: black menus/loading)' Cyan
-Say '     VICTORY_SHOW_AFTER=1     (present-before-upload = device loss every ~15 min)' Cyan
-Say '     VICTORY_DYNAMIC_SLOTS=262144 (NVIDIA view cap; without it the screen rarely updates)' Cyan
+Say '--- Relevant paths to check (support varies by repository/commit) ---' White
+Say '     Series S upscaler/compose flags may matter, but only when this build implements them.' Cyan
+Say '     The launcher clears inherited VICTORY_* switches; put intentional diagnostics in config.json extraEnv.' Cyan
+Say '     Example: "extraEnv": { "VICTORY_PRESENT_PLANE": "0" } (compare 0, 1, then remove it).' Cyan
 Say ''
-Say '--- Isolation trick (which plane/path is broken?) ---' White
-Say '     1. VICTORY_PRESENT_PLANE=0 then =1  -> shows world plane / interface plane alone' Cyan
-Say '     2. Launch with -SeriesX (play.ps1) at 720p -> if Series X shows a picture but Series S does not,' Cyan
-Say '        your tree lacks the Series S present path: switch to CCS03.' Cyan
-Say '     3. Still nothing: run play.ps1 -Diag and read why draws are dropped.' Cyan
+Say '--- Useful next evidence ---' White
+Say '     1. Distinguish a black game window from dark shadows, black faces/textures, and a driver reset.' Cyan
+Say '     2. Compare the run log, settings-*.txt, Windows Event Viewer, and screenshot from the same scene.' Cyan
+Say '     3. Use a Series X vs Series S profile only if the selected fork documents both; this launcher has no profile toggle.' Cyan
 Say ''
-Say 'Done. Fix [!!] items top-down, then relaunch with play.ps1.' White
+Say 'This script is read-only. It reports clues; it has not changed settings or repaired anything.' White

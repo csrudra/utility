@@ -1,37 +1,40 @@
 <#
 .SYNOPSIS
-  Preflight checks for running a VIctory-family harness (CCS03) on a 6 GB / 16 GB laptop.
+  Advisory host checks for a VIctory-family harness.
 .DESCRIPTION
-  Verifies OS, GPU, RAM/commit, pagefile, disk, HDR and CPU features before you burn an
-  evening on a black screen. Prints PASS / WARN / FAIL with the exact fix per failure.
+  Reports host and environment clues. It cannot identify a black-screen root cause,
+  verify every adapter/fork requirement, or prescribe a universal pagefile/HDR setting.
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File preflight.ps1 -VictoryExe C:\src\CCS03\target\release\victory.exe
 #>
 [CmdletBinding()]
 param(
   [string]$VictoryExe,                     # optional: also verify the built harness exists
+  [string]$Engine = 'ccs03',
   [int]$MinDiskGB = 30,
   [int]$MinPagefileGB = 48
 )
 
 $script:fail = 0
 function Result($status, $name, $detail, $fix) {
-  $color = switch ($status) { 'PASS' {'Green'} 'WARN' {'Yellow'} default {'Red'} }
+  $color = switch ($status) { 'PASS' {'Green'} 'INFO' {'Cyan'} 'WARN' {'Yellow'} default {'Red'} }
   if ($status -eq 'FAIL') { $script:fail++ }
   Write-Host ("[{0,-4}] {1}: {2}" -f $status, $name, $detail) -ForegroundColor $color
   if ($fix) { Write-Host ("       fix: {0}" -f $fix) -ForegroundColor Cyan }
 }
 
-Write-Host "=== GTA VI harness preflight (6 GB / 16 GB laptop profile) ===" -ForegroundColor White
+Write-Host "=== Harness preflight (engine: $Engine; advisory checks) ===" -ForegroundColor White
 
 # --- OS -----------------------------------------------------------------
 $os = Get-CimInstance Win32_OperatingSystem
 $build = [int]$os.BuildNumber
 if ($build -ge 22000) {
-  Result 'PASS' 'OS' "$($os.Caption) (build $build) - SM 6.6 pipelines work out of the box"
+  Result 'INFO' 'OS' "$($os.Caption) (build $build) - Windows 11 detected; this check does not verify D3D feature support or driver health"
+} elseif ($Engine -eq 'ccs03') {
+  Result 'WARN' 'OS' "$($os.Caption) (build $build) - CCS03 documents a D3D12 Agility SDK runtime on Windows 10" `
+    'Check the exact source/build instructions. Missing SDK files are one possible pipeline failure, not proof of the cause.'
 } else {
-  Result 'WARN' 'OS' "$($os.Caption) (build $build) - Windows 10 refuses the title's SM 6.6 descriptor heaps" `
-    "Agility SDK 1.614: put D3D12Core.dll + d3d12SDKLayers.dll in a 'D3D12' folder BESIDE victory.exe (CCS03 PR 7). Without it: no pipeline can be made and the screen stays black."
+  Result 'INFO' 'OS' "$($os.Caption) (build $build) - D3D12 SDK requirements are fork-specific for '$Engine'"
 }
 
 # --- CPU ----------------------------------------------------------------
@@ -41,16 +44,10 @@ try { $avx2 = [System.Runtime.Intrinsics.X86.Avx2]::IsSupported } catch { }
 if ($avx2 -eq $true) {
   Result 'PASS' 'CPU' "$($cpu.Name) - AVX2 present"
 } elseif ($avx2 -eq $false) {
-  Result 'FAIL' 'CPU' "$($cpu.Name) - AVX2 NOT supported" 'The harness requires AVX2. This CPU cannot run it.'
+  Result 'WARN' 'CPU' "$($cpu.Name) - this runtime reports AVX2 unavailable" 'Check the selected fork''s documented CPU requirement. This advisory does not establish a rendering failure.'
 } else {
-  # PowerShell 5.1 cannot query AVX2 - verify by the CPU model instead.
-  # Every Intel Core i3/i5/i7/i9 (4th gen+) and every AMD Ryzen has AVX2.
   $name = $cpu.Name
-  if ($name -match 'Core i[3579]' -or $name -match 'Ryzen') {
-    Result 'PASS' 'CPU' "$name - AVX2 verified by CPU model"
-  } else {
-    Result 'WARN' 'CPU' "$name - AVX2 could not be verified automatically" 'The harness needs AVX2. Ask the AI helper if unsure.'
-  }
+  Result 'INFO' 'CPU' "$name - this PowerShell/.NET runtime could not query AVX2 support" 'Check the selected fork''s documented CPU requirement; a model-name heuristic is intentionally not treated as proof.'
 }
 
 # --- GPU ----------------------------------------------------------------
@@ -60,13 +57,13 @@ try {
   if ($smi) {
     $gpuFound = $true
     $line = ($smi | Select-Object -First 1)
-    Result 'PASS' 'GPU (NVIDIA)' $line "The launcher shows the adapter in the log; if it ever shows Intel, force: NVIDIA Control Panel -> victory.exe -> High-performance processor; or set VICTORY_D3D12_ADAPTER."
+    Result 'INFO' 'NVIDIA device' $line 'nvidia-smi sees a device; this does not prove that the game selected it. Confirm the adapter name in the run log.'
   }
 } catch { }
 if (-not $gpuFound) {
   $gpus = Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name
-  Result 'WARN' 'GPU' ("nvidia-smi not found; adapters: " + ($gpus -join ', ')) `
-    'Install the NVIDIA Game Ready driver. The harness auto-picks the discrete GPU but always verify the adapter line in the run log.'
+  Result 'INFO' 'GPU adapters' ($gpus -join ', ') `
+    'nvidia-smi is unavailable; this is normal on AMD/Intel. The adapter actually used must be confirmed in the selected fork''s run log.'
 }
 
 # --- RAM + commit -------------------------------------------------------
@@ -74,28 +71,22 @@ $cs = Get-CimInstance Win32_ComputerSystem
 $ramGB = [math]::Round($cs.TotalPhysicalMemory / 1GB, 1)
 $os2 = Get-CimInstance Win32_OperatingSystem
 $freeGB = [math]::Round($os2.FreePhysicalMemory / 1MB, 1)
-if ($ramGB -ge 32) { Result 'PASS' 'RAM' "$ramGB GB installed, $freeGB GB free" }
-elseif ($ramGB -ge 15) {
-  # 15.7 GB on a "16 GB" laptop is NORMAL - the iGPU reserves the difference. Not a failure.
-  Result 'WARN' 'RAM' "$ramGB GB installed (a normal 16 GB laptop), $freeGB GB free - builds commit 22-46 GB" `
-    'It will run; expect paging frame spikes. 32/64 GB SODIMMs are the single biggest real-fps upgrade. Close browsers before launch, and raise the pagefile (below).'
-} else {
-  Result 'FAIL' 'RAM' "$ramGB GB installed" '16 GB minimum (15.x shown is fine); 8 GB is not enough for this game.'
-}
+$ramStatus = if ($ramGB -lt 16) { 'WARN' } else { 'INFO' }
+Result $ramStatus 'RAM' "$ramGB GB visible, $freeGB GB currently free" 'Memory demand varies sharply by fork, scene, and settings; compare commit usage and the selected fork''s stated requirements. This is not a universal pass/fail threshold.'
 
-# --- pagefile -----------------------------------------------------------
+# --- commit/pagefile clues ----------------------------------------------
 $pf = Get-CimInstance Win32_PageFileUsage
 if ($pf) {
   $pfGB = [math]::Round(($pf | Measure-Object -Property AllocatedBaseSize -Sum).Sum / 1024, 1)
-  if ($pfGB -ge $MinPagefileGB) {
-    Result 'PASS' 'Pagefile' "$pfGB GB allocated"
+  if ($pfGB -lt $MinPagefileGB) {
+    Result 'INFO' 'Pagefile' "$pfGB GB currently allocated (below the optional $MinPagefileGB GB reference target)" `
+      'This value is not the commit limit and does not prove exhaustion. Check Task Manager > Performance > Memory > Committed and run logs for actual OOM/commit errors.'
   } else {
-    Result 'WARN' 'Pagefile' "$pfGB GB allocated (want >= $MinPagefileGB GB)" `
-      "Set a FIXED $MinPagefileGB-64 GB pagefile on the fastest NVMe (SystemPropertiesAdvanced -> Performance -> Advanced). Error 1455 / commit exhaustion otherwise."
+    Result 'INFO' 'Pagefile' "$pfGB GB currently allocated; this is not the configured maximum or proof of available commit headroom"
   }
 } else {
-  Result 'WARN' 'Pagefile' 'No pagefile found (system-managed?)' `
-    "Set a FIXED $MinPagefileGB-64 GB pagefile on the fastest NVMe."
+  Result 'INFO' 'Pagefile' 'Win32_PageFileUsage reported no allocated pagefile; a system-managed pagefile may still be configured' `
+    'Check Windows virtual-memory settings and Task Manager committed-memory headroom; this check does not prove why the game is black.'
 }
 
 # --- disk ---------------------------------------------------------------
@@ -104,10 +95,10 @@ $small = $disks | Where-Object { [math]::Round($_.FreeSpace / 1GB, 1) -lt $MinDi
 if ($small) {
   foreach ($d in $small) {
     Result 'WARN' "Disk $($d.DeviceID)" ("{0} GB free" -f [math]::Round($d.FreeSpace / 1GB, 1)) `
-      "The shader/pipeline cache alone rewrites ~5 GB. Free at least $MinDiskGB GB."
+      "Below this tool's $MinDiskGB GB conservative free-space buffer. Actual build/cache needs depend on the selected fork; this is not evidence for a black frame."
   }
 } else {
-  Result 'PASS' 'Disk' "All fixed disks have >= $MinDiskGB GB free (cache + pagefile headroom)"
+  Result 'INFO' 'Disk' "All fixed disks have at least $MinDiskGB GB free (the tool's conservative buffer)"
 }
 
 # --- HDR ----------------------------------------------------------------
@@ -116,21 +107,23 @@ try {
   $hdr = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\VideoSettings' -Name EnableHDRForPlayback -ErrorAction Stop
 } catch { }
 if ($hdr -and $hdr.EnableHDRForPlayback -ne 0) {
-  Result 'WARN' 'HDR' 'Windows HDR appears enabled' 'Turn HDR OFF (Settings -> Display). HDR swapchains fail or run out of memory in these layers; some go silently "headless" (no window) on swapchain failure.'
+  Result 'INFO' 'HDR registry hint' 'A registry value is set; this does not reliably verify active Windows HDR state' 'If the failure began after a display-mode change, compare the same scene with HDR toggled in Windows Display Settings, one change at a time.'
 } else {
-  Result 'PASS' 'HDR' 'HDR off or not detectable'
+  Result 'INFO' 'HDR registry hint' 'HDR appears off or could not be detected; this script cannot reliably verify the active state'
 }
 
 # --- harness binary -----------------------------------------------------
 if ($VictoryExe) {
   if (Test-Path $VictoryExe) {
     Result 'PASS' 'Harness' $VictoryExe
-    $d3d12 = Join-Path (Split-Path $VictoryExe) 'D3D12\D3D12Core.dll'
-    if ($build -lt 22000 -and -not (Test-Path $d3d12)) {
-      Result 'FAIL' 'Agility SDK' "Missing: $d3d12" 'Windows 10 needs it. See the OS entry above.'
+    $d3d12Dir = Join-Path (Split-Path $VictoryExe) 'D3D12'
+    $d3d12 = Join-Path $d3d12Dir 'D3D12Core.dll'
+    $layers = Join-Path $d3d12Dir 'd3d12SDKLayers.dll'
+    if ($build -lt 22000 -and $Engine -eq 'ccs03' -and ((-not (Test-Path $d3d12)) -or (-not (Test-Path $layers)))) {
+      Result 'WARN' 'Agility SDK' "One or both CCS03-documented files are missing: $d3d12 and $layers" 'Confirm the exact CCS03 build instructions and that the versions match. This is one possible failure, not a universal black-screen diagnosis.'
     }
   } else {
-    Result 'FAIL' 'Harness' "Not found: $VictoryExe" 'Build it: cargo build --release -p victory (branch ccs03).'
+    Result 'FAIL' 'Harness' "Not found: $VictoryExe" "Verify the selected '$Engine' installation and the configured executable path."
   }
 }
 
@@ -139,6 +132,6 @@ if ($script:fail -gt 0) {
   Write-Host "PREFLIGHT: $script:fail FAIL item(s) - fix them before launching." -ForegroundColor Red
   exit 1
 } else {
-  Write-Host 'PREFLIGHT: all critical checks passed. Launch with play.ps1.' -ForegroundColor Green
+  Write-Host 'PREFLIGHT: no critical failure was detected by these limited checks; confirm the selected fork''s requirements.' -ForegroundColor Green
   exit 0
 }

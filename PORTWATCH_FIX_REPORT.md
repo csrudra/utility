@@ -5,16 +5,20 @@
 **User priority:** NVIDIA first, AMD checked too.  
 **Main deliverables:** this report, [`PORTWATCH_FIX_MATRIX.csv`](PORTWATCH_FIX_MATRIX.csv), and the durable research bundle in [`portwatch-analysis/`](portwatch-analysis/README.md).
 
+> **Scope correction (2026-11-27):** this report contains historical statements about the workspace that were inaccurate for the current checkout. The repository has a Windows harness and research artifacts, but still has no game renderer/runtime source. See [`harness/LIGHTING_AND_BLACKSCREEN_REVIEW.md`](harness/LIGHTING_AND_BLACKSCREEN_REVIEW.md) for a current code review and live upstream check.
+>
+> **Evidence warning:** FPS, RAM, VRAM, and stability results below are predominantly author-reported and come from non-matched forks, machines, scenes, and dates. They were not independently reproduced in this review. Treat the inventory as a historical research index, not a performance forecast, hardware recommendation, current ranking, or copy-paste configuration. Any imperative recommendation preserved in later sections is not validated for a particular machine and must be checked against the exact source and tested before use.
+
 ---
 
 ## 0. Bottom line
 
-1. **Best public NVIDIA code result I found:** [`lucas-TagDev/VKarameloVI`](https://github.com/lucas-TagDev/VKarameloVI) `main`, about **20–22 fps** in the prologue on an RTX 5070 12 GB, **no device losses in its measured runs**. Its gains come from Series S + 0.5 render scale + the title's own upscaler, no stale BVH walks, GPU-side memory compares, a larger NVIDIA-safe descriptor pool, 1080p/interface composition, prewarmed shaders and a curated switch set. It is a Windows/Rust/D3D12 compatibility-layer fork, not a generic engine patch.
-2. **Best low-VRAM/low-RAM NVIDIA work:** [`Beaver6513/ztrx-lowvram`](https://github.com/Beaver6513/ztrx-lowvram) for a GTX 1650 4 GB / Windows 10; [`Dolberthi/neptune-dolberth-nvidia-8gb`](https://github.com/Dolberthi/neptune-dolberth-nvidia-8gb), [`Linox-IDK/LNX-victory`](https://github.com/Linox-IDK/LNX-victory), [`JozefDeTremmerie/CCS03`](https://github.com/JozefDeTremmerie/CCS03/tree/ccs03), and [`GiovannaSGuerrera/Victory-RTX2080`](https://github.com/GiovannaSGuerrera/Victory-RTX2080) for 8 GB cards. The practical low-VRAM levers are truthful display mode, dropped top mips, texture dimension/budget caps, bounded staging/list/snapshot pools, VRAM eviction, and leaving room for render targets.
-3. **Best isolated NVIDIA performance measurements:** [`Pavl3000/victory-speed`](https://github.com/Pavl3000/victory-speed) (5.1 → 8–10 fps on RTX 3080 Ti by fixing indirect-stream, copy-back and reupload costs), [`Ryanabcraft/scarlett-victory-bench`](https://github.com/Ryanabcraft/scarlett-victory-bench/blob/main/PERFORMANCE.md) (async relay fetch + worker sizing on RTX 3050), [`fxceless/victory-fork`](https://github.com/fxceless/victory-fork) (many per-switch measurements on RTX 4070), and [`LowBacon/HybridGt`](https://github.com/LowBacon/HybridGt/blob/main/docs/PERFORMANCE_OPTIMIZATION.md) (GPU buffer/fill/merge patches on RTX 4070 Ti).
-4. **Crash fixes with the strongest evidence:** upload-before-show (`VICTORY_SHOW_AFTER=1`), shader-written ocean/height texture readback (`VICTORY_TEXTURE_BACK=1`), deferring descriptor unmake until GPU idle (`flush_idle_heaps()`), NVIDIA 1,000,000-view heap caps/null views, 64 KiB constant-buffer view caps, depth/PSO state validation, integer-target blend bypass, wave64-on-wave32 correctness, DRED/name breadcrumbs, and permanent-blacklist removal. There is still an **unresolved 0x887A0005 device removal** in some long `fxceless/victory-fork` sessions; do not call it fixed.
-5. **AMD matters:** [`avatarmanz/VIctory-7900XTX`](https://github.com/avatarmanz/VIctory-7900XTX) `main` has the deepest frame-time work (280 → 46–65 ms on RX 7900 XTX, but 40–46 GB RAM), [`Belobug/VIctory-Belobug-AMD`](https://github.com/Belobug/VIctory-Belobug-AMD/tree/main) is the real RX 9070 XT work (5–8 fps, ~22 GB RAM, >16 GB VRAM warnings), [`DexNom/VIctory`](https://github.com/DexNom/VIctory) has dirty-range/VRAM/streaming work, and [`xcl-dev/xcl`](https://github.com/xcl-dev/xcl/tree/amd-dev) has persistent pools, async uploads and lock-free lookups. AMD-specific helper-lane/quad fixes must be verified on NVIDIA rather than assumed portable.
-6. **The current workspace repo is not this project.** Its `README.md` describes an Android daily-utility repo of HTML pages and scripts. I honored “ignore everything in this repo”: no source logic from it was used. Most PortWatch fixes are Windows PE-loader / Xbox HLE / RDNA2→DXIL / D3D12 internals and are **not directly portable** to an Android/HTML/scripts repo. The transferable patterns are in §8. If you meant a separate GTA VI port codebase, point me at it before asking me to apply code.
+1. **Largest public NVIDIA FPS report found in this survey:** [`lucas-TagDev/VKarameloVI`](https://github.com/lucas-TagDev/VKarameloVI) `main` reports about **20–22 fps** in the prologue on one RTX 5070 12 GB system, with no device losses in the reported runs. Its source combines Series S + 0.5 render scale + the title's own upscaler, no stale BVH walks, GPU-side memory compares, a larger NVIDIA-safe descriptor pool, 1080p/interface composition, prewarmed shaders, and a curated switch set. This is one fork's report, not a generic patch or prediction for other hardware.
+2. **Low-VRAM-related source examples:** [`Beaver6513/ztrx-lowvram`](https://github.com/Beaver6513/ztrx-lowvram) reports work for a GTX 1650 4 GB / Windows 10; [`Dolberthi/neptune-dolberth-nvidia-8gb`](https://github.com/Dolberthi/neptune-dolberth-nvidia-8gb), [`Linox-IDK/LNX-victory`](https://github.com/Linox-IDK/LNX-victory), [`JozefDeTremmerie/CCS03`](https://github.com/JozefDeTremmerie/CCS03/tree/ccs03), and [`GiovannaSGuerrera/Victory-RTX2080`](https://github.com/GiovannaSGuerrera/Victory-RTX2080) include 8 GB-oriented work. Their approaches include display/texture budgets, bounded pools, eviction, and render-target allocation; this is not a validated configuration for a different GPU.
+3. **Examples of isolated NVIDIA performance reports:** [`Pavl3000/victory-speed`](https://github.com/Pavl3000/victory-speed) (5.1 → 8–10 fps reported on RTX 3080 Ti), [`Ryanabcraft/scarlett-victory-bench`](https://github.com/Ryanabcraft/scarlett-victory-bench/blob/main/PERFORMANCE.md) (async relay fetch + worker sizing on RTX 3050), [`fxceless/victory-fork`](https://github.com/fxceless/victory-fork) (per-switch results reported on RTX 4070), and [`LowBacon/HybridGt`](https://github.com/LowBacon/HybridGt/blob/main/docs/PERFORMANCE_OPTIMIZATION.md) (GPU buffer/fill/merge work reported on RTX 4070 Ti).
+4. **Source-reported crash-handling work:** upload-before-show (`VICTORY_SHOW_AFTER=1`), shader-written ocean/height texture readback (`VICTORY_TEXTURE_BACK=1`), deferring descriptor unmake until GPU idle (`flush_idle_heaps()`), NVIDIA view/constant-buffer limits, depth/PSO validation, integer-target blend bypass, wave64-on-wave32 correctness, DRED/name breadcrumbs, and blacklist expiry. These are fork-specific changes, not universal fixes. Some long `fxceless/victory-fork` sessions still report unresolved **0x887A0005 device removal**.
+5. **AMD source examples:** [`avatarmanz/VIctory-7900XTX`](https://github.com/avatarmanz/VIctory-7900XTX) `main` reports frame-time work on RX 7900 XTX alongside 40–46 GB RAM use; [`Belobug/VIctory-Belobug-AMD`](https://github.com/Belobug/VIctory-Belobug-AMD/tree/main) reports RX 9070 XT results with high memory use; [`DexNom/VIctory`](https://github.com/DexNom/VIctory) documents dirty-range/VRAM/streaming work; [`xcl-dev/xcl`](https://github.com/xcl-dev/xcl/tree/amd-dev) documents persistent pools, async uploads and lock-free lookups. Vendor-specific changes must not be assumed portable.
+6. **Workspace scope:** this checkout contains a PowerShell launcher (`harness/`) plus the research bundle, not the VIctory renderer itself. The original root README was stale (it described an Android utility project) and has since been corrected. PortWatch fixes that change shader translation, D3D12, or Xbox HLE internals require changes in an actual VIctory-family source tree; they are not implemented by this harness. General engineering patterns are summarized in §8.
 7. **Private builds are claims, not fixes.** CGBJ, darkworldhm, NotNozy, Doomsday and suri have no public code in the tracker. Their FPS/RAM numbers are evidence that something is possible, not something to copy.
 8. **Licensing is a hard gate.** Most VIctory forks declare GPL-3.0-or-later. XCL declares **GPL-2.0-only** in its README/badge. The knowledge repo identifies two AvatarManz loader files as verbatim XCL GPL-2.0-only code inside a GPL-3.0 tree. Do not combine code across those families without legal review or clean-room reimplementation.
 
@@ -65,9 +69,11 @@ The dynamic “overall percentage” on PortWatch differed between two fetches (
 
 ---
 
-## 2. NVIDIA-first adoption plan
+## 2. NVIDIA-first source survey — not a deployment plan
 
-### 2.1 Choose a base deliberately
+The comparisons and example bundles below preserve what public repositories reported at the audit date. They were not built or benchmarked by this review, are not validated for this checkout or a 6 GB / 16 GB laptop, and should not be applied as a combined configuration. Check each exact source commit and test changes individually in the renderer project.
+
+### 2.1 Public source-tree comparisons
 
 If this is for a Windows/GDK compatibility layer, do **not** blindly merge every fork. The comparative knowledge plan recommends:
 
@@ -77,11 +83,11 @@ If this is for a Windows/GDK compatibility layer, do **not** blindly merge every
 - **Not** AvatarManz as a base, because two `console_insn*.rs` loader files are identified as verbatim XCL GPL-2.0-only code.
 - XCL (`main`, `nvidia-dev`, `amd-dev`) as a separate GPL-2.0-only design/reference stack, not a direct code donor into GPL-3.0 forks.
 
-For a user who wants the best already-integrated NVIDIA tree, the most practical public starting point is `lucas-TagDev/VKarameloVI` `main` plus its `scripts/play-nvidia.ps1`; for a clean, switch-by-switch performance study, start with `Pavl3000/victory-speed` and `Ryanabcraft/scarlett-victory-bench`. For 8 GB cards, compare `CCS03/ccs03`, `Dolberthi`, `Linox`, and `Beaver` on the same scene and driver.
+The earlier report ranked `lucas-TagDev/VKarameloVI` `main` as an integrated NVIDIA example and named `Pavl3000/victory-speed`, `Ryanabcraft/scarlett-victory-bench`, `CCS03`, `Dolberthi`, `Linox`, and `Beaver` as source comparisons. This is not a recommendation to use any of them; reported results are not matched to one another or to the user's hardware.
 
-### 2.2 Highest-value NVIDIA switch bundle (12 GB-class card)
+### 2.2 Example NVIDIA launcher settings reported by one source
 
-The VKarameloVI launcher sets the most complete measured NVIDIA bundle. Do not paste it into a different fork without checking that each switch exists; use its launcher on that tree.
+The following settings were observed in the VKarameloVI launcher at the survey date. They are not a validated bundle for this checkout or another fork; consult the exact commit and do not infer that every switch is supported elsewhere.
 
 ```powershell
 # lucas-TagDev/VKarameloVI scripts/play-nvidia.ps1, abbreviated
@@ -105,7 +111,7 @@ victory shaders <archives>      # first run / after shader-emitter change
 victory warm --used             # before benchmarking a new driver/build
 ```
 
-Why this order works:
+The source's reported rationale/results (not independently reproduced here):
 
 1. **Lower pixels and VRAM first.** Truthful `VICTORY_DISPLAY_MODE=1920x1080` or `--console series-s` stops the title from building 4K-class targets for a 1080p window. `VICTORY_RENDER_SCALE=0.5` quarters world pixels; `VICTORY_OWN_UPSCALER=1` avoids untranslated FSR/FSR4 compute paths; `VICTORY_COMPOSE=1` keeps the 4K UI plane visible.
 2. **Remove the stale-BVH hang/loss.** `VICTORY_BVH_MISS=1` makes every stale box/triangle test miss and saves about 10 ms/frame, at the cost of bounced indirect light. It must be part of the shader cache key.
@@ -114,9 +120,9 @@ Why this order works:
 5. **Prewarm and wait.** `victory shaders`, `victory warm --used`, `VICTORY_PIPELINE_WAIT_MS=10000` and driver-blob caches remove dropped draws and first-use hitches. A cold cache can otherwise produce 10–12 s frames while ~5 GB of shader cache is rewritten.
 6. **Keep cheap diagnostics on.** `VICTORY_D3D12_DRED=light`/`faults` and named resources give breadcrumbs without the ~50 ms/frame cost of full DRED.
 
-### 2.3 8 GB / low-RAM profile
+### 2.3 8 GB / low-RAM source reports (not a profile for other machines)
 
-Choose one profile, then change one switch at a time:
+The table records configurations/results reported for their listed hardware; it is not a profile recommendation for other machines:
 
 | Situation | Public tree | Core switches | Evidence / tradeoff |
 |---|---|---|---|
@@ -126,16 +132,16 @@ Choose one profile, then change one switch at a time:
 | RTX 4060 Laptop 8 GB | `JozefDeTremmerie/CCS03` `ccs03` | `VICTORY_DISPLAY_MODE=1920x1080`, `VICTORY_TEXTURE_DROP_MIPS=1`, `VICTORY_TEXTURE_ROOM_PERCENT=86`, `VICTORY_CARD_BUFFERS_MB=768`, `VICTORY_CARD_ROOM_FOR_TARGETS_MB=1024`, `VICTORY_TEXTURE_STAGE_MS=25`, `_MB=48`, `VICTORY_TEXTURE_CATCHUP=0`, `VICTORY_WIDE_REFRESH=1` | 3–7.8 fps, 2.5–31 min no crash; wide refresh cut copies 60–210 → 38–95 ms. Lower detail/late textures possible. |
 | RTX 2080 8 GB checkpoint | `GiovannaSGuerrera/Victory-RTX2080` `main` | 1280x720, mip drop, small-pipeline-first, copy queue, safe async submit | Recoverable playable checkpoint but 0.3–2.5 fps, crashes and black surfaces; mostly useful as an 8 GB reference. |
 
-General low-memory rules from all forks:
+Patterns reported in selected forks (context-specific, not universal rules):
 
-- Keep **render-target room** separate from texture and card-buffer budgets; a texture budget that is too high starves targets and causes black/late surfaces.
-- Keep **valid resident mips until replacement**; do not evict a live mip to zero before its replacement upload has run.
-- Use **bounded pools** for snapshots, command lists, staging and upload buffers; trim on commit pressure.
-- Coalesce dirty ranges and writebacks; avoid whole-page/whole-buffer compares when a 4 KiB or 32-byte mask will do.
-- Avoid unnecessary GPU→CPU readback, but do read back resources the title's CPU genuinely samples (ocean height/displacement maps).
-- Increase the Windows pagefile if logs show error 1455 / commit exhaustion; several “low RAM” builds still need tens of GB of commit.
+- Several sources separate **render-target room** from texture and card-buffer budgets; their black/late-surface reports are build-specific and do not establish a cause in another renderer.
+- Some streaming paths preserve a **valid resident mip until replacement** so a live resource is not evicted before its replacement upload runs.
+- Several forks use **bounded pools** for snapshots, command lists, staging and upload buffers, with trimming under measured commit pressure.
+- Some patches coalesce dirty ranges/writebacks and avoid whole-page or whole-buffer compares when a smaller mask suffices.
+- Source work also distinguishes unnecessary GPU→CPU readback from resources the title's CPU genuinely samples (such as ocean height/displacement maps).
+- An error 1455 / commit-exhaustion message is evidence to investigate current system commit and the selected build's documented requirements; this survey does not imply a fixed pagefile size.
 
-### 2.4 NVIDIA measured fixes
+### 2.4 NVIDIA source-reported changes and results
 
 | Goal | Fix | Public source | Measured evidence | Main risk |
 |---|---|---|---|---|
@@ -158,7 +164,7 @@ General low-memory rules from all forks:
 
 ## 3. AMD-inclusive findings
 
-### 3.1 AvatarManz — RX 7900 XTX, fastest deep frame-time work
+### 3.1 AvatarManz — RX 7900 XTX, source-reported frame-time work
 
 [`avatarmanz/VIctory-7900XTX`](https://github.com/avatarmanz/VIctory-7900XTX) `main` and [`docs/findings.md`](https://github.com/avatarmanz/VIctory-7900XTX/blob/main/docs/findings.md) report i9-12900K / 64 GB / RX 7900 XTX / 1440p / Series X:
 
@@ -293,9 +299,9 @@ Public race claims from the fetched site also included AvatarManz 83.1% / AMD 16
 
 ---
 
-## 8. What can improve your current project (transferable patterns)
+## 8. General engineering patterns (not PortWatch switches)
 
-These are portable to an Android/HTML/scripts utility project; the `VICTORY_*` / `XCL_*` switches are not.
+These are broad software-engineering ideas, not tested remedies for a black screen or performance issue in this repo. The `VICTORY_*` / `XCL_*` switches and game-specific patches are not portable to this launcher without the corresponding renderer/runtime source.
 
 1. **Cache with an identity, not a filename.** Generate cache keys from source/toolchain/config hashes and runtime feature flags; include vendor/driver/adapter when output depends on them. Prewarm expensive work offline. Invalidate stale entries automatically.
 2. **Persistent bounded worker pools.** Replace spawn-per-task with reusable workers, priority bands and bounded queues. Keep slow/heavy jobs on a separate lane so they cannot starve ordinary work.
@@ -310,7 +316,7 @@ These are portable to an Android/HTML/scripts utility project; the `VICTORY_*` /
 11. **One change, one measurement.** Pin scene/input/cache/driver, change one switch, measure the same counter, and keep negative results. This discipline produced the trustworthy gains in Ryanabcraft, Pavl3000, LowBacon and fxceless.
 12. **License/provenance isolation.** Keep GPL-2.0-only, GPL-3.0, MIT/Apache and generated assets in separate scopes with notices; do not “fix” a license conflict by copy-paste.
 
-If you want me to apply these to `csrudra/utility`, I need to know which HTML page/script is the target and what performance/crash/memory symptom you see. If you meant a separate Windows GTA VI port repository, share that repo/path and I can implement a specific subset behind feature flags.
+Renderer-level fixes must be developed and tested in the separate VIctory-family source tree. This checkout has no renderer to patch; a source-level request needs the exact repository/commit, matched symptom, and test setup.
 
 ---
 
@@ -330,7 +336,7 @@ GitHub SPDX metadata is abbreviated; verify each `LICENSE`/`NOTICE.md` before re
 | `Linox-IDK/LNX-victory` | `main` | GPL-3.0-or-later | RTX 5060 Ti 8 GB, mip skip, warm cache |
 | `JozefDeTremmerie/CCS03` | `ccs03`; `perf/next` | GPL-3.0-or-later | RTX 4060 Laptop 8 GB, integrated reviewed PRs |
 | `Dolberthi/neptune-dolberth-nvidia-8gb` | `main` | GPL-3.0-or-later | NVIDIA 8 GB / 16 GB RAM, worker pool, VRAM caps |
-| `lucas-TagDev/VKarameloVI` | `main` | GPL-3.0-or-later | Best integrated NVIDIA 20–22 fps tree |
+| `lucas-TagDev/VKarameloVI` | `main` | GPL-3.0-or-later | Source-reported NVIDIA 20–22 fps example |
 | `zsy-miao/victory-perf` | `main` | GPL-3.0-or-later | RTX 4070 SUPER, coalesced compare, stand-ins |
 | `Beaver6513/ztrx-lowvram` | `main` | GPL-3.0-or-later | GTX 1650 4 GB / Windows 10 |
 | `LowBacon/HybridGt` | `main` | GPL-3.0-or-later | RTX 4070 Ti patch/log set |
@@ -354,10 +360,10 @@ Full 546-row coverage with parent, archived/fork status, branches, GPU hints and
 
 ## 10. Limits and next step
 
-- I did **not** modify application code, commit, push, or open a PR. Only report/artifact files were added.
-- I did **not** build or run the compatibility layers on your NVIDIA hardware; all FPS/RAM/crash numbers are author-reported from READMEs, docs, commit histories and diagnostic logs.
+- **Historical at the report timestamp (2026-11-26):** no application code was modified, committed, pushed, or submitted as a PR by that audit. This later branch has separate harness/documentation edits; this report's repository survey itself remains a research snapshot.
+- I did **not** build or run the compatibility layers on your NVIDIA hardware; all FPS/RAM/crash numbers in this report are author-reported from READMEs, docs, commit histories and diagnostic logs.
 - I did **not** treat private builds, README-only forks with “no results beyond upstream”, DMCA casualties, spam/copies or fake installers as actionable fixes.
 - I did **not** include game files, keys, executables or bypass instructions. PortWatch itself says it hosts no game files and warns about malware installers.
 - Fork histories are heavily diverged; only DexNom is described as a linear descendant of upstream. File-level grafts need tests; commit-message claims are not proof.
 - The Belobug default branch/README mismatch and the XCL license ambiguity are explicitly documented above; verify branch `?ref=` content and legal notices before using code.
-- **Next step:** tell me whether “my project” means this Android/HTML utility repo or a separate Windows GTA VI port project. If the latter, share the repo/path and your GPU VRAM/RAM; I can turn the NVIDIA-first matrix into a concrete, feature-flagged implementation plan or patch.
+- **Next step for a specific black/dark frame:** share a same-scene screenshot, the matching harness `run-*.log`, `run-*.err.log`, and `settings-*.txt`, plus GPU/VRAM, RAM, OS build, and selected engine/commit. The current differential diagnosis is in [`harness/LIGHTING_AND_BLACKSCREEN_REVIEW.md`](harness/LIGHTING_AND_BLACKSCREEN_REVIEW.md). A shader/render-path fix must be made in the separate VIctory-family source tree, not in this launcher-only checkout.

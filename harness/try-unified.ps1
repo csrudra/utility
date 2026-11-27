@@ -1,16 +1,19 @@
-# TRY-UNIFIED - one-click switcher to victory-unified (Itsbatt/victory-unified):
-# a VIctory-family fork tuned for NVIDIA RTX 3070-class cards that fixes
-# BLACK CHARACTERS / dark faces (character bake/skin/hair texture rechecks,
-# VICTORY_HEAP_RECHECK) and tunes indirect light so character clothes keep
-# readable color (VICTORY_AMBIENT=1.25). Community build - unverified beyond
-# its own README (58-minute stable runs, ~2-3 fps open world).
+# TRY-UNIFIED - one-click switcher to victory-unified (Itsbatt/victory-unified).
+# This is an experimental fork with character texture rechecks and a lighting
+# stand-in, not a guaranteed fix for black faces or a full ray-tracing solution.
+# As of 2026-11-27, its README describes VICTORY_AMBIENT=1.25 while its current
+# scripts/play.ps1 sets 0.8; the current ray-tracing note says ambient is off
+# while the BVH builder runs. This launcher defaults to 0.8; its ambient menu is
+# CCS03-only. Its RTX 3070 test reports roughly 20 GB commit and about
+# 2-3 world fps; a 16 GB / 6 GB laptop is outside those measured conditions.
 #
 #   TRY-UNIFIED.cmd               install/switch to victory-unified
 #   TRY-UNIFIED.cmd -Restore      switch back to your previous engine
 #
-# Never rebuilds finished work; never destroys your setup (config.json.backup).
-# Your game, saves and logs are untouched. Note: this fork wants the Series X
-# profile and commits ~20 GB of RAM - keep your 48-64 GB pagefile ON.
+# Reuses an existing executable by path alone; source/build provenance is not checked.
+# Saves the previous config to config.json.backup. Back up saves before switching.
+# One upstream test reports about 20 GB commit; this is not a universal requirement
+# or a 16 GB system guarantee. Check actual commit headroom and OOM logs.
 
 param(
   [switch]$Restore,
@@ -88,13 +91,12 @@ Say ' SWITCHED TO VICTORY-UNIFIED (character-fix engine)' Green
 Say '=============================================================' Green
 Say 'Play as usual:  START.cmd  ->  [1] PLAY'
 Say ''
-Say 'What this engine is for: fixing BLACK CHARACTERS / dark faces in shade'
-Say '(texture rechecks + tuned indirect light). Community-reported numbers:'
-Say 'RTX 3070 8GB: ~3 fps open world, 58 minutes without a crash.'
+Say 'This is an experimental fork with texture rechecks and lighting controls; it is not a guaranteed fix for black faces or dark rooms.'
+Say 'Its reported test results are from one RTX 3070 system and are not a prediction for your PC.'
 Say ''
-Say 'Warnings for your 6 GB / 16 GB laptop:'
-Say '  - this fork commits ~20 GB RAM: KEEP the 48-64 GB pagefile ON'
-Say '  - it uses the Series X profile (the launcher handles this automatically)'
-Say '  - expect 2-4 fps; it is a community build, tested once by its author'
+Say 'Warnings for lower-memory systems:'
+Say '  - one report describes about 20 GB commit; a 16 GB system may page heavily or fail.'
+Say '  - a larger pagefile is not a substitute for RAM; inspect commit/OOM evidence before changing it.'
+Say '  - the launcher uses this fork''s Series X profile, but results still depend on the exact build/driver.'
 Say ''
 Say 'Switch back any time:   TRY-UNIFIED.cmd -Restore' Cyan
