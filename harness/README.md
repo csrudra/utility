@@ -6,10 +6,12 @@
   [1] PLAY               recommended settings + live stats (RAM / GPU / VRAM)
   [2] CHECK MY PC        is everything ready?
   [3] FIX BLACK SCREEN   automatic doctor
-  [4] CHANGE SETTINGS    game file, folders, start over
-  [5] EXPORT LOGS FOR AI makes ONE .zip to send
-  [6] OPEN LOG FOLDER
-  [7] Quit
+  [4] FIX DARK ROOMS     brighten shadowy places
+  [5] CHANGE SETTINGS    game file, folders, start over
+  [6] EXPORT LOGS FOR AI makes ONE .zip to send
+  [7] OPEN LOG FOLDER
+  [8] UPDATE FROM GITHUB get the newest fixes
+  [9] Quit
 ```
 
 ## First time (4 questions, asked once)
@@ -102,7 +104,7 @@ CCS03's `victory.exe` is the only harness with measured **laptop** runs (prison 
 
 ## Staying up to date — `pull.bat`
 
-Whenever I say "there's a fix", double-click **`pull.bat`** (in the same folder as `START.cmd`). Or use menu **[7] UPDATE FROM GITHUB** inside the launcher.
+Whenever I say "there's a fix", double-click **`pull.bat`** (in the same folder as `START.cmd`). Or use menu **[8] UPDATE FROM GITHUB** inside the launcher.
 
 - It downloads the newest files from GitHub and replaces only the program files.
 - **It never touches your stuff:** the built harness (`harness\setup`), your settings (`config.json`) and your logs (`harness\data`) are protected — updates can't destroy a 40-minute build or your AI logs.
@@ -125,6 +127,13 @@ Play the same way afterwards: `START.cmd` → `[1] PLAY` (the launcher feeds fox
 **What to expect (community reports, not measured by us):** RTX 3080 ~15 fps; i5-12600KF ~10–15 fps in the prologue; RTX 4070S-class ~30 fps. On your RTX 3060 6 GB: more fps than the default build and a sharper DLSS image, but **below 30 fps the world runs slower than real time** (the title steps its world per frame — the fork documents this honestly), and the fork wants 32 GB RAM (keep the 48–64 GB pagefile on). DLSS Super Resolution works on every RTX card; DLSS Frame Generation officially needs an RTX 40+.
 
 ## If something goes wrong
+
+### The game looks too dark (rooms are black)
+
+Three separate causes — only one needs fixing:
+1. **The first ~4 seconds of a new scene are darker** — streaming warm-up; it fixes itself.
+2. **Indirect (bounce) light is stubbed by design.** The game lights shadows with its *own ray tracing*, which runs at ~3 fps with a broken picture when forced on — every port in the scene stubs it. The harness puts a constant indirect light in its place instead. If rooms still feel dim: **`[4] FIX DARK ROOMS`** → `[1] Brighter`. (A sunset doorway will always outshine a hallway — that part is art direction, on the console too.)
+3. **foxhound users:** the NVIDIA fork's lighting estimate follows the room itself (it is generally brighter and more natural indoors). If you play on foxhound and rooms look wrong, tell the AI helper — the knobs there are `VICTORY_AMBIENT`, `VICTORY_AMBIENT_AIR`, `VICTORY_AMBIENT_SPECULAR`.
 
 | What you see | What it means | What to do |
 |---|---|---|
